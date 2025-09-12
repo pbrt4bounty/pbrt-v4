@@ -1,11 +1,12 @@
 # pbrt-v4 top-level CMakeLists.txt
 
-cmake_minimum_required (VERSION 3.12)
+cmake_minimum_required (VERSION 3.17)
 
 project (PBRT-V4 LANGUAGES CXX C)
 
 set (CMAKE_CXX_STANDARD 17)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
+set (CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 if (NOT DEFINED PBRT_SOURCE_CODE)
   set (PBRT_SOURCE_CODE ${CMAKE_SOURCE_DIR})
@@ -109,11 +110,27 @@ find_package(OpenEXR 3.1.1)
 
 if (OPENEXR_FOUND)
   message (STATUS "Found OpenEXR version ${OPENEXR_VERSION}")
+  set (OPENEXR_INCLUDE ${OPENEXR_INCLUDES}/OpenEXR ${OPENEXR_INCLUDES}/Imath)
+  
 else ()
   message (STATUS "OpenEXR not found; building it from scratch.")
+  set (BUILD_TESTING OFF CACHE BOOL " " FORCE)
+  set (OPENEXR_BUILD_TOOLS OFF CACHE BOOL " " FORCE)
+  set (OPENEXR_BUILD_EXAMPLES OFF CACHE BOOL " " FORCE)
+  
   add_subdirectory (src/ext/openexr)
   set_property (TARGET IlmThread Iex OpenEXR
                 PROPERTY FOLDER "ext/OpenEXR")
+  set (OPENEXR_INCLUDE
+    ${CMAKE_CURRENT_BINARY_DIR}/src/ext/openexr/cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/_deps/imath-build/config
+    ${CMAKE_CURRENT_BINARY_DIR}/_deps/imath-src/src/Imath
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/openexr/src/lib/Iex
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/openexr/src/lib/OpenEXR
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/openexr/src/lib/IlmThread
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/openexr/src/lib/OpenEXRUtil
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/openexr/src/lib/OpenEXRCore
+  )
 endif ()
 
 ########################################
@@ -132,7 +149,7 @@ else ()
   message (SEND_ERROR "Unknown system name: " + CMAKE_SYSTEM_NAME)
 endif()
 if (CMAKE_SYSTEM_NAME STREQUAL Darwin)
-  add_definitions(-Wno-deprecated-declarations) # silent deprecated 'snprintf' message under MacOS arm64
+  add_definitions(-Wno-deprecated-declarations -Wno-deprecated-non-prototype) # silent deprecated 'snprintf' message
 endif()
 # libgoogle-perftools-dev
 find_library (PROFILE_LIB profiler)
@@ -230,14 +247,18 @@ of CUDA installed, please update your PATH.")
                 #"$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xptxas --warn-on-double-precision-use>"
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=partial_override>"
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=virtual_function_decl_hidden>"
-                "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=integer_sign_change>"
-                "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=declared_but_not_referenced>"
+                "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=68>"  # integer_sign_change>"
+                "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=177>" # declared_but_not_referenced>"
+                "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=186>" # pointless comparison of unsigned integer with zero
+                "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=550>" # variable was set but never used
                 # WAR invalid warnings about this with "if constexpr"
+                "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=20011>" # calling a __host__ function is not allowed
+                "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=20014>" # calling a __host__ function from a __host__ __device__ function is not allowed
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=implicit_return_from_non_void_function>"
         )
 
         # Willie hears yeh..
-        string (APPEND CMAKE_CUDA_FLAGS " -Xnvlink -suppress-stack-size-warning")
+        string (APPEND CMAKE_CUDA_FLAGS " -Xnvlink -suppress-stack-size-warning -Wno-deprecated-gpu-targets")
 
         target_compile_options (
             cuda_build_configuration
@@ -868,6 +889,7 @@ target_include_directories (pbrt_lib PUBLIC
   src/ext
   ${STB_INCLUDE}
   ${QOI_INCLUDE}
+  ${OPENEXR_INCLUDE}
   ${ZLIB_INCLUDE_DIRS}
   ${LIBDEFLATE_INCLUDE_DIRS}
   ${FILESYSTEM_INCLUDE}
@@ -885,7 +907,7 @@ endif ()
 
 target_compile_options (pbrt_lib PUBLIC ${PBRT_CXX_FLAGS})
 
-target_link_libraries (pbrt_lib PRIVATE OpenEXR::OpenEXR pbrt_warnings pbrt_opt $<$<BOOL:PBRT_CUDA_ENABLED>:cuda_build_configuration>)
+target_link_libraries (pbrt_lib PRIVATE pbrt_warnings pbrt_opt $<$<BOOL:PBRT_CUDA_ENABLED>:cuda_build_configuration>)
 
 add_sanitizers (pbrt_lib)
 
@@ -1065,6 +1087,17 @@ target_link_libraries (cyhair2pbrt PRIVATE pbrt_opt pbrt_warnings)
 add_sanitizers (cyhair2pbrt)
 
 set_property (TARGET cyhair2pbrt PROPERTY FOLDER "cmd")
+
+# Only do this if both targets actually exist
+if (TARGET Ptex_static AND TARGET zlibstatic)
+  install(
+    TARGETS zlibstatic
+    EXPORT Ptex             # Same export set name as used by Ptex
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+  )
+endif()
 
 ##################
 # Unit tests
