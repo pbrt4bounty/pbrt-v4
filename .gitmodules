@@ -36,3 +36,6 @@
 	path = src/ext/glfw
 	url = https://github.com/glfw/glfw.git
 
+[submodule "src/ext/optix-dev"]
+	path = src/ext/optix-dev
+	url = https://github.com/NVIDIA/optix-dev.git
