@@ -752,15 +752,11 @@ if (PBRT_CUDA_ENABLED)
    src/pbrt/cameras.cpp
    src/pbrt/film.cpp
    src/pbrt/filters.cpp
-#   src/pbrt/genscene.cpp
    src/pbrt/interaction.cpp
    src/pbrt/lights.cpp
    src/pbrt/lightsamplers.cpp
    src/pbrt/materials.cpp
-#   src/pbrt/media.cpp
    src/pbrt/options.cpp
-#   src/pbrt/paramdict.cpp
-#   src/pbrt/parser.cpp
    src/pbrt/pbrt.cpp
    src/pbrt/samplers.cpp
    src/pbrt/shapes.cpp
@@ -771,22 +767,13 @@ if (PBRT_CUDA_ENABLED)
    src/pbrt/util/color.cpp
    src/pbrt/util/colorspace.cpp
    src/pbrt/util/error.cpp
-#   src/pbrt/util/file.cpp
-#   src/pbrt/util/float.cpp
-#   src/pbrt/util/image.cpp
    src/pbrt/util/log.cpp
-#   src/pbrt/util/loopsubdiv.cpp
    src/pbrt/util/lowdiscrepancy.cpp
    src/pbrt/util/math.cpp
-#   src/pbrt/util/memory.cpp
    src/pbrt/util/mesh.cpp
-#   src/pbrt/util/mipmap.cpp
    src/pbrt/util/noise.cpp
-#   src/pbrt/util/parallel.cpp
    src/pbrt/util/pmj02tables.cpp
    src/pbrt/util/primes.cpp
-#   src/pbrt/util/print.cpp
-#   src/pbrt/util/progressreporter.cpp
    src/pbrt/util/pstd.cpp
    src/pbrt/util/rng.cpp
    src/pbrt/util/sampling.cpp
@@ -794,8 +781,6 @@ if (PBRT_CUDA_ENABLED)
    src/pbrt/util/sobolmatrices.cpp
    src/pbrt/util/spectrum.cpp
    src/pbrt/util/stats.cpp
-#   src/pbrt/util/stbimage.cpp
-#   src/pbrt/util/string.cpp
    src/pbrt/util/transform.cpp
    src/pbrt/util/vecmath.cpp
 
