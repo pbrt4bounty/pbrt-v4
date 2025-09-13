@@ -76,6 +76,11 @@ check_ext ("qoi" "qoi" 028c75fd26e5e0758c7c711216c00404994c1ad3)
 check_ext ("stb" "stb/tools" af1a5bc352164740c1cc1354942b1c6b72eacb8a)
 check_ext ("utf8proc" "utf8proc/bench" 2484e2ed5e1d9c19edcccf392a7d9920ad90dfaf)
 check_ext ("zlib" "zlib/doc" 54d591eabf9fe0e84c725638f8d5d8d202a093fa)
+# check new modules..
+check_ext ("tbb" "tbb" 91af3aea3a2be85f889c3bb21a15c667e44564d4)
+check_ext ("openpgl" "openpgl" 436c836bed0478dfe90f62b59052e6440d39c8e3)
+check_ext ("oidn" "oidn" 7d23b193ee0cf3bc3ad03a3ac1886b34f496cc5c)
+
 add_compile_definitions ("$<$<CONFIG:DEBUG>:PBRT_DEBUG_BUILD>")
 
 enable_testing ()
