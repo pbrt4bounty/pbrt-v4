@@ -111,7 +111,7 @@ set (BUILD_SHARED_LIBS OFF)
 
 add_subdirectory (${CMAKE_CURRENT_SOURCE_DIR}/src/ext)
 
-find_package(OpenEXR 3.1.1)
+find_package(OpenEXR 3.3.1)
 
 if (OPENEXR_FOUND)
   message (STATUS "Found OpenEXR version ${OPENEXR_VERSION}")
@@ -684,6 +684,15 @@ SET (PBRT_UTIL_SOURCE
   src/pbrt/util/string.cpp
   src/pbrt/util/transform.cpp
   src/pbrt/util/vecmath.cpp
+
+  # Imgui for interactive mode
+  src/ext/imgui/imgui.cpp
+  src/ext/imgui/imgui_impl_opengl3.cpp
+  src/ext/imgui/imgui_demo.cpp
+  src/ext/imgui/imgui_draw.cpp
+  src/ext/imgui/imgui_impl_glfw.cpp
+  src/ext/imgui/imgui_widgets.cpp
+  src/ext/imgui/imgui_tables.cpp
 )
 
 SET (PBRT_UTIL_SOURCE_HEADERS
@@ -918,7 +927,8 @@ set (ALL_PBRT_LIBS
   utf8proc
   glfw
   glad
-  OpenGL::GL)
+  OpenGL::GL
+)
 
 if (PBRT_CUDA_ENABLED)
   set_property (TARGET pbrt_lib PROPERTY CUDA_SEPARABLE_COMPILATION ON)
