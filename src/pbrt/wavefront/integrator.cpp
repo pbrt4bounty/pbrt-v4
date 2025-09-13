@@ -302,7 +302,8 @@ Float WavefrontPathIntegrator::Render() {
         if (!Options->displayServer.empty())
             ErrorExit(
                 "--interactive and --display-server cannot be used at the same time.");
-        gui = new GUI(film.GetFilename(), resolution, aggregate->Bounds());
+        Float moveScale = Length(aggregate->Bounds().Diagonal()) / 1000.f;
+        gui = new GUI(film.GetFilename(), resolution, moveScale);
     }
 
     Timer timer;
@@ -456,8 +457,8 @@ Float WavefrontPathIntegrator::Render() {
                 std::fflush(stdout);
                 gui->printCameraTransform = false;
             }
-
-            DisplayState state = gui->RefreshDisplay();
+            int percentage = std::min(sampleIndex, samplesPerPixel);
+            DisplayState state = gui->RefreshDisplay(percentage, samplesPerPixel);
             if (state == DisplayState::EXIT)
                 break;
             else if (state == DisplayState::RESET) {
@@ -481,7 +482,7 @@ Float WavefrontPathIntegrator::Render() {
     progress.Done();
 
 #ifdef PBRT_BUILD_GPU_RENDERER
-    if (Options->useGPU)
+    if (Options->useGPU && !gui)
         GPUWait();
 #endif  // PBRT_BUILD_GPU_RENDERER
     Float seconds = timer.ElapsedSeconds();

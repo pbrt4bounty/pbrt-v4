@@ -26,7 +26,7 @@ enum DisplayState { EXIT, RESET, NONE };
 
 class GUI {
   public:
-    GUI(std::string title, Vector2i resolution, Bounds3f sceneBounds);
+    GUI(std::string title, Vector2i resolution, Float moveScale);
     ~GUI();
 
     RGB *MapFramebuffer() {
@@ -44,7 +44,7 @@ class GUI {
 #endif  // PBRT_BUILD_GPU_RENDERER
     }
 
-    DisplayState RefreshDisplay();
+    DisplayState RefreshDisplay(int currentSample, int totalSamples);
 
     // It's a little messy that the state of values controlled via the UI
     // are just public variables here but it's probably not worth putting

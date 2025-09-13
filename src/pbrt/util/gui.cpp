@@ -11,6 +11,9 @@
 #include <pbrt/util/error.h>
 #include <pbrt/util/image.h>
 #include <pbrt/util/parallel.h>
+#include "../../ext/imgui/imgui.h"
+#include "../../ext/imgui/imgui_impl_glfw.h"
+#include "../../ext/imgui/imgui_impl_opengl3.h"
 
 #define GL_CHECK(call)                                                   \
     do {                                                                 \
@@ -89,7 +92,7 @@ void GUI::keyboardCallback(GLFWwindow *window, int key, int scan, int action, in
 
 bool GUI::processMouse() {
     bool needsReset = false;
-    double amount = 1.f;
+    double amount = 0.5f;
     if (!pressed)
         return false;
     if (xoffset < 0) {
@@ -185,11 +188,12 @@ static void glfwKeyCallback(GLFWwindow* window, int key, int scan, int action, i
 }
 
 void GUI::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+    if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS) {
         pressed = true;
         glfwGetCursorPos(window, &lastX, &lastY);
     }
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+    // Left button is released to use in the menus, without change the render process
+    if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_RELEASE) {
         pressed = false;
     }
 }
@@ -223,16 +227,14 @@ void GUI::cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
     lastY = ypos;
 }
 
-GUI::GUI(std::string title, Vector2i resolution, Bounds3f sceneBounds)
-    : resolution(resolution) {
-
-    moveScale = Length(sceneBounds.Diagonal()) / 1000.f;
-
+GUI::GUI(std::string title, Vector2i resolution, Float movescale)
+    : resolution(resolution), moveScale(movescale) {
     glfwSetErrorCallback(glfwErrorCallback);
     if (Options->fullscreen) {
-        window = glfwCreateWindow(resolution.x, resolution.y, "pbrt", glfwGetPrimaryMonitor(), NULL);
+        window = glfwCreateWindow(resolution.x, resolution.y, "Pbrt-v4",
+                                  glfwGetPrimaryMonitor(), NULL);
     } else {
-        window = glfwCreateWindow(resolution.x, resolution.y, "pbrt", NULL, NULL);
+        window = glfwCreateWindow(resolution.x, resolution.y, "Pbrt-v4", NULL, NULL);
     }
 
     if (!window) {
@@ -253,6 +255,19 @@ GUI::GUI(std::string title, Vector2i resolution, Bounds3f sceneBounds)
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
         LOG_FATAL("gladLoadGLLoader failed");
+    // Setup Dear ImGui context -----------------------------------
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer bindings
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+    //-------------------------------------------------------------
 
 #ifdef PBRT_BUILD_GPU_RENDERER
     if (Options->useGPU)
@@ -267,12 +282,16 @@ GUI::~GUI() {
     delete cudaFramebuffer;
 #endif  // PBRT_BUILD_GPU_RENDERER
     delete[] cpuFramebuffer;
-
+    //-------------------------
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+    //------------------------
     glfwDestroyWindow(window);
     glfwTerminate();
 }
 
-DisplayState GUI::RefreshDisplay() {
+DisplayState GUI::RefreshDisplay(int sample, int pixelsamples) {
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
     int windowWidth, windowHeight;
@@ -280,7 +299,17 @@ DisplayState GUI::RefreshDisplay() {
     GL_CHECK(glViewport(0, 0, width, height));
     float pixelScales[2] = {(float)width / (float)windowWidth,
                             (float)height / (float)windowHeight};
-
+    //----------------------------
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    
+    // Animate a simple progress bar
+    float progress = (float)sample / (float)pixelsamples;
+    ImGui::ProgressBar(progress, ImVec2(0.0f, 0.0f));
+    ImGui::Text("Rendered %s of %s samples.", std::to_string(sample).c_str(),
+                std::to_string(pixelsamples).c_str());
+    //---------------------------
 #ifdef PBRT_BUILD_GPU_RENDERER
     if (Options->useGPU)
         cudaFramebuffer->Draw(width, height);
@@ -293,7 +322,10 @@ DisplayState GUI::RefreshDisplay() {
         GL_CHECK(
             glDrawPixels(resolution.x, resolution.y, GL_RGB, GL_FLOAT, cpuFramebuffer));
     }
-
+    //----------------------
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    //---------------------
     glfwSwapBuffers(window);
     glfwPollEvents();
 
@@ -327,6 +359,7 @@ DisplayState GUI::RefreshDisplay() {
         if (cudaFramebuffer)
             cudaFramebuffer->StartAsynchronousReadback();
 #endif
+        recordFrames = false;
     }
 
     if (glfwWindowShouldClose(window))
