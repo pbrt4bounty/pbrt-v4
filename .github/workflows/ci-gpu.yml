@@ -22,9 +22,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        optix: [ optix-7.5.0 ] # optix-7.5.0, optix-7.7.0, optix-8.0.0 ]
-        cuda: [ '11.7.0' ] # '11.7.0', '12.1.0', '12.2.2', '12.3.2' ]
-        os: [ windows-2022 ] # ubuntu-22.04, 
+        optix: [ optix-8.0.0 ] # optix-7.5.0, optix-7.7.0, optix-8.0.0 ]
+        cuda: [ '12.2.2' ] # '11.7.0', '12.1.0', '12.2.2', '12.3.2' ]
+        os: [ ubuntu-22.04, windows-2022 ]
 
     name: GPU Build Only (${{ matrix.os }}, CUDA ${{ matrix.cuda }}, ${{ matrix.optix }})
 
@@ -36,7 +36,7 @@ jobs:
       with:
         cuda: ${{ matrix.cuda }}
         method: 'network'
-        sub-packages: '[ "nvcc", "visual_studio_integration" ]'
+        sub-packages: '[ "nvcc" ]'
 
     - name: Check NVCC
       run: nvcc -V
@@ -101,7 +101,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: pbrt-v4_${{ matrix.os }}
-        path: "${{ github.workspace }}/build/Release"
+        path: "${{ github.workspace }}/build/Release/"
         retention-days: 1
 
 
