@@ -101,7 +101,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: pbrt-v4_${{ matrix.os }}
-        path: "${{ github.workspace }}/build/Release/pbrt"
+        path: "${{ github.workspace }}/build/Release/*.*"
         retention-days: 1
 
 
