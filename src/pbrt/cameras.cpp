@@ -412,15 +412,19 @@ PBRT_CPU_GPU pstd::optional<CameraRay> PerspectiveCamera::GenerateRay(
     // Modify ray for depth of field
     if (lensRadius > 0) {
         // Sample point on lens
-        Point2f pLens = lensRadius * SampleUniformDiskConcentric(sample.pLens);
+        auto pLens = SampleOnLens(sample);
 
-        // Compute point on plane of focus
-        Float ft = focalDistance / ray.d.z;
-        Point3f pFocus = ray(ft);
+        // Compute point on plane of focus by scaleFactor of pCamera
+        // If camera is (0,0,0) and film and object is on the same side.
+        // P_focus = P_file * (f / (s - f)), s = distance to lens, f = focal_length.
+        auto pFocus = GetPFocused(pCamera);
 
         // Update ray for effect of lens
-        ray.o = Point3f(pLens.x, pLens.y, 0);
-        ray.d = Normalize(pFocus - ray.o);
+        ray.o = pLens;
+        if (Dot(Vector3f(pFocus), tiltNormal))
+            ray.d = Normalize(pFocus - ray.o);
+        else
+            ray.d = Normalize(ray.o - pFocus);
     }
 
     return CameraRay{RenderFromCamera(ray)};
@@ -436,14 +440,13 @@ PBRT_CPU_GPU pstd::optional<CameraRayDifferential> PerspectiveCamera::GenerateRa
     // Modify ray for depth of field
     if (lensRadius > 0) {
         // Sample point on lens
-        Point2f pLens = lensRadius * SampleUniformDiskConcentric(sample.pLens);
+        auto pLens = SampleOnLens(sample);
 
         // Compute point on plane of focus
-        Float ft = focalDistance / ray.d.z;
-        Point3f pFocus = ray(ft);
+        auto pFocus = GetPFocused(pCamera);
 
         // Update ray for effect of lens
-        ray.o = Point3f(pLens.x, pLens.y, 0);
+        ray.o = pLens;
         ray.d = Normalize(pFocus - ray.o);
     }
 
@@ -451,20 +454,17 @@ PBRT_CPU_GPU pstd::optional<CameraRayDifferential> PerspectiveCamera::GenerateRa
     if (lensRadius > 0) {
         // Compute _PerspectiveCamera_ ray differentials accounting for lens
         // Sample point on lens
-        Point2f pLens = lensRadius * SampleUniformDiskConcentric(sample.pLens);
+        // Point2f pLens = lensRadius * SampleUniformDiskConcentric(sample.pLens);
+        auto pLens = SampleOnLens(sample);
 
         // Compute $x$ ray differential for _PerspectiveCamera_ with lens
-        Vector3f dx = Normalize(Vector3f(pCamera + dxCamera));
-        Float ft = focalDistance / dx.z;
-        Point3f pFocus = Point3f(0, 0, 0) + (ft * dx);
-        ray.rxOrigin = Point3f(pLens.x, pLens.y, 0);
+        auto pFocus = GetPFocused(pCamera + dxCamera);
+        ray.rxOrigin = pLens;
         ray.rxDirection = Normalize(pFocus - ray.rxOrigin);
 
         // Compute $y$ ray differential for _PerspectiveCamera_ with lens
-        Vector3f dy = Normalize(Vector3f(pCamera + dyCamera));
-        ft = focalDistance / dy.z;
-        pFocus = Point3f(0, 0, 0) + (ft * dy);
-        ray.ryOrigin = Point3f(pLens.x, pLens.y, 0);
+        pFocus = GetPFocused(pCamera + dyCamera);
+        ray.ryOrigin = pLens;
         ray.ryDirection = Normalize(pFocus - ray.ryOrigin);
 
     } else {
@@ -523,8 +523,12 @@ PerspectiveCamera *PerspectiveCamera::Create(const ParameterDictionary &paramete
         }
     }
     Float fov = parameters.GetOneFloat("fov", 90.);
-    return alloc.new_object<PerspectiveCamera>(cameraBaseParameters, fov, screen,
-                                               lensradius, focaldistance);
+
+    Vector2f shift = parameters.GetOneVector2f("shift", Vector2f(0.0, 0.0));
+    Vector3f tiltNormal = parameters.GetOneVector3f("tiltnormal", Vector3f(0, 0, 1));
+
+    return alloc.new_object<PerspectiveCamera>(
+        cameraBaseParameters, fov, screen, lensradius, focaldistance, shift, tiltNormal);
 }
 
 PBRT_CPU_GPU SampledSpectrum PerspectiveCamera::We(const Ray &ray, SampledWavelengths &lambda,

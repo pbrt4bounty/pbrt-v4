@@ -253,11 +253,15 @@ class ProjectiveCamera : public CameraBase {
 
     ProjectiveCamera(CameraBaseParameters baseParameters,
                      const Transform &screenFromCamera, Bounds2f screenWindow,
-                     Float lensRadius, Float focalDistance)
+                     Float lensRadius, Float focalDistance,
+                     Vector2f shift = Vector2f(0, 0))
         : CameraBase(baseParameters),
           screenFromCamera(screenFromCamera),
           lensRadius(lensRadius),
           focalDistance(focalDistance) {
+        // Apply shift to image-plane
+        screenWindow.pMax += shift;
+        screenWindow.pMin += shift;
         // Compute projective camera transformations
         // Compute projective camera screen transformations
         Transform NDCFromScreen =
@@ -341,9 +345,12 @@ class PerspectiveCamera : public ProjectiveCamera {
   public:
     // PerspectiveCamera Public Methods
     PerspectiveCamera(CameraBaseParameters baseParameters, Float fov,
-                      Bounds2f screenWindow, Float lensRadius, Float focalDist)
+                      Bounds2f screenWindow, Float lensRadius, Float focalDist,
+                      Vector2f shift = Vector2f(0, 0),
+                      Vector3f _tiltNormal = Vector3f(0, 0, 1))
         : ProjectiveCamera(baseParameters, Perspective(fov, 1e-2f, 1000.f), screenWindow,
-                           lensRadius, focalDist) {
+                           lensRadius, focalDist, shift),
+          tiltNormal(_tiltNormal) {
         // Compute differential changes in origin for perspective camera rays
         dxCamera =
             cameraFromRaster(Point3f(1, 0, 0)) - cameraFromRaster(Point3f(0, 0, 0));
@@ -367,6 +374,12 @@ class PerspectiveCamera : public ProjectiveCamera {
 
         // Compute minimum differentials for _PerspectiveCamera_
         FindMinimumDifferentials(this);
+
+        // Compute for Tilted-Lens
+        // image distance has been mapped to 0.01
+        // both *100 to prevent float-point exception
+        focalLength = focalDistance / (100.f * focalDistance + 1);
+        CalculateBasisUV();
     }
 
     PerspectiveCamera() = default;
@@ -396,10 +409,34 @@ class PerspectiveCamera : public ProjectiveCamera {
     std::string ToString() const;
 
   private:
+    PBRT_CPU_GPU Point3f SampleOnLens(const CameraSample &sample) const {
+        Point2f pLens = lensRadius * SampleUniformDiskConcentric(sample.pLens);
+        return Point3f(pLens.x * basis_u + pLens.y * basis_v);
+    }
+
+    PBRT_CPU_GPU Point3f GetPFocused(Point3f pCamera) const {
+        auto vCamera = Vector3f(pCamera);
+        auto scaleFactor = focalLength / (Dot(vCamera, tiltNormal) - focalLength);
+        return Point3f(scaleFactor * vCamera);
+    }
+
+    void CalculateBasisUV() {
+        tiltNormal = Normalize(tiltNormal);
+        if (tiltNormal.x >= tiltNormal.y)
+            basis_u = Normalize(Cross(tiltNormal, Vector3f(0, 1, 0)));
+        else
+            basis_u = Normalize(Cross(tiltNormal, Vector3f(0, 1, 0)));
+        basis_v = Normalize(Cross(tiltNormal, basis_u));
+    }
+
     // PerspectiveCamera Private Members
     Vector3f dxCamera, dyCamera;
     Float cosTotalWidth;
     Float A;
+
+    Float focalLength;
+    Vector3f tiltNormal = Vector3f(0, 0, 1);
+    Vector3f basis_u, basis_v;
 };
 
 // SphericalCamera Definition
