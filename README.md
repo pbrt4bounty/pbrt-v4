@@ -37,6 +37,7 @@ Although there is no defined roadmap, this is a list of the things I would like 
 The geometry is exported in the compact and efficient binary PLY format.
 
   - [x] Meshes.
+  - [x] Mesh Lights
   - [x] Extruded Curves ( as polygon mesh..)
   - [x] MetaBalls ( as polygon mesh..)
   - [x] Instances
@@ -48,7 +49,7 @@ The geometry is exported in the compact and efficient binary PLY format.
 
 #### Materials:
 
-Almost all PBRT materials are currently supported, although some use the default values.
+All PBRT materials are currently supported and some other from other fork's.
 
 Translate and implementing the pbrt materials using nodes is not a easy task. But anyway is work in progress..
 
@@ -61,13 +62,21 @@ Translate and implementing the pbrt materials using nodes is not a easy task. Bu
   - [x] ThinDielectric
   - [x] Hair
   - [x] Measured
+  - [x] Mix
+  - [x] Diffuse Transmission
+  - [x] Cook Torrance(Added by Intel OpenPGL implementation..)
 
 #### Textures:
 
   - [x] Image
   - [x] Marble
-  - [x] Dots
+  - [x] Dots(color & float)
   - [x] Wrinkled
+  - [x] Windy
+  - [x] Fbm
+  - [x] Mix(color & float)
+  - [x] Checkerboard(color & float)
+  - [x] Bilerp(color & float)
   
 #### Cameras
 
