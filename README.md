@@ -9,7 +9,8 @@ Thus, this project is just an excuse to continue learning in the best possible w
 
 ### Changes on this fork/branch
 
-This branch include some experimental additions.
+This branch include some experimental additions:
+
 From other forks:
   - Intel OpenPGL implementation from https://github.com/OpenPathGuidingLibrary/pbrt-v4
   - VSPG implementation, based on OpenPGL from: https://github.com/kehanxuuu/vspg-pbrt-v4
