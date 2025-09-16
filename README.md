@@ -22,7 +22,7 @@ From other forks:
 My small contributions..
   - Added Progresbar for interactive mode using ImGui
   - Added the ability to set the different EXR channels defined in the GBuffer as user defined AOVS.
-  - Added support to use the binary hair definition files from Cem Yuksel format( only for CPU..)
+  - Added support to use the binary hair definition files from Cem Yuksel format( only for CPU..) https://github.com/cemyuksel/cyCodeBase
   - (wip..)
 
 ### Why an integration in Blender..??
