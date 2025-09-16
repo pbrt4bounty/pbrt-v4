@@ -14,7 +14,9 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang") # mute some Clang 16 warnings
     -Wno-shift-negative-value
   ) 
 endif()
-
+if (NOT MSVC)
+  add_definitions( -Wno-deprecated-declarations) # try to silent openEXR 3.3.1 warnings under Linux
+endif()
 ###########################################################################
 # stb
 
