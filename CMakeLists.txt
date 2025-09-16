@@ -581,6 +581,14 @@ set (PBRT_SOURCE
   src/pbrt/textures.cpp
 
   src/pbrt/cmd/pspec_gpu.cpp
+if (_WITH_PROCEDURAL)
+  src/pbrt/pcgUtil/pbrt_exporter.cpp
+  src/pbrt/pcgUtil/pcg_sampling.cpp
+  src/pbrt/pcgUtil/procedural.cpp
+  src/pbrt/pcgUtil/sampleTo3D.cpp
+
+  #src/pbrt/godrayUtil/godrayGenerator.cpp
+endif()
   )
   
 if (MSVC)

@@ -22,8 +22,20 @@
 #include <pbrt/util/string.h>
 #include <pbrt/wavefront/wavefront.h>
 
+#ifdef _WITH_PROCEDURAL
+#include <pbrt/util/transform.h>
+
+#include <pbrt/pcgUtil/pbrt_exporter.h>
+#include <pbrt/pcgUtil/pcg_sampling.h>
+#include <pbrt/pcgUtil/procedural.h>
+#include <pbrt/pcgUtil/sampleTo3D.h>
+
+//#include <pbrt/godrayUtil/godrayGenerator.h>
+
 #include <string>
 #include <vector>
+#include <iostream>
+#endif
 
 using namespace pbrt;
 

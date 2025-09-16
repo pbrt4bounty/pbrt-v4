@@ -885,6 +885,10 @@ void parse(ParserTarget *target, std::unique_ptr<Tokenizer> t) {
         case 'P':
             if (tok->token == "PixelFilter")
                 basicParamListEntrypoint(&ParserTarget::PixelFilter, tok->loc);
+#ifdef _WITH_PROCEDURAL
+            else if (tok->token == "ProceduralMesh")
+                basicParamListEntrypoint(&ParserTarget::ProceduralMesh, tok->loc);
+#endif
             else
                 syntaxError(*tok);
             break;
@@ -1141,6 +1145,12 @@ void FormattingParserTarget::PixelFilter(const std::string &name,
     Printf("%sPixelFilter \"%s\"\n", indent(), name);
     std::cout << extra << dict.ToParameterList(catIndentCount);
 }
+
+#ifdef _WITH_PROCEDURAL
+void FormattingParserTarget::ProceduralMesh(const std::string &name, ParsedParameterVector params, FileLoc loc) {
+    printf("I have now called FormattingParserTarget::ProceduralMesh with name: %s\n", name.c_str());
+}
+#endif
 
 void FormattingParserTarget::Film(const std::string &type, ParsedParameterVector params,
                                   FileLoc loc) {

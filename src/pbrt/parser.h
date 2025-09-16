@@ -89,6 +89,21 @@ class ParserTarget {
     virtual void ObjectEnd(FileLoc loc) = 0;
     virtual void ObjectInstance(const std::string &name, FileLoc loc) = 0;
 
+#ifdef _WITH_PROCEDURAL
+    // 1. mesh filename
+    // 2. custom density map
+    // 3. nSamples
+    // 4. Mesh stuff
+    //   - filename
+    //   - namedMaterial
+    //   - materialType
+    //   - texture
+    //   - bumpMap
+    //   - normalMap
+    //   - opacityMap
+    virtual void ProceduralMesh(const std::string &name, ParsedParameterVector params, FileLoc loc) = 0;
+#endif
+
     virtual void EndOfFiles() = 0;
 
   protected:
@@ -250,6 +265,11 @@ class FormattingParserTarget : public ParserTarget {
     void ObjectBegin(const std::string &name, FileLoc loc);
     void ObjectEnd(FileLoc loc);
     void ObjectInstance(const std::string &name, FileLoc loc);
+
+#ifdef _WITH_PROCEDURAL
+    // added procedural mesh
+    void ProceduralMesh(const std::string &name, ParsedParameterVector params, FileLoc loc);
+#endif
 
     void EndOfFiles();
 
