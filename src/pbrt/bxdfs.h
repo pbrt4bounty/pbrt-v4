@@ -1,4 +1,5 @@
 // pbrt is Copyright(c) 1998-2020 Matt Pharr, Wenzel Jakob, and Greg Humphreys.
+// Modifications Copyright 2023 Intel Corporation.
 // The pbrt source code is licensed under the Apache License, Version 2.0.
 // SPDX: Apache-2.0
 
@@ -53,7 +54,7 @@ class DiffuseBxDF {
             wi.z *= -1;
         Float pdf = CosineHemispherePDF(AbsCosTheta(wi));
 
-        return BSDFSample(R * InvPi, wi, pdf, BxDFFlags::DiffuseReflection);
+        return BSDFSample(R * InvPi, wi, pdf, BxDFFlags::DiffuseReflection, 1.0f);
     }
 
     PBRT_CPU_GPU
@@ -70,7 +71,13 @@ class DiffuseBxDF {
     std::string ToString() const;
 
     PBRT_CPU_GPU
-    void Regularize() {}
+    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) {}
+
+    PBRT_CPU_GPU
+    float GetEta() const { return 1.f; }
+
+    PBRT_CPU_GPU 
+    float GetRoughness() const {return 1.f; }
 
     PBRT_CPU_GPU
     BxDFFlags Flags() const {
@@ -114,7 +121,7 @@ class DiffuseTransmissionBxDF {
             if (wo.z < 0)
                 wi.z *= -1;
             Float pdf = CosineHemispherePDF(AbsCosTheta(wi)) * pr / (pr + pt);
-            return BSDFSample(f(wo, wi, mode), wi, pdf, BxDFFlags::DiffuseReflection);
+            return BSDFSample(f(wo, wi, mode), wi, pdf, BxDFFlags::DiffuseReflection, 1.0f);
 
         } else {
             // Sample diffuse BSDF transmission
@@ -122,7 +129,7 @@ class DiffuseTransmissionBxDF {
             if (wo.z > 0)
                 wi.z *= -1;
             Float pdf = CosineHemispherePDF(AbsCosTheta(wi)) * pt / (pr + pt);
-            return BSDFSample(f(wo, wi, mode), wi, pdf, BxDFFlags::DiffuseTransmission);
+            return BSDFSample(f(wo, wi, mode), wi, pdf, BxDFFlags::DiffuseTransmission, 1.0f);
         }
     }
 
@@ -150,7 +157,13 @@ class DiffuseTransmissionBxDF {
     std::string ToString() const;
 
     PBRT_CPU_GPU
-    void Regularize() {}
+    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) {}
+
+    PBRT_CPU_GPU
+    float GetEta() const { return 1.f;}
+
+    PBRT_CPU_GPU 
+    float GetRoughness() const {return 1.f;}
 
     PBRT_CPU_GPU
     BxDFFlags Flags() const {
@@ -162,6 +175,58 @@ class DiffuseTransmissionBxDF {
     // DiffuseTransmissionBxDF Private Members
     SampledSpectrum R, T;
 };
+
+
+// CookTorranceBxDF Definition
+class CookTorranceBxDF {
+  public:
+    // CookTorranceBxDF Public Methods
+    CookTorranceBxDF() = default;
+    PBRT_CPU_GPU
+    CookTorranceBxDF(SampledSpectrum R, Float eta, TrowbridgeReitzDistribution mfDistrib)
+        : R(R), eta(eta), mfDistrib(mfDistrib) {}
+
+    PBRT_CPU_GPU
+    BxDFFlags Flags() const {
+        BxDFFlags flags = (eta == 1) ? BxDFFlags::DiffuseReflection
+                                     : (BxDFFlags::Reflection | BxDFFlags::DiffuseReflection);
+        return flags;
+        //return flags |
+        //       (mfDistrib.EffectivelySmooth() ? BxDFFlags::Specular : BxDFFlags::Glossy);
+    }
+
+    PBRT_CPU_GPU
+    pstd::optional<BSDFSample> Sample_f(
+        Vector3f wo, Float uc, Point2f u, TransportMode mode,
+        BxDFReflTransFlags sampleFlags = BxDFReflTransFlags::All) const;
+
+    PBRT_CPU_GPU
+    SampledSpectrum f(Vector3f wo, Vector3f wi, TransportMode mode) const;
+    PBRT_CPU_GPU
+    Float PDF(Vector3f wo, Vector3f wi, TransportMode mode,
+              BxDFReflTransFlags sampleFlags = BxDFReflTransFlags::All) const;
+
+    PBRT_CPU_GPU
+    static constexpr const char *Name() { return "CookTorranceBxDF"; }
+
+    std::string ToString() const;
+
+    PBRT_CPU_GPU
+    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) { mfDistrib.Regularize(regularizationGamma, accumulatedRoughness); }
+
+    PBRT_CPU_GPU
+    float GetEta() const { return eta; }
+
+    PBRT_CPU_GPU 
+    float GetRoughness() const {return mfDistrib.MinAlpha(); }
+
+  private:
+    // CookTorranceBxDF Private Members
+    SampledSpectrum R;
+    Float eta;
+    TrowbridgeReitzDistribution mfDistrib;
+};
+
 
 // DielectricBxDF Definition
 class DielectricBxDF {
@@ -197,7 +262,13 @@ class DielectricBxDF {
     std::string ToString() const;
 
     PBRT_CPU_GPU
-    void Regularize() { mfDistrib.Regularize(); }
+    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) { mfDistrib.Regularize(regularizationGamma, accumulatedRoughness); }
+
+    PBRT_CPU_GPU
+    float GetEta() const { return eta; }
+
+    PBRT_CPU_GPU 
+    float GetRoughness() const {return mfDistrib.MinAlpha(); }
 
   private:
     // DielectricBxDF Private Members
@@ -242,13 +313,13 @@ class ThinDielectricBxDF {
             // Sample perfect specular dielectric BRDF
             Vector3f wi(-wo.x, -wo.y, wo.z);
             SampledSpectrum fr(R / AbsCosTheta(wi));
-            return BSDFSample(fr, wi, pr / (pr + pt), BxDFFlags::SpecularReflection);
+            return BSDFSample(fr, wi, pr / (pr + pt), BxDFFlags::SpecularReflection, 0.0f);
 
         } else {
             // Sample perfect specular transmission at thin dielectric interface
             Vector3f wi = -wo;
             SampledSpectrum ft(T / AbsCosTheta(wi));
-            return BSDFSample(ft, wi, pt / (pr + pt), BxDFFlags::SpecularTransmission);
+            return BSDFSample(ft, wi, pt / (pr + pt), BxDFFlags::SpecularTransmission, 0.0f);
         }
     }
 
@@ -264,13 +335,19 @@ class ThinDielectricBxDF {
     std::string ToString() const;
 
     PBRT_CPU_GPU
-    void Regularize() { /* TODO */
+    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) { /* TODO */
     }
 
     PBRT_CPU_GPU
     BxDFFlags Flags() const {
         return (BxDFFlags::Reflection | BxDFFlags::Transmission | BxDFFlags::Specular);
     }
+
+    PBRT_CPU_GPU
+    float GetEta() const { return eta; }
+
+    PBRT_CPU_GPU 
+    float GetRoughness() const {return 0.f; }
 
   private:
     Float eta;
@@ -302,7 +379,7 @@ class ConductorBxDF {
             // Sample perfect specular conductor BRDF
             Vector3f wi(-wo.x, -wo.y, wo.z);
             SampledSpectrum f = FrComplex(AbsCosTheta(wi), eta, k) / AbsCosTheta(wi);
-            return BSDFSample(f, wi, 1, BxDFFlags::SpecularReflection);
+            return BSDFSample(f, wi, 1, BxDFFlags::SpecularReflection, 0.0f);
         }
         // Sample rough conductor BRDF
         // Sample microfacet normal $\wm$ and reflected direction $\wi$
@@ -324,7 +401,7 @@ class ConductorBxDF {
 
         SampledSpectrum f =
             mfDistrib.D(wm) * F * mfDistrib.G(wo, wi) / (4 * cosTheta_i * cosTheta_o);
-        return BSDFSample(f, wi, pdf, BxDFFlags::GlossyReflection);
+        return BSDFSample(f, wi, pdf, BxDFFlags::GlossyReflection, mfDistrib.MinAlpha());
     }
 
     PBRT_CPU_GPU
@@ -372,7 +449,13 @@ class ConductorBxDF {
     std::string ToString() const;
 
     PBRT_CPU_GPU
-    void Regularize() { mfDistrib.Regularize(); }
+    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) { mfDistrib.Regularize(regularizationGamma, accumulatedRoughness); }
+
+    PBRT_CPU_GPU
+    float GetEta() const { return 1.0f; }
+
+    PBRT_CPU_GPU 
+    float GetRoughness() const {return mfDistrib.MinAlpha(); }
 
   private:
     // ConductorBxDF Private Members
@@ -447,9 +530,9 @@ class LayeredBxDF {
     std::string ToString() const;
 
     PBRT_CPU_GPU
-    void Regularize() {
-        top.Regularize();
-        bottom.Regularize();
+    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) {
+        top.Regularize(regularizationGamma, accumulatedRoughness);
+        bottom.Regularize(regularizationGamma, accumulatedRoughness);
     }
 
     PBRT_CPU_GPU
@@ -678,6 +761,7 @@ class LayeredBxDF {
         }
         Vector3f w = bs->wi;
         bool specularPath = bs->IsSpecular();
+        Float sampledRoughness = bs->sampledRoughness;
 
         // Declare _RNG_ for layered BSDF sampling
         RNG rng(Hash(GetOptions().seed, wo), Hash(uc, u));
@@ -757,6 +841,7 @@ class LayeredBxDF {
             pdf *= bs->pdf;
             specularPath &= bs->IsSpecular();
             w = bs->wi;
+            sampledRoughness = bs->sampledRoughness;
 
             // Return _BSDFSample_ if path has left the layers
             if (bs->IsTransmission()) {
@@ -765,7 +850,7 @@ class LayeredBxDF {
                 flags |= specularPath ? BxDFFlags::Specular : BxDFFlags::Glossy;
                 if (flipWi)
                     w = -w;
-                return BSDFSample(f, w, pdf, flags, 1.f, true);
+                return BSDFSample(f, w, pdf, flags, sampledRoughness, 1.f, true);
             }
 
             // Scale _f_ by cosine term after scattering at the interface
@@ -882,6 +967,12 @@ class LayeredBxDF {
         return Lerp(0.9f, 1 / (4 * Pi), pdfSum / nSamples);
     }
 
+    PBRT_CPU_GPU
+    float GetEta() const { return top.GetEta(); }
+
+    PBRT_CPU_GPU 
+    float GetRoughness() const {return top.GetRoughness(); }
+
   private:
     // LayeredBxDF Private Methods
     PBRT_CPU_GPU
@@ -936,7 +1027,13 @@ class HairBxDF {
               BxDFReflTransFlags sampleFlags) const;
 
     PBRT_CPU_GPU
-    void Regularize() {}
+    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) {}
+
+    PBRT_CPU_GPU
+    float GetEta() const { return 1.0f; }
+
+    PBRT_CPU_GPU 
+    float GetRoughness() const {return 1.0f; }
 
     PBRT_CPU_GPU
     static constexpr const char *Name() { return "HairBxDF"; }
@@ -1042,7 +1139,13 @@ class MeasuredBxDF {
               BxDFReflTransFlags sampleFlags) const;
 
     PBRT_CPU_GPU
-    void Regularize() {}
+    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) {}
+
+    PBRT_CPU_GPU
+    float GetEta() const { return 1.f; }
+
+    PBRT_CPU_GPU 
+    float GetRoughness() const {return 1.0f; }
 
     PBRT_CPU_GPU
     static constexpr const char *Name() { return "MeasuredBxDF"; }
@@ -1088,7 +1191,7 @@ class NormalizedFresnelBxDF {
         if (wo.z < 0)
             wi.z *= -1;
         return BSDFSample(f(wo, wi, mode), wi, PDF(wo, wi, mode, sampleFlags),
-                          BxDFFlags::DiffuseReflection);
+                          BxDFFlags::DiffuseReflection, 1.0f);
     }
 
     PBRT_CPU_GPU
@@ -1100,7 +1203,13 @@ class NormalizedFresnelBxDF {
     }
 
     PBRT_CPU_GPU
-    void Regularize() {}
+    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) {}
+
+    PBRT_CPU_GPU
+    float GetEta() const { return eta; }
+
+    PBRT_CPU_GPU 
+    float GetRoughness() const {return 1.0f; }
 
     PBRT_CPU_GPU
     static constexpr const char *Name() { return "NormalizedFresnelBxDF"; }
@@ -1156,10 +1265,21 @@ PBRT_CPU_GPU inline BxDFFlags BxDF::Flags() const {
     return Dispatch(flags);
 }
 
-PBRT_CPU_GPU inline void BxDF::Regularize() {
-    auto regularize = [&](auto ptr) { ptr->Regularize(); };
+PBRT_CPU_GPU inline void BxDF::Regularize(const Float regularizationGamma, const Float accumulatedRoughness) {
+    auto regularize = [&](auto ptr) { ptr->Regularize(regularizationGamma, accumulatedRoughness); };
     return Dispatch(regularize);
 }
+
+inline float BxDF::GetEta() const {
+    auto getEta = [&](auto ptr) { return ptr->GetEta(); };
+    return Dispatch(getEta);
+}
+
+inline float BxDF::GetRoughness() const {
+    auto getRoughness = [&](auto ptr) { return ptr->GetRoughness(); };
+    return Dispatch(getRoughness);
+}
+
 
 extern template class LayeredBxDF<DielectricBxDF, DiffuseBxDF, true>;
 extern template class LayeredBxDF<DielectricBxDF, ConductorBxDF, true>;

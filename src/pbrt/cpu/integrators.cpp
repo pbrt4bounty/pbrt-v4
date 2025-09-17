@@ -1,4 +1,5 @@
 // pbrt is Copyright(c) 1998-2020 Matt Pharr, Wenzel Jakob, and Greg Humphreys.
+// Modifications Copyright 2023 Intel Corporation.
 // The pbrt source code is licensed under the Apache License, Version 2.0.
 // SPDX: Apache-2.0
 
@@ -13,6 +14,7 @@
 #include <pbrt/lights.h>
 #include <pbrt/materials.h>
 #include <pbrt/media.h>
+#include <pbrt/media_sampleTMaj.h>
 #include <pbrt/options.h>
 #include <pbrt/paramdict.h>
 #include <pbrt/samplers.h>
@@ -39,12 +41,19 @@
 #include <pbrt/util/spectrum.h>
 #include <pbrt/util/stats.h>
 #include <pbrt/util/string.h>
+//
+#include <pbrt/util/gui.h>
 
 #include <algorithm>
+
+#include <iostream>
+
+//#define VOLUME_ABSORB
 
 namespace pbrt {
 
 STAT_COUNTER("Integrator/Camera rays traced", nCameraRays);
+STAT_TIME_COUNTER("Pure Rendering Time", pureRenderingTime);
 
 // RandomWalkIntegrator Method Definitions
 std::unique_ptr<RandomWalkIntegrator> RandomWalkIntegrator::Create(
@@ -61,6 +70,8 @@ std::string RandomWalkIntegrator::ToString() const {
 
 // Integrator Method Definitions
 Integrator::~Integrator() {}
+
+void ImageTileIntegrator::PostProcessWave() {}
 
 // ImageTileIntegrator Method Definitions
 void ImageTileIntegrator::Render() {
@@ -82,7 +93,6 @@ void ImageTileIntegrator::Render() {
         tileSampler.StartPixelSample(pPixel, sampleIndex);
 
         EvaluatePixelSample(pPixel, sampleIndex, tileSampler, scratchBuffer);
-
         return;
     }
 
@@ -101,11 +111,19 @@ void ImageTileIntegrator::Render() {
     ThreadLocal<Sampler> samplers([this]() { return samplerPrototype.Clone(); });
 
     Bounds2i pixelBounds = camera.GetFilm().PixelBounds();
+
+    bool timeBudget = Options->timeBudgetInSeconds && *Options->timeBudgetInSeconds > 0;
+    float remainingTime = 0;
+    if (timeBudget)
+        remainingTime = *Options->timeBudgetInSeconds;
+
     int spp = samplerPrototype.SamplesPerPixel();
-    ProgressReporter progress(int64_t(spp) * pixelBounds.Area(), "Rendering",
+    const int64_t totalBudgetForProgress = timeBudget ? remainingTime : int64_t(spp) * pixelBounds.Area();
+    ProgressReporter progress(totalBudgetForProgress, "Rendering",
                               Options->quiet);
 
     int waveStart = 0, waveEnd = 1, nextWaveSize = 1;
+    double waveStartTimeTotal, waveEndTimeTotal;
 
     if (Options->recordPixelStatistics)
         StatsEnablePixelStats(pixelBounds,
@@ -145,7 +163,7 @@ void ImageTileIntegrator::Render() {
     if (!Options->displayServer.empty()) {
         Film film = camera.GetFilm();
         DisplayDynamic(film.GetFilename(), Point2i(pixelBounds.Diagonal()),
-                       {"R", "G", "B"},
+                       {"Combined.R", "Combined.G", "Combined.B"},
                        [&](Bounds2i b, pstd::span<pstd::span<float>> displayValue) {
                            int index = 0;
                            for (Point2i p : b) {
@@ -159,7 +177,10 @@ void ImageTileIntegrator::Render() {
     }
 
     // Render image in waves
-    while (waveStart < spp) {
+    bool renderingDone = false;
+    while (!renderingDone) {
+        waveStartTimeTotal = progress.ElapsedSeconds();
+        Timer pureRenderingTimer;
         // Render current wave's image tiles in parallel
         ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
             // Render image tile given by _tileBounds_
@@ -183,19 +204,48 @@ void ImageTileIntegrator::Render() {
             }
             PBRT_DBG("Finished image tile (%d,%d)-(%d,%d)\n", tileBounds.pMin.x,
                      tileBounds.pMin.y, tileBounds.pMax.x, tileBounds.pMax.y);
-            progress.Update((waveEnd - waveStart) * tileBounds.Area());
+            if (!timeBudget)
+                progress.Update((waveEnd - waveStart) * tileBounds.Area());
         });
+        pureRenderingTime += pureRenderingTimer.ElapsedSeconds();
+
+        // Check if already overtime, then do not update the path guiding data structure
+        waveEndTimeTotal = progress.ElapsedSeconds();
+        float waveTimeTotal = waveEndTimeTotal - waveStartTimeTotal;
+        if (!(timeBudget && remainingTime < waveTimeTotal)) {
+            PostProcessWave();
+        }
+
+        waveEndTimeTotal = progress.ElapsedSeconds();
+
+        // Update start and end wave
+        waveTimeTotal = waveEndTimeTotal - waveStartTimeTotal;
+        remainingTime -= waveTimeTotal;
+        if (timeBudget) {
+            // Apply std::ceil to deal with the case of waveTimeTotal < 1
+            progress.Update(std::ceil(waveTimeTotal));
+        }
+
+        renderingDone = (timeBudget ? remainingTime <= 0 : waveEnd >= spp);
+        if (renderingDone) {
+            progress.Done();
+            if (timeBudget)
+                std::cout << "Total spp: " << waveStart << std::endl;
+        }
 
         // Update start and end wave
         waveStart = waveEnd;
-        waveEnd = std::min(spp, waveEnd + nextWaveSize);
-        if (!referenceImage)
-            nextWaveSize = std::min(2 * nextWaveSize, 64);
-        if (waveStart == spp)
-            progress.Done();
-
+        //sig: waveEnd = std::min(spp, waveEnd + nextWaveSize);
+        waveEnd = waveEnd + nextWaveSize;
+        //if (!referenceImage)
+        //    nextWaveSize = std::min(2 * nextWaveSize, 64);
+        nextWaveSize = 1;
+        //if (waveStart == spp) // sigg
+        //    progress.Done();
+        //std::cout << "nextWaveSize: " << nextWaveSize << "\t spp: " << spp << "\t waveStart: " << waveStart << "\t waveEnd: " << waveEnd << std::endl;
         // Optionally write current image to disk
-        if (waveStart == spp || Options->writePartialImages || referenceImage) {
+        // sigg: if (waveStart == spp || Options->writePartialImages || referenceImage) {
+        if (renderingDone || Options->writePartialImages || referenceImage) {
             LOG_VERBOSE("Writing image with spp = %d", waveStart);
             ImageMetadata metadata;
             metadata.renderTimeSeconds = progress.ElapsedSeconds();
@@ -210,7 +260,8 @@ void ImageTileIntegrator::Render() {
                 metadata.MSE = mse.Average();
                 fflush(mseOutFile);
             }
-            if (waveStart == spp || Options->writePartialImages) {
+            //sigg: if (waveStart == spp || Options->writePartialImages) {
+            if (renderingDone || Options->writePartialImages) {
                 camera.InitMetadata(&metadata);
                 camera.GetFilm().WriteImage(metadata, 1.0f / waveStart);
             }
@@ -256,7 +307,7 @@ void RayIntegrator::EvaluatePixelSample(Point2i pPixel, int sampleIndex, Sampler
         ++nCameraRays;
         // Evaluate radiance along camera ray
         bool initializeVisibleSurface = camera.GetFilm().UsesVisibleSurface();
-        L = cameraRay->weight * Li(cameraRay->ray, lambda, sampler, scratchBuffer,
+        L = cameraRay->weight * Li(pPixel, cameraRay->ray, lambda, sampler, scratchBuffer,
                                    initializeVisibleSurface ? &visibleSurface : nullptr);
 
         // Issue warning if unexpected radiance value is returned
@@ -342,7 +393,7 @@ SampledSpectrum Integrator::Tr(const Interaction &p0, const Interaction &p1,
                                     ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
 
                                 // ratio-tracking: only evaluate null scattering
-                                Float pr = T_maj[0] * sigma_maj[0];
+                                Float pr = T_maj[lambda.ChannelIdx()] * sigma_maj[lambda.ChannelIdx()];
                                 Tr *= T_maj * sigma_n / pr;
                                 inv_w *= T_maj * sigma_maj / pr;
 
@@ -351,8 +402,8 @@ SampledSpectrum Integrator::Tr(const Interaction &p0, const Interaction &p1,
 
                                 return true;
                             });
-            Tr *= T_maj / T_maj[0];
-            inv_w *= T_maj / T_maj[0];
+            Tr *= T_maj / T_maj[lambda.ChannelIdx()];
+            inv_w *= T_maj / T_maj[lambda.ChannelIdx()];
         }
 
         // Generate next ray segment or return final transmittance
@@ -386,7 +437,7 @@ SimplePathIntegrator::SimplePathIntegrator(int maxDepth, bool sampleLights,
       sampleBSDF(sampleBSDF),
       lightSampler(lights, Allocator()) {}
 
-SampledSpectrum SimplePathIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda,
+SampledSpectrum SimplePathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
                                          Sampler sampler, ScratchBuffer &scratchBuffer,
                                          VisibleSurface *) const {
     // Estimate radiance along ray using simple path tracing
@@ -614,6 +665,7 @@ std::unique_ptr<LightPathIntegrator> LightPathIntegrator::Create(
 
 STAT_PERCENT("Integrator/Zero-radiance paths", zeroRadiancePaths, totalPaths);
 STAT_PERCENT("Integrator/Regularized BSDFs", regularizedBSDFs, totalBSDFs);
+STAT_PERCENT("Integrator/Regularized BSDFs", regularizedPhases, totalPhases);
 STAT_INT_DISTRIBUTION("Integrator/Path length", pathLength);
 
 // PathIntegrator Method Definitions
@@ -625,7 +677,7 @@ PathIntegrator::PathIntegrator(int maxDepth, Camera camera, Sampler sampler,
       lightSampler(LightSampler::Create(lightSampleStrategy, lights, Allocator())),
       regularize(regularize) {}
 
-SampledSpectrum PathIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda,
+SampledSpectrum PathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
                                    Sampler sampler, ScratchBuffer &scratchBuffer,
                                    VisibleSurface *visibleSurf) const {
     // Declare local variables for _PathIntegrator::Li()_
@@ -635,6 +687,9 @@ SampledSpectrum PathIntegrator::Li(RayDifferential ray, SampledWavelengths &lamb
     Float p_b, etaScale = 1;
     bool specularBounce = false, anyNonSpecularBounces = false;
     LightSampleContext prevIntrCtx;
+
+    Float regularizationGamma = 0.f;
+    Float accumulatedRoughness = 0.f;
 
     // Sample path from camera and accumulate radiance estimate
     while (true) {
@@ -711,7 +766,7 @@ SampledSpectrum PathIntegrator::Li(RayDifferential ray, SampledWavelengths &lamb
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize();
+            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
         }
 
         ++totalBSDFs;
@@ -735,6 +790,8 @@ SampledSpectrum PathIntegrator::Li(RayDifferential ray, SampledWavelengths &lamb
         pstd::optional<BSDFSample> bs = bsdf.Sample_f(wo, u, sampler.Get2D());
         if (!bs)
             break;
+
+        accumulatedRoughness = bs->sampledRoughness;
         // Update path state variables after surface scattering
         beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
         p_b = bs->pdfIsProportional ? bsdf.PDF(wo, bs->wi) : bs->pdf;
@@ -831,7 +888,7 @@ SimpleVolPathIntegrator::SimpleVolPathIntegrator(int maxDepth, Camera camera,
     }
 }
 
-SampledSpectrum SimpleVolPathIntegrator::Li(RayDifferential ray,
+SampledSpectrum SimpleVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
                                             SampledWavelengths &lambda, Sampler sampler,
                                             ScratchBuffer &buf, VisibleSurface *) const {
     // Declare local variables for delta tracking integration
@@ -860,8 +917,8 @@ SampledSpectrum SimpleVolPathIntegrator::Li(RayDifferential ray,
                         [&](Point3f p, MediumProperties mp, SampledSpectrum sigma_maj,
                             SampledSpectrum T_maj) {
                             // Compute medium event probabilities for interaction
-                            Float pAbsorb = mp.sigma_a[0] / sigma_maj[0];
-                            Float pScatter = mp.sigma_s[0] / sigma_maj[0];
+                            Float pAbsorb = mp.sigma_a[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
+                            Float pScatter = mp.sigma_s[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
                             Float pNull = std::max<Float>(0, 1 - pAbsorb - pScatter);
 
                             // Randomly sample medium scattering event for delta tracking
@@ -950,7 +1007,7 @@ STAT_COUNTER("Integrator/Volume interactions", volumeInteractions);
 STAT_COUNTER("Integrator/Surface interactions", surfaceInteractions);
 
 // VolPathIntegrator Method Definitions
-SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda,
+SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
                                       Sampler sampler, ScratchBuffer &scratchBuffer,
                                       VisibleSurface *visibleSurf) const {
     // Declare state variables for volumetric path sampling
@@ -958,6 +1015,9 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
     bool specularBounce = false, anyNonSpecularBounces = false;
     int depth = 0;
     Float etaScale = 1;
+
+    Float regularizationGamma = 0.f;
+    Float accumulatedRoughness = 0.f;
 
     LightSampleContext prevIntrContext;
 
@@ -989,7 +1049,7 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
                     // Add emission from medium scattering event
                     if (depth < maxDepth && mp.Le) {
                         // Compute $\beta'$ at new path vertex
-                        Float pdf = sigma_maj[0] * T_maj[0];
+                        Float pdf = sigma_maj[lambda.ChannelIdx()] * T_maj[lambda.ChannelIdx()];
                         SampledSpectrum betap = beta * T_maj / pdf;
 
                         // Compute rescaled path probability for absorption at path vertex
@@ -1001,8 +1061,8 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
                     }
 
                     // Compute medium event probabilities for interaction
-                    Float pAbsorb = mp.sigma_a[0] / sigma_maj[0];
-                    Float pScatter = mp.sigma_s[0] / sigma_maj[0];
+                    Float pAbsorb = mp.sigma_a[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
+                    Float pScatter = mp.sigma_s[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
                     Float pNull = std::max<Float>(0, 1 - pAbsorb - pScatter);
 
                     CHECK_GE(1 - pAbsorb - pScatter, -1e-6);
@@ -1023,7 +1083,7 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
                         }
 
                         // Update _beta_ and _r_u_ for real-scattering event
-                        Float pdf = T_maj[0] * mp.sigma_s[0];
+                        Float pdf = T_maj[lambda.ChannelIdx()] * mp.sigma_s[lambda.ChannelIdx()];
                         beta *= T_maj * mp.sigma_s / pdf;
                         r_u *= T_maj * mp.sigma_s / pdf;
 
@@ -1031,6 +1091,13 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
                             // Sample direct lighting at volume-scattering event
                             MediumInteraction intr(p, -ray.d, ray.time, ray.medium,
                                                    mp.phase);
+                            if (regularize && anyNonSpecularBounces) {
+                                ++regularizedPhases;
+                                //intr.phase.Regularize(regularizationGamma, accumulatedRoughness);
+                            }
+
+                            ++totalPhases;
+                            
                             L += SampleLd(intr, nullptr, lambda, sampler, beta, r_u);
 
                             // Sample new direction at real-scattering event
@@ -1040,6 +1107,7 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
                             if (!ps || ps->pdf == 0)
                                 terminated = true;
                             else {
+                                accumulatedRoughness = ps->meanCosine;
                                 // Update ray path state for indirect volume scattering
                                 beta *= ps->p / ps->pdf;
                                 r_l = r_u / ps->pdf;
@@ -1057,7 +1125,7 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
                         // Handle null scattering along ray path
                         SampledSpectrum sigma_n =
                             ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
-                        Float pdf = T_maj[0] * sigma_n[0];
+                        Float pdf = T_maj[lambda.ChannelIdx()] * sigma_n[lambda.ChannelIdx()];
                         beta *= T_maj * sigma_n / pdf;
                         if (pdf == 0)
                             beta = SampledSpectrum(0.f);
@@ -1072,9 +1140,9 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
             if (scattered)
                 continue;
 
-            beta *= T_maj / T_maj[0];
-            r_u *= T_maj / T_maj[0];
-            r_l *= T_maj / T_maj[0];
+            beta *= T_maj / T_maj[lambda.ChannelIdx()];
+            r_u *= T_maj / T_maj[lambda.ChannelIdx()];
+            r_l *= T_maj / T_maj[lambda.ChannelIdx()];
         }
         // Handle surviving unscattered rays
         // Add emitted light at volume path vertex or from the environment
@@ -1150,7 +1218,7 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize();
+            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
         }
 
         // Sample illumination from lights to find attenuated path contribution
@@ -1166,6 +1234,8 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
         pstd::optional<BSDFSample> bs = bsdf.Sample_f(wo, u, sampler.Get2D());
         if (!bs)
             break;
+
+        accumulatedRoughness = bs->sampledRoughness;
         // Update _beta_ and rescaled path probabilities for BSDF scattering
         beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
         if (bs->pdfIsProportional)
@@ -1233,7 +1303,7 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
             anyNonSpecularBounces = true;
             if (regularize) {
                 ++regularizedBSDFs;
-                Sw.Regularize();
+                Sw.Regularize(regularizationGamma, accumulatedRoughness);
             } else
                 ++totalBSDFs;
 
@@ -1245,6 +1315,8 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
             pstd::optional<BSDFSample> bs = Sw.Sample_f(pi.wo, u, sampler.Get2D());
             if (!bs)
                 break;
+            accumulatedRoughness = bs->sampledRoughness;
+
             beta *= bs->f * AbsDot(bs->wi, pi.shading.n) / bs->pdf;
             r_l = r_u / bs->pdf;
             // Don't increment depth this time...
@@ -1267,6 +1339,7 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
             beta /= 1 - q;
         }
     }
+    pathLength << depth; // vspg ??
     return L;
 }
 
@@ -1347,7 +1420,7 @@ SampledSpectrum VolPathIntegrator::SampleLd(const Interaction &intr, const BSDF 
                                 // Update _T_ray_ and PDFs using ratio-tracking estimator
                                 SampledSpectrum sigma_n =
                                     ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
-                                Float pdf = T_maj[0] * sigma_maj[0];
+                                Float pdf = T_maj[lambda.ChannelIdx()] * sigma_maj[lambda.ChannelIdx()];
                                 T_ray *= T_maj * sigma_n / pdf;
                                 r_l *= T_maj * sigma_maj / pdf;
                                 r_u *= T_maj * sigma_n / pdf;
@@ -1368,9 +1441,9 @@ SampledSpectrum VolPathIntegrator::SampleLd(const Interaction &intr, const BSDF 
                                 return true;
                             });
             // Update transmittance estimate for final segment
-            T_ray *= T_maj / T_maj[0];
-            r_l *= T_maj / T_maj[0];
-            r_u *= T_maj / T_maj[0];
+            T_ray *= T_maj / T_maj[lambda.ChannelIdx()];
+            r_l *= T_maj / T_maj[lambda.ChannelIdx()];
+            r_u *= T_maj / T_maj[lambda.ChannelIdx()];
         }
 
         // Generate next ray segment or return final transmittance
@@ -1415,7 +1488,7 @@ AOIntegrator::AOIntegrator(bool cosSample, Float maxDist, Camera camera, Sampler
       illuminant(illuminant),
       illumScale(1.f / SpectrumToPhotometric(illuminant)) {}
 
-SampledSpectrum AOIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda,
+SampledSpectrum AOIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
                                  Sampler sampler, ScratchBuffer &scratchBuffer,
                                  VisibleSurface *visibleSurface) const {
     // Intersect _ray_ with scene and store intersection in _isect_
@@ -1971,6 +2044,10 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
     int bounces = 0;
     bool anyNonSpecularBounces = false;
     Float pdfFwd = pdf;
+
+    Float regularizationGamma = 0.f;
+    Float accumulatedRoughness = 0.f;
+
     while (true) {
         // Attempt to create the next subpath vertex in _path_
         PBRT_DBG("%s\n", StringPrintf("Random walk. Bounces %d, beta %s, pdfFwd %f",
@@ -1992,8 +2069,9 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
                 [&](Point3f p, MediumProperties mp, SampledSpectrum sigma_maj,
                     SampledSpectrum T_maj) {
                     // Compute medium event probabilities for interaction
-                    Float pAbsorb = mp.sigma_a[0] / sigma_maj[0];
-                    Float pScatter = mp.sigma_s[0] / sigma_maj[0];
+#if defined(VOLUME_ABSORB)
+                    Float pAbsorb = mp.sigma_a[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
+                    Float pScatter = mp.sigma_s[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
                     Float pNull = std::max<Float>(0, 1 - pAbsorb - pScatter);
 
                     // Randomly sample medium event for _RandomRalk()_ ray
@@ -2005,8 +2083,24 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
                         return false;
 
                     } else if (mode == 1) {
+#else
+                    SampledSpectrum sigma_t = mp.sigma_s + mp.sigma_a;
+                    SampledSpectrum albedo = mp.sigma_s / sigma_t;
+                    Float pScatter = sigma_t[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
+                    Float pNull = std::max<Float>(0, 1 - pScatter);
+
+                    CHECK_GE(1 - pScatter, -1e-6);
+                    // Sample medium scattering event type and update path
+                    Float um = rng.Uniform<Float>();
+                    int mode = SampleDiscrete({pScatter, pNull}, um);
+                    if (mode == 0) {
+#endif
                         // Handle scattering for _RandomWalk()_ ray
-                        beta *= T_maj * mp.sigma_s / (T_maj[0] * mp.sigma_s[0]);
+#if defined(VOLUME_ABSORB)
+                        beta *= T_maj * mp.sigma_s / (T_maj[lambda.ChannelIdx()] * mp.sigma_s[lambda.ChannelIdx()]);
+#else
+                        beta *= T_maj * mp.sigma_s / (T_maj[lambda.ChannelIdx()] * sigma_t[lambda.ChannelIdx()]);
+#endif
                         // Record medium interaction in _path_ and compute forward density
                         MediumInteraction intr(p, -ray.d, ray.time, ray.medium, mp.phase);
                         vertex = Vertex::CreateMedium(intr, beta, pdfFwd, prev);
@@ -2038,7 +2132,7 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
                         // Handle null scattering for _RandomWalk()_ ray
                         SampledSpectrum sigma_n =
                             ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
-                        Float pdf = T_maj[0] * sigma_n[0];
+                        Float pdf = T_maj[lambda.ChannelIdx()] * sigma_n[lambda.ChannelIdx()];
                         if (pdf == 0)
                             beta = SampledSpectrum(0.f);
                         else
@@ -2048,7 +2142,7 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
                 });
             // Update _beta_ for medium transmittance
             if (!scattered)
-                beta *= T_maj / T_maj[0];
+                beta *= T_maj / T_maj[lambda.ChannelIdx()];
         }
 
         if (terminated)
@@ -2078,7 +2172,7 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize();
+            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
         }
 
         ++totalBSDFs;
@@ -2093,6 +2187,9 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
         pstd::optional<BSDFSample> bs = bsdf.Sample_f(wo, u, sampler.Get2D(), mode);
         if (!bs)
             break;
+
+        accumulatedRoughness = bs->sampledRoughness;
+
         pdfFwd = bs->pdfIsProportional ? bsdf.PDF(wo, bs->wi, mode) : bs->pdf;
         anyNonSpecularBounces |= !bs->IsSpecular();
         beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
@@ -2254,7 +2351,7 @@ void BDPTIntegrator::Render() {
     }
 }
 
-SampledSpectrum BDPTIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda,
+SampledSpectrum BDPTIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
                                    Sampler sampler, ScratchBuffer &scratchBuffer,
                                    VisibleSurface *) const {
     // Trace the camera and light subpaths
@@ -2620,7 +2717,7 @@ void MLTIntegrator::Render() {
     if (!Options->displayServer.empty()) {
         DisplayDynamic(
             camera.GetFilm().GetFilename(),
-            Point2i(camera.GetFilm().PixelBounds().Diagonal()), {"R", "G", "B"},
+            Point2i(camera.GetFilm().PixelBounds().Diagonal()), {"Combined.R", "Combined.G", "Combined.B"},
             [&](Bounds2i bounds, pstd::span<pstd::span<float>> displayValue) {
                 Film film = camera.GetFilm();
                 Bounds2i pixelBounds = film.PixelBounds();
@@ -2820,7 +2917,14 @@ void SPPMIntegrator::Render() {
     Film film = camera.GetFilm();
     Bounds2i pixelBounds = film.PixelBounds();
     int nPixels = pixelBounds.Area();
-
+    //------------------------------------------------------------
+    GUI *gui = nullptr;
+    if (Options->interactive && Options->displayServer.empty()) {
+        Float moveScale = Length(pixelBounds.Diagonal()) / 1000.f;
+        Vector2i resolution = pixelBounds.Diagonal();
+        gui = new GUI(film.GetFilename(), resolution, moveScale);
+    }
+    //------------------------------------------------------------
     // Initialize _pixels_ array for SPPM
     CHECK(!pixelBounds.IsEmpty());
     Array2D<SPPMPixel> pixels(pixelBounds);
@@ -2846,27 +2950,44 @@ void SPPMIntegrator::Render() {
         // Connect to display server for SPPM if requested
         if (iter == 0 && !Options->displayServer.empty()) {
             DisplayDynamic(
-                film.GetFilename(), Point2i(pixelBounds.Diagonal()), {"R", "G", "B"},
+                film.GetFilename(), Point2i(pixelBounds.Diagonal()), {"Combined.R", "Combined.G", "Combined.B"},
                 [&](Bounds2i b, pstd::span<pstd::span<float>> displayValue) {
                     int index = 0;
                     uint64_t np = (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
                     for (Point2i pPixel : b) {
-                        const SPPMPixel &pixel = pixels[pPixel];
-                        RGB rgb = pixel.Ld / (iter + 1) +
-                                  pixel.tau / (np * Pi * Sqr(pixel.radius));
-                        for (int c = 0; c < 3; ++c)
-                            displayValue[c][index] = rgb[c];
-                        ++index;
-                    }
-                });
+                                   const SPPMPixel &pixel = pixels[pPixel];
+                                   RGB rgb = pixel.Ld / (iter + 1) +
+                                             pixel.tau / (np * Pi * Sqr(pixel.radius));
+                                   for (int c = 0; c < 3; ++c)
+                                       displayValue[c][index] = rgb[c];
+                                   ++index;
+                               }
+                           });
         }
+        //--------------------------------------------------
+        if (gui) {
+            Vector2i resolution = pixelBounds.Diagonal();
+            RGB *rgb = gui->MapFramebuffer();
+            // UpdateFramebufferFromFilm(pixelBounds, gui->exposure, rgb);
+            ParallelFor("SPPM", resolution.x * resolution.y, [&](int idx) {
+                Point2i pPixel(idx % resolution.x, idx / resolution.x);
+                uint64_t np = (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
+                const SPPMPixel &pixel = pixels[pPixel];
+                rgb[idx] =
+                    pixel.Ld / (iter + 1) + pixel.tau / (np * Pi * Sqr(pixel.radius));
+            });
+            gui->UnmapFramebuffer();
 
+            int percentage = std::min(iter, nIterations);
+            DisplayState state = gui->RefreshDisplay(percentage, nIterations);
+            if (state == DisplayState::EXIT)
+                break;
+        }
         // Generate SPPM visible points
         // Sample wavelengths for SPPM pass
         Float uLambda =
             Options->disableWavelengthJitter ? Float(0.5) : RadicalInverse(1, iter);
         const SampledWavelengths passLambda = film.SampleWavelengths(uLambda);
-
         Float timeSample = RadicalInverse(2, iter);
 
         ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
@@ -3221,7 +3342,7 @@ void SPPMIntegrator::Render() {
             ((iter + 1) % 64 == 0)) {
             uint64_t np = (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
             Image rgbImage(PixelFormat::Float, Point2i(pixelBounds.Diagonal()),
-                           {"R", "G", "B"});
+                           {"Combined.R", "Combined.G", "Combined.B"});
 
             ParallelFor2D(pixelBounds, [&](Point2i pPixel) {
                 // Compute radiance _L_ for SPPM pixel _pPixel_
@@ -3239,6 +3360,11 @@ void SPPMIntegrator::Render() {
             metadata.fullResolution = camera.GetFilm().FullResolution();
             metadata.colorSpace = colorSpace;
             camera.InitMetadata(&metadata);
+            // Bilateral filtyer...
+            if (applyBilateral) {
+                SPPMIntegrator::ApplyBilateralFilter(rgbImage);
+            }
+
             rgbImage.Write(camera.GetFilm().GetFilename(), metadata);
 
             // Write SPPM radius image, if requested
@@ -3272,8 +3398,85 @@ void SPPMIntegrator::Render() {
                                                            return v + arena.BytesAllocated();
                                                        });
 #endif
+    if (gui != nullptr) {
+        delete gui;
+        gui = nullptr;
+    }
     progress.Done();
     DisconnectFromDisplayServer();
+}
+
+
+void SPPMIntegrator::ApplyBilateralFilter(Image &image) {
+    LOG_VERBOSE("Applying bilateral filter to image");
+
+    Float sigmaSpatial = bilateralSigmaSpatial;
+    Float sigmaRange = bilateralSigmaRange;
+
+    Point2i res = image.Resolution();
+    std::vector<std::array<Float, 3>> filteredImage(res.x * res.y);
+
+    // Helper Function1: Get the pixel value at (x,y)
+    auto get = [&](int x, int y) { return image.GetChannels(Point2i(x, y)); };
+
+    // Helper Functoin2: Get the distance between two pixels squared
+    auto dist2 = [&](int x, int y, int x2, int y2) {
+        return (x - x2) * (x - x2) + (y - y2) * (y - y2);
+    };
+
+    // get the radius of the affected area of pixels
+    int kernelRadius = std::ceil(sigmaSpatial * 2);
+
+    // run the filter in parallel threads, breaking up the image into tiles
+    // each thread will process a tile of the image
+    ParallelFor2D(Bounds2i{{0, 0}, res}, [&](Bounds2i tile) {
+        // loop through pixels in a tile
+        for (int y = tile.pMin.y; y < tile.pMax.y; ++y) {
+            for (int x = tile.pMin.x; x < tile.pMax.x; ++x) {
+                auto center = get(x, y);               // pixel value at (x,y)
+                std::array<Float, 3> sum = {0, 0, 0};  // sum of pixelvalues
+                Float weightSum = 0;                   // sum of weights
+
+                // looping over each kernel neighborhood pixels
+                for (int dy = -kernelRadius; dy <= kernelRadius; ++dy) {
+                    for (int dx = -kernelRadius; dx <= kernelRadius; ++dx) {
+                        int nx = Clamp(x + dx, 0, res.x - 1);  // clamp x to image bounds
+                        int ny = Clamp(y + dy, 0, res.y - 1);  // clamp y to image bounds
+                        auto neighbor = get(nx, ny);
+
+                        // compute the spatial and range weights
+
+                        // spatial weight: nearer pixels have more weight
+                        float spatialW = std::exp(-dist2(x, y, nx, ny) /
+                                                  (2 * sigmaSpatial * sigmaSpatial));
+
+                        // range weight: similar color pixels have more weight
+                        float rangeW = std::exp(-(Sqr(neighbor[0] - center[0]) +
+                                                  Sqr(neighbor[1] - center[1]) +
+                                                  Sqr(neighbor[2] - center[2])) /
+                                                (2 * sigmaRange * sigmaRange));
+
+                        float w = spatialW * rangeW;
+                        // float w = spatialW;
+                        for (int c = 0; c < 3; ++c)
+                            sum[c] += neighbor[c] * w;
+
+                        weightSum += w;
+                    }
+                }
+
+                for (int c = 0; c < 3; ++c)
+                    sum[c] /= weightSum;
+
+                filteredImage[y * res.x + x] = sum;
+            }
+        }
+    });
+
+    // write the filtered image back to the original image
+    for (int y = 0; y < res.y; ++y)
+        for (int x = 0; x < res.x; ++x)
+            image.SetChannels(Point2i(x, y), filteredImage[y * res.x + x]);
 }
 
 SampledSpectrum SPPMIntegrator::SampleLd(const SurfaceInteraction &intr, const BSDF &b,
@@ -3335,9 +3538,15 @@ std::unique_ptr<SPPMIntegrator> SPPMIntegrator::Create(
     int photonsPerIter = parameters.GetOneInt("photonsperiteration", -1);
     Float radius = parameters.GetOneFloat("radius", 1.f);
     int seed = parameters.GetOneInt("seed", Options->seed);
+
+    // Apply bilateral Filter
+    bool useBilateralFilter = parameters.GetOneBool("bilateral", false);
+    Float sigma_spatial = parameters.GetOneFloat("bilateral_sigma_spatial", 2.0);
+    Float sigma_range = parameters.GetOneFloat("bilateral_sigma_range", 0.2);
+
     return std::make_unique<SPPMIntegrator>(camera, sampler, aggregate, lights,
                                             photonsPerIter, maxDepth, radius, seed,
-                                            colorSpace);
+                                            colorSpace, useBilateralFilter, sigma_spatial, sigma_range);
 }
 
 // FunctionIntegrator Method Definitions
@@ -3506,7 +3715,6 @@ void FunctionIntegrator::Render() {
                     reportResult = false;
             }
         }
-
         ++nTakenSamples;
 
         if (isStratified) {
@@ -3616,7 +3824,7 @@ void FunctionIntegrator::Render() {
                 }
             });
         }
-
+        
         // Compute average MSE/variance
         if (reportResult) {
             double sumSE = 0;
@@ -3654,6 +3862,11 @@ std::unique_ptr<Integrator> Integrator::Create(
     if (name == "path")
         integrator =
             PathIntegrator::Create(parameters, camera, sampler, aggregate, lights, loc);
+#ifdef PBRT_WITH_PATH_GUIDING
+    else if (name == "guidedpath")
+        integrator =
+            GuidedPathIntegrator::Create(parameters, colorSpace, camera, sampler, aggregate, lights, loc);
+#endif
     else if (name == "function")
         integrator = FunctionIntegrator::Create(parameters, camera, sampler, loc);
     else if (name == "simplepath")
@@ -3668,6 +3881,14 @@ std::unique_ptr<Integrator> Integrator::Create(
     else if (name == "volpath")
         integrator = VolPathIntegrator::Create(parameters, camera, sampler, aggregate,
                                                lights, loc);
+#ifdef PBRT_WITH_PATH_GUIDING
+    else if (name == "guidedvolpath")
+        integrator =
+            GuidedVolPathIntegrator::Create(parameters, colorSpace, camera, sampler, aggregate, lights, loc);
+    else if (name == "guidedvolpathvspg")
+        integrator =
+            GuidedVolPathVSPGIntegrator::Create(parameters, colorSpace, camera, sampler, aggregate, lights, loc);
+#endif
     else if (name == "bdpt")
         integrator =
             BDPTIntegrator::Create(parameters, camera, sampler, aggregate, lights, loc);
@@ -3691,5 +3912,1509 @@ std::unique_ptr<Integrator> Integrator::Create(
     parameters.ReportUnused();
     return integrator;
 }
+
+#ifdef PBRT_WITH_PATH_GUIDING
+STAT_TIME_COUNTER("Guiding Cache Training", guidingCacheUpdateTime);
+STAT_TIME_COUNTER("Image-space Guiding Buffer Training", imageSpaceGudingBufferUpdateTime);
+// GuidedPathIntegrator Method Definitions
+GuidedPathIntegrator::GuidedPathIntegrator(
+    const int maxDepth, const int minRRDepth, const bool useNEE,
+    const GuidingSettings guideSettings, const RGBColorSpace *colorSpace, Camera camera,
+    Sampler sampler, Primitive aggregate, std::vector<Light> lights,
+    const std::string &lightSampleStrategy, bool regularize)
+    : RayIntegrator(camera, sampler, aggregate, lights),
+      maxDepth(maxDepth),
+      minRRDepth(minRRDepth),
+      useNEE(useNEE),
+      guideSettings(guideSettings),
+      colorSpace(colorSpace),
+      lightSampler(LightSampler::Create(lightSampleStrategy, lights, Allocator())),
+      regularize(regularize) {
+    std::cout << "GuidedPathIntegrator:" << std::endl;
+    std::cout << "\t maxDepth = " << maxDepth << std::endl;
+    std::cout << "\t minRRDepth = " << minRRDepth << std::endl;
+    std::cout << "\t useNEE = " << useNEE << std::endl;
+    std::cout << "\t enableGuiding = " << guideSettings.enableGuiding << std::endl;
+    std::cout << "\t surfaceGuidingType = " << guideSettings.surfaceGuidingType
+              << std::endl;
+    std::cout << "\t loadGuidingCache = " << guideSettings.loadGuidingCache << std::endl;
+    std::cout << "\t storeGuidingCache = " << guideSettings.storeGuidingCache
+              << std::endl;
+    std::cout << "\t guidingCacheFileName = " << guideSettings.guidingCacheFileName
+              << std::endl;
+    std::cout << "\t lightSampleStrategy = " << lightSampleStrategy << std::endl;
+    std::cout << "\t regularize = " << regularize << std::endl;
+
+    guideTraining = guideSettings.enableGuiding;
+
+    guiding_device = new openpgl::cpp::Device(PGL_DEVICE_TYPE_CPU_4);
+    if (guideSettings.distributionType == EGuideDistributionPAVMM) {
+        guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE,
+                                 PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM);
+    } else if (guideSettings.distributionType == EGuideDistributionDQT) {
+        guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE,
+                                 PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE);
+    }  /// else if (guideSettings.distributionType == EGuideDistributionPAVMMV2) {
+    //    guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE,
+    //    PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM_V2);
+    //}
+
+    if (guideSettings.loadGuidingCache) {
+        if (FileExists(guideSettings.guidingCacheFileName)) {
+            guiding_field = new openpgl::cpp::Field(guiding_device,
+                                                    guideSettings.guidingCacheFileName);
+            guideTraining = false;
+        } else {
+            std::cout
+                << "Warning: Guiding cache file does not exists: guidingCacheFileName = "
+                << guideSettings.guidingCacheFileName << std::endl;
+            guiding_field = new openpgl::cpp::Field(guiding_device, guiding_fieldConfig);
+        }
+    } else {
+        guiding_field = new openpgl::cpp::Field(guiding_device, guiding_fieldConfig);
+    }
+    guiding_sampleStorage = new openpgl::cpp::SampleStorage();
+
+    guiding_threadPathSegmentStorage =
+        new ThreadLocal<openpgl::cpp::PathSegmentStorage *>([this]() {
+            openpgl::cpp::PathSegmentStorage *pss =
+                new openpgl::cpp::PathSegmentStorage();
+            size_t maxPathSegments = this->maxDepth >= 1 ? this->maxDepth * 2 : 30;
+            pss->Reserve(maxPathSegments);
+            pss->SetMaxDistance(guidingInfiniteLightDistance);
+            return pss;
+        });
+
+    guiding_threadSurfaceSamplingDistribution =
+        new ThreadLocal<openpgl::cpp::SurfaceSamplingDistribution *>([this]() {
+            return new openpgl::cpp::SurfaceSamplingDistribution(guiding_field);
+        });
+
+    Vector2i resolution = camera.GetFilm().PixelBounds().Diagonal();
+    sensor = camera.GetFilm().GetPixelSensor();
+#if defined(GUIDED_RR)
+    if (guideSettings.loadContributionEstimate) {
+        if (FileExists(guideSettings.contributionEstimateFileName)) {
+            imageSpaceGuidingBuffer = new openpgl::cpp::util::ImageSpaceGuidingBuffer(
+                guideSettings.contributionEstimateFileName);
+            imageSpaceGuidingBufferReady = true;
+            calculateImageSpaceGuidingBuffer = false;
+        } else {
+            std::cout << "Warning: Contribution estimate file does not exists: "
+                         "contributionEstimateFileName = "
+                      << guideSettings.contributionEstimateFileName << std::endl;
+        }
+    }
+
+    if (!imageSpaceGuidingBufferReady &&
+        (guideSettings.storeContributionEstimate || guideSettings.guideRR)) {
+        calculateImageSpaceGuidingBuffer = true;
+        imageSpaceGuidingBuffer = new openpgl::cpp::util::ImageSpaceGuidingBuffer(
+            openpgl::cpp::Point2i(resolution[0], resolution[1]));
+        imageSpaceGuidingBufferReady = false;
+    }
+
+    if (guideSettings.guideRR) {
+        this->minRRDepth = 1;
+    }
+#endif
+}
+
+GuidedPathIntegrator::~GuidedPathIntegrator() {
+    //~RayIntegrator();
+    if (guideSettings.storeGuidingCache) {
+        std::cout << "GuidedPathIntegrator storing guiding cache = "
+                  << guideSettings.guidingCacheFileName << std::endl;
+        guiding_field->Store(guideSettings.guidingCacheFileName);
+    }
+#if defined(GUIDED_RR)
+    if (guideSettings.storeContributionEstimate) {
+        imageSpaceGuidingBuffer->Store(guideSettings.contributionEstimateFileName);
+        imageSpaceGuidingBuffer->Reset();
+    }
+#endif
+    delete guiding_device;
+    delete guiding_sampleStorage;
+    delete guiding_field;
+#if defined(GUIDED_RR)
+    delete imageSpaceGuidingBuffer;
+#endif
+}
+
+void GuidedPathIntegrator::PostProcessWave() {
+    waveCounter++;
+    // std::cout << "GuidedPathIntegrator::PostProcessWave()" << std::endl;
+    if (guideTraining) {
+        const size_t numValidSamples = guiding_sampleStorage->GetSizeSurface() +
+                                       guiding_sampleStorage->GetSizeVolume();
+        // std::cout << "Guiding Iteration: "<< guiding_field->GetIteration() << "\t
+        // numValidSamples: " << numValidSamples << std::endl;
+        if (numValidSamples > 128) {
+            Timer guidingFiledUpdateTimer;
+            guiding_field->Update(*guiding_sampleStorage);
+            guidingCacheUpdateTime += guidingFiledUpdateTimer.ElapsedSeconds();
+            if (guiding_field->GetIteration() >= guideSettings.guideNumTrainingWaves) {
+                guideTraining = false;
+            }
+            guiding_sampleStorage->Clear();
+        }
+    }
+    guiding_sampleStorage->Clear();
+#if defined(GUIDED_RR)
+    if (calculateImageSpaceGuidingBuffer &&
+        waveCounter == std::pow(2.0f, imageSpaceGuidingBufferUpdateWave)) {
+        Timer imageSpaceGuidingBufferTimer;
+        imageSpaceGuidingBuffer->Update();
+        imageSpaceGudingBufferUpdateTime += imageSpaceGuidingBufferTimer.ElapsedSeconds();
+        imageSpaceGuidingBufferReady = true;
+        imageSpaceGuidingBufferUpdateWave++;
+    }
+#endif
+}
+
+SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
+                                         SampledWavelengths &lambda, Sampler sampler,
+                                         ScratchBuffer &scratchBuffer,
+                                         VisibleSurface *visibleSurf) const {
+    openpgl::cpp::PathSegmentStorage *pathSegmentStorage =
+        guiding_threadPathSegmentStorage->Get();
+    openpgl::cpp::SurfaceSamplingDistribution *surfaceSamplingDistribution =
+        guiding_threadSurfaceSamplingDistribution->Get();
+
+    openpgl::cpp::PathSegment *pathSegmentData = nullptr;
+#if defined(GUIDED_RR)
+    openpgl::cpp::util::ImageSpaceGuidingBuffer::Sample cedSample;
+#endif
+    SampledSpectrum pixelContributionEstimate(0.f);
+    SampledSpectrum adjointEstimate(0.f);
+    bool guideRR = false;
+#if defined(GUIDED_RR)
+    if (guideSettings.guideRR && imageSpaceGuidingBufferReady) {
+#if defined(OPENPGL_VSP_GUIDING)
+        openpgl::cpp::Vector3f pgPixelContributionEstimate =
+            imageSpaceGuidingBuffer->GetContributionEstimate(
+                openpgl::cpp::Point2i(pPixel[0], pPixel[1]));
+#else
+        openpgl::cpp::Vector3f pgPixelContributionEstimate =
+            imageSpaceGuidingBuffer->GetPixelContributionEstimate(
+                openpgl::cpp::Point2i(pPixel[0], pPixel[1]));
+#endif
+        pixelContributionEstimate[0] = pgPixelContributionEstimate.x;
+        pixelContributionEstimate[1] = pgPixelContributionEstimate.y;
+        pixelContributionEstimate[2] = pgPixelContributionEstimate.z;
+        guideRR = true;
+    }
+#endif
+    // Declare local variables for GuidedPathIntegrator::Li()
+    SampledSpectrum L(0.f), beta(1.f);
+    SampledSpectrum bsdfWeight(1.f);
+    int depth = 0;
+
+    GuidedBSDF gbsdf(&sampler, guiding_field, surfaceSamplingDistribution,
+                     guideSettings.enableGuiding, guideSettings.surfaceGuidingType);
+    float rr_correction = 1.0f;
+
+    Float misPDF, etaScale = 1;
+    bool specularBounce = false, anyNonSpecularBounces = false;
+    LightSampleContext prevIntrCtx;
+
+    Float regularizationGamma = guideSettings.regularizationGamma;
+    Float accumulatedRoughness = 0.f;
+
+    bool add_direct_contribution = false;
+    float w = 0.0f;
+    // Sample path from camera and accumulate radiance estimate
+    while (true) {
+        Float survivalProb = 1.f;
+        // Trace ray and find closest path vertex and its BSDF
+        pstd::optional<ShapeIntersection> si = Intersect(ray);
+        // Add emitted light at intersection point or from the environment
+        if (!si) {
+            // Incorporate emission from infinite lights for escaped ray
+            for (const auto &light : infiniteLights) {
+                SampledSpectrum Le = light.Le(ray, lambda);
+                if (depth == 0 || specularBounce) {
+                    L += beta * Le;
+                    guiding_addInfiniteLightEmission(pathSegmentStorage,
+                                                     guidingInfiniteLightDistance, ray,
+                                                     Le, 1.0f, lambda, colorSpace);
+                } else {
+                    // Compute MIS weight for infinite light
+                    Float lightPDF = lightSampler.PMF(prevIntrCtx, light) *
+                                     light.PDF_Li(prevIntrCtx, ray.d, true);
+                    Float w_b = useNEE ? PowerHeuristic(1, misPDF, 1, lightPDF) : 1.0f;
+
+                    L += beta * w_b * Le;
+                    guiding_addInfiniteLightEmission(pathSegmentStorage,
+                                                     guidingInfiniteLightDistance, ray,
+                                                     Le, w_b, lambda, colorSpace);
+                }
+            }
+
+            break;
+        }
+        // Incorporate emission from surface hit by ray
+        SampledSpectrum Le = si->intr.Le(-ray.d, lambda);
+        if (Le) {
+            if (depth == 0 || specularBounce) {
+                L += beta * Le;
+                w = 1.0f;
+                add_direct_contribution = true;
+            } else {
+                // Compute MIS weight for area light
+                Light areaLight(si->intr.areaLight);
+                Float lightPDF = lightSampler.PMF(prevIntrCtx, areaLight) *
+                                 areaLight.PDF_Li(prevIntrCtx, ray.d, true);
+                Float w_l = useNEE ? PowerHeuristic(1, misPDF, 1, lightPDF) : 1.0f;
+                L += beta * w_l * Le;
+                w = w_l;
+                add_direct_contribution = true;
+            }
+        }
+
+        SurfaceInteraction &isect = si->intr;
+        // Get BSDF and skip over medium boundaries
+        BSDF bsdf = isect.GetBSDF(ray, lambda, camera, scratchBuffer, sampler);
+        if (!bsdf) {
+            specularBounce = true;  // disable MIS if the indirect ray hits a light
+            isect.SkipIntersection(&ray, si->tHit);
+            continue;
+        }
+
+        pathSegmentData = guiding_newSurfacePathSegment(pathSegmentStorage, ray, si);
+
+        if (add_direct_contribution) {
+            guiding_addSurfaceEmission(pathSegmentData, Le, w, lambda, colorSpace);
+        }
+        add_direct_contribution = false;
+
+        // Initialize _visibleSurf_ at first intersection
+#if defined(GUIDED_RR)
+        if (depth == 0 && (visibleSurf || calculateImageSpaceGuidingBuffer)) {
+#else
+        if (depth == 0 && (visibleSurf)) {
+#endif
+            // Estimate BSDF's albedo
+            // Define sample arrays _ucRho_ and _uRho_ for reflectance estimate
+            constexpr int nRhoSamples = 16;
+            const Float ucRho[nRhoSamples] = {
+                0.75741637, 0.37870818, 0.7083487, 0.18935409, 0.9149363, 0.35417435,
+                0.5990858,  0.09467703, 0.8578725, 0.45746812, 0.686759,  0.17708716,
+                0.9674518,  0.2995429,  0.5083201, 0.047338516};
+            const Point2f uRho[nRhoSamples] = {
+                Point2f(0.855985, 0.570367), Point2f(0.381823, 0.851844),
+                Point2f(0.285328, 0.764262), Point2f(0.733380, 0.114073),
+                Point2f(0.542663, 0.344465), Point2f(0.127274, 0.414848),
+                Point2f(0.964700, 0.947162), Point2f(0.594089, 0.643463),
+                Point2f(0.095109, 0.170369), Point2f(0.825444, 0.263359),
+                Point2f(0.429467, 0.454469), Point2f(0.244460, 0.816459),
+                Point2f(0.756135, 0.731258), Point2f(0.516165, 0.152852),
+                Point2f(0.180888, 0.214174), Point2f(0.898579, 0.503897)};
+
+            const SampledSpectrum albedo = bsdf.rho(isect.wo, ucRho, uRho);
+            if (visibleSurf)
+                *visibleSurf = VisibleSurface(isect, albedo, lambda);
+#if defined(GUIDED_RR)
+            const RGB albedoRGB = albedo.ToRGB(lambda, *colorSpace);
+            cedSample.albedo =
+                openpgl::cpp::Vector3f(albedoRGB[0], albedoRGB[1], albedoRGB[2]);
+            cedSample.normal = openpgl::cpp::Vector3f(isect.n[0], isect.n[1], isect.n[2]);
+            cedSample.SetSurfaceEvent(true);
+#endif
+        }
+
+        // End path if maximum depth reached
+        if (depth++ == maxDepth)
+            break;
+
+        // Possibly regularize the BSDF
+        if (regularize && anyNonSpecularBounces) {
+            ++regularizedBSDFs;
+            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
+        }
+
+        ++totalBSDFs;
+
+        // Guiding - Check if we can use guiding. If so intialize the guiding distribution
+        Float v = guideSettings.knnLookup ? sampler.Get1D() : -1.0f;
+        gbsdf.init(&bsdf, ray, si, v);
+#ifdef GUIDED_RR
+        adjointEstimate = gbsdf.OutgoingRadiance(-ray.d);
+
+        if (guideRR && depth > minRRDepth) {
+            survivalProb = specularBounce
+                               ? 0.95
+                               : openpgl::cpp::util::GuidedRussianRoulette(
+                                     OPGLVector3f(beta), OPGLVector3f(adjointEstimate),
+                                     OPGLVector3f(pixelContributionEstimate), 0.1f);
+        }
+#endif
+        if (depth == 1 && visibleSurf && guiding_field->GetIteration() > 0) {
+            visibleSurf->guidingData.id = gbsdf.getId();
+        }
+
+        // Sample direct illumination from the light sources
+        if (useNEE && IsNonSpecular(bsdf.Flags())) {
+            ++totalPaths;
+            SampledSpectrum Ld = SampleLd(isect, &gbsdf, survivalProb, lambda, sampler);
+            if (!Ld)
+                ++zeroRadiancePaths;
+            L += beta * Ld;
+            // Guiding - add scattered contribution from NEE
+            guiding_addScatteredDirectLight(pathSegmentData, Ld, lambda, colorSpace);
+        }
+
+        // Sample BSDF to get new path direction
+        Vector3f wo = -ray.d;
+        Float u = sampler.Get1D();
+        pstd::optional<BSDFSample> bs = gbsdf.Sample_f(wo, u, sampler.Get2D());
+        if (!bs)
+            break;
+
+        accumulatedRoughness = bs->sampledRoughness;
+
+        if (guideSettings.rrCorrection) {
+            rr_correction *= bs->pdf / bs->bsdfPdf;
+        }
+        misPDF = survivalProb * bs->misPdf;
+        // Update path state variables after surface scattering
+        bsdfWeight = bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
+        beta *= bsdfWeight;
+
+        DCHECK(!IsInf(beta.y(lambda)));
+        specularBounce = bs->IsSpecular();
+        anyNonSpecularBounces |= !bs->IsSpecular();
+        if (bs->IsTransmission())
+            etaScale *= Sqr(bs->eta);
+        prevIntrCtx = si->intr;
+
+        ray = isect.SpawnRay(ray, bsdf, bs->wi, bs->flags, bs->eta);
+
+        if (!beta)
+            break;
+        // Possibly terminate the path with Russian roulette
+        // SampledSpectrum rrBeta = beta * etaScale;
+        // termination probability
+        // Todo: need to find a better solution for specular and near specular surfaces
+
+        if (!guideRR && depth > minRRDepth) {
+            const SampledSpectrum rrThroughputWeight = beta * rr_correction * etaScale;
+#ifdef GUIDED_RR
+            survivalProb =
+                specularBounce
+                    ? 0.95
+                    : openpgl::cpp::util::StandardThroughputBasedRussianRoulette(
+                          OPGLVector3f(rrThroughputWeight));
+#else
+            survivalProb =
+                specularBounce
+                    ? 0.95
+                    : std::max(0.f,
+                               std::min(1.f, rrThroughputWeight.MaxComponentValue()));
+#endif
+        }
+        if (survivalProb < 1 && depth > minRRDepth) {
+            Float q = std::max<Float>(0, 1 - survivalProb);
+            if (sampler.Get1D() < q)
+                break;
+            beta /= 1 - q;
+            DCHECK(!IsInf(beta.y(lambda)));
+        }
+
+        // Guiding - Add BSDF data to the current path segment
+        guiding_addSurfaceData(pathSegmentData, bsdfWeight, bs->wi, bs->eta,
+                               bs->sampledRoughness, bs->pdf, survivalProb, lambda,
+                               colorSpace);
+    }
+    pathLength << depth;
+
+#if defined(GUIDED_RR)
+    if (calculateImageSpaceGuidingBuffer) {
+#if defined(PBRT_RGB_RENDERING)
+        RGB color = L.ToRGB(lambda, *colorSpace);
+#else
+        RGB color = sensor->ToSensorRGB(L, lambda);
+#endif
+        cedSample.contribution = openpgl::cpp::Vector3f(color[0], color[1], color[2]);
+        imageSpaceGuidingBuffer->AddSample(openpgl::cpp::Point2i(pPixel[0], pPixel[1]),
+                                           cedSample);
+    }
+#endif
+    if (guideTraining) {
+        // pathSegmentStorage->ValidateSegments();
+        pathSegmentStorage->PropagateSamples(guiding_sampleStorage, true, true);
+        pathSegmentStorage->Clear();
+    } else {
+        pathSegmentStorage->Clear();
+    }
+    return L;
+}
+
+SampledSpectrum GuidedPathIntegrator::SampleLd(const SurfaceInteraction &intr,
+                                               const GuidedBSDF *bsdf,
+                                               const Float survivalProb,
+                                               SampledWavelengths &lambda,
+                                               Sampler sampler) const {
+    // Initialize _LightSampleContext_ for light sampling
+    LightSampleContext ctx(intr);
+    // Try to nudge the light sampling position to correct side of the surface
+    BxDFFlags flags = bsdf->Flags();
+    if (IsReflective(flags) && !IsTransmissive(flags))
+        ctx.pi = intr.OffsetRayOrigin(intr.wo);
+    else if (IsTransmissive(flags) && !IsReflective(flags))
+        ctx.pi = intr.OffsetRayOrigin(-intr.wo);
+
+    // Choose a light source for the direct lighting calculation
+    Float u = sampler.Get1D();
+    pstd::optional<SampledLight> sampledLight = lightSampler.Sample(ctx, u);
+    Point2f uLight = sampler.Get2D();
+    if (!sampledLight)
+        return {};
+
+    // Sample a point on the light source for direct lighting
+    Light light = sampledLight->light;
+    DCHECK(light && sampledLight->p > 0);
+    pstd::optional<LightLiSample> ls = light.SampleLi(ctx, uLight, lambda, true);
+    if (!ls || !ls->L || ls->pdf == 0)
+        return {};
+
+    // Evaluate BSDF for light sample and check light visibility
+    Vector3f wo = intr.wo, wi = ls->wi;
+    SampledSpectrum f = bsdf->f(wo, wi) * AbsDot(wi, intr.shading.n);
+    if (!f || !Unoccluded(intr, ls->pLight))
+        return {};
+
+    // Return light's contribution to reflected radiance
+    Float p_l = sampledLight->p * ls->pdf;
+    if (IsDeltaLight(light.Type()))
+        return ls->L * f / p_l;
+    else {
+        Float p_b = survivalProb * bsdf->PDF(wo, wi);
+        Float w_l = PowerHeuristic(1, p_l, 1, p_b);
+        return w_l * ls->L * f / p_l;
+    }
+}
+
+std::string GuidedPathIntegrator::ToString() const {
+    return StringPrintf("[ GuidedPathIntegrator maxDepth: %d lightSampler: %s regularize: %s ]",
+                        maxDepth, lightSampler, regularize);
+}
+
+std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
+    const ParameterDictionary &parameters, const RGBColorSpace *colorSpace, Camera camera,
+    Sampler sampler, Primitive aggregate, std::vector<Light> lights, const FileLoc *loc) {
+    int maxDepth = parameters.GetOneInt("maxdepth", 5);
+    int minRRDepth = parameters.GetOneInt("minrrdepth", 1);
+    bool useNEE = parameters.GetOneBool("usenee", true);
+    GuidingSettings settings;
+    settings.enableGuiding = parameters.GetOneBool("enableguiding", true);
+
+    settings.guideSurface = parameters.GetOneBool("surfaceguiding", true);
+    settings.guideRR = parameters.GetOneBool("rrguiding", false);
+
+    settings.rrCorrection = parameters.GetOneBool("rrcorrection", true);
+
+    settings.guideNumTrainingWaves = parameters.GetOneInt("trainingSamples", 128);
+
+    std::string strGuidingDistributionType =
+        parameters.GetOneString("distribution", "PAVMM");
+    if (strGuidingDistributionType == "PAVMM") {
+        settings.distributionType = EGuideDistributionPAVMM;
+    } else if (strGuidingDistributionType == "DQT") {
+        settings.distributionType = EGuideDistributionDQT;
+    } else if (strGuidingDistributionType == "PAVMMV2") {
+        settings.distributionType = EGuideDistributionPAVMMV2;
+    }
+
+    settings.knnLookup = parameters.GetOneBool("knnlookup", true);
+    std::string strSurfaceGuidingType =
+        parameters.GetOneString("surfaceguidingtype", "ris");
+    settings.surfaceGuidingType = strSurfaceGuidingType == "mis" ? EGuideMIS : EGuideRIS;
+
+    settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
+    settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);
+    settings.guidingCacheFileName = parameters.GetOneString("guidingCacheFileName", "");
+
+    settings.storeContributionEstimate =
+        parameters.GetOneBool("storeContributionEstimate", false);
+    settings.loadContributionEstimate =
+        parameters.GetOneBool("loadContributionEstimate", false);
+    settings.contributionEstimateFileName =
+        parameters.GetOneString("contributionEstimateFileName", "");
+
+    std::string lightStrategy = parameters.GetOneString("lightsampler", "bvh");
+    bool regularize = parameters.GetOneBool("regularize", false);
+    settings.regularizationGamma = parameters.GetOneFloat("regGamma", 0.1f);
+
+    return std::make_unique<GuidedPathIntegrator>(maxDepth, minRRDepth, useNEE, settings,
+                                                  colorSpace, camera, sampler, aggregate,
+                                                  lights, lightStrategy, regularize);
+}
+
+// GuidedVolPathIntegrator Method Definitions
+GuidedVolPathIntegrator::GuidedVolPathIntegrator(
+    int maxDepth, int minRRDepth, bool useNEE, const GuidingSettings guideSettings,
+    const RGBColorSpace *colorSpace, Camera camera, Sampler sampler, Primitive aggregate,
+    std::vector<Light> lights, const std::string &lightSampleStrategy, bool regularize)
+    : RayIntegrator(camera, sampler, aggregate, lights),
+      maxDepth(maxDepth),
+      minRRDepth(minRRDepth),
+      useNEE(useNEE),
+      guideSettings(guideSettings),
+      colorSpace(colorSpace),
+      lightSampler(LightSampler::Create(lightSampleStrategy, lights, Allocator())),
+      regularize(regularize) {
+    std::cout << "GuidedVolPathIntegrator:" << std::endl;
+    std::cout << "\t maxDepth = " << maxDepth << std::endl;
+    std::cout << "\t minRRDepth = " << minRRDepth << std::endl;
+    std::cout << "\t useNEE = " << useNEE << std::endl;
+    std::cout << "\t surfaceGuiding = " << guideSettings.guideSurface << std::endl;
+    std::cout << "\t volumeGuiding = " << guideSettings.guideVolume << std::endl;
+    std::cout << "\t surfaceGuidingType = " << guideSettings.surfaceGuidingType
+              << std::endl;
+    std::cout << "\t volumeGuidingType = " << guideSettings.volumeGuidingType
+              << std::endl;
+    std::cout << "\t loadGuidingCache = " << guideSettings.loadGuidingCache << std::endl;
+    std::cout << "\t guidingCacheFileName = " << guideSettings.guidingCacheFileName
+              << std::endl;
+    std::cout << "\t lightSampleStrategy = " << lightSampleStrategy << std::endl;
+    std::cout << "\t regularize = " << regularize << std::endl;
+
+    guideTraining = guideSettings.guideSurface || guideSettings.guideVolume;
+
+    guiding_device = new openpgl::cpp::Device(PGL_DEVICE_TYPE_CPU_4);
+    if (guideSettings.distributionType == EGuideDistributionPAVMM) {
+        guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE,
+                                 PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM);
+    } else if (guideSettings.distributionType == EGuideDistributionDQT) {
+        guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE,
+                                 PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE);
+    }  // else if (guideSettings.distributionType == EGuideDistributionPAVMMV2) {
+    //    guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE,
+    //    PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM_V2);
+    //}
+
+    if (guideSettings.loadGuidingCache) {
+        if (FileExists(guideSettings.guidingCacheFileName)) {
+            std::cout << "GuidedVolPathIntegrator: loading guiding cache = "
+                      << guideSettings.guidingCacheFileName << std::endl;
+            guiding_field = new openpgl::cpp::Field(guiding_device,
+                                                    guideSettings.guidingCacheFileName);
+            guideTraining = false;
+        } else {
+            guiding_field = new openpgl::cpp::Field(guiding_device, guiding_fieldConfig);
+        }
+    } else {
+        guiding_field = new openpgl::cpp::Field(guiding_device, guiding_fieldConfig);
+    }
+    guiding_sampleStorage = new openpgl::cpp::SampleStorage();
+
+    guiding_threadPathSegmentStorage =
+        new ThreadLocal<openpgl::cpp::PathSegmentStorage *>([this]() {
+            openpgl::cpp::PathSegmentStorage *pss =
+                new openpgl::cpp::PathSegmentStorage();
+            size_t maxPathSegments = this->maxDepth >= 1 ? this->maxDepth * 2 : 30;
+            pss->Reserve(maxPathSegments);
+            pss->SetMaxDistance(guidingInfiniteLightDistance);
+            return pss;
+        });
+
+    guiding_threadSurfaceSamplingDistribution =
+        new ThreadLocal<openpgl::cpp::SurfaceSamplingDistribution *>([this]() {
+            return new openpgl::cpp::SurfaceSamplingDistribution(guiding_field);
+        });
+
+    guiding_threadVolumeSamplingDistribution =
+        new ThreadLocal<openpgl::cpp::VolumeSamplingDistribution *>([this]() {
+            return new openpgl::cpp::VolumeSamplingDistribution(guiding_field);
+        });
+
+    Vector2i resolution = camera.GetFilm().PixelBounds().Diagonal();
+    sensor = camera.GetFilm().GetPixelSensor();
+#if defined(GUIDED_RR)
+    if (guideSettings.loadContributionEstimate) {
+        if (FileExists(guideSettings.contributionEstimateFileName)) {
+            imageSpaceGuidingBuffer = new openpgl::cpp::util::ImageSpaceGuidingBuffer(
+                guideSettings.contributionEstimateFileName);
+            imageSpaceGuidingBufferReady = true;
+            calculateImageSpaceGuidingBuffer = false;
+        } else {
+            std::cout << "Warning: Contribution estimate file does not exists: "
+                         "contributionEstimateFileName = "
+                      << guideSettings.contributionEstimateFileName << std::endl;
+        }
+    }
+
+    if (!imageSpaceGuidingBufferReady &&
+        (guideSettings.storeContributionEstimate || guideSettings.guideRR)) {
+        calculateImageSpaceGuidingBuffer = true;
+        imageSpaceGuidingBuffer = new openpgl::cpp::util::ImageSpaceGuidingBuffer(
+            openpgl::cpp::Point2i(resolution[0], resolution[1]));
+        imageSpaceGuidingBufferReady = false;
+    }
+
+    if (guideSettings.guideRR) {
+        this->minRRDepth = 1;
+    }
+#endif
+}
+
+
+GuidedVolPathIntegrator::~GuidedVolPathIntegrator() {
+    //~RayIntegrator();
+    if (guideSettings.storeGuidingCache) {
+        std::cout << "GuidedVolPathIntegrator storing guiding cache = "
+                  << guideSettings.guidingCacheFileName << std::endl;
+        guiding_field->Store(guideSettings.guidingCacheFileName);
+    }
+#if defined(GUIDED_RR)
+    if (guideSettings.storeContributionEstimate) {
+        imageSpaceGuidingBuffer->Store(guideSettings.contributionEstimateFileName);
+        imageSpaceGuidingBuffer->Reset();
+    }
+#endif
+    delete guiding_device;
+    delete guiding_sampleStorage;
+    delete guiding_field;
+#if defined(GUIDED_RR)
+    delete imageSpaceGuidingBuffer;
+#endif
+}
+
+void GuidedVolPathIntegrator::PostProcessWave() {
+    waveCounter++;
+    // std::cout << "GuidedVolPathIntegrator::PostProcessWave()" << std::endl;
+    if (guideTraining) {
+        const size_t numValidSamples = guiding_sampleStorage->GetSizeSurface() +
+                                       guiding_sampleStorage->GetSizeVolume();
+        // std::cout << "Guiding Iteration: "<< guiding_field->GetIteration() << "\t
+        // numValidSamples: " << numValidSamples << "\t surfaceSamples: " <<
+        // guiding_sampleStorage->GetSizeSurface() << "\t volumeSamples: " <<
+        // guiding_sampleStorage->GetSizeVolume() << std::endl;
+        if (numValidSamples > 128) {
+            Timer guidingFiledUpdateTimer;
+            guiding_field->Update(*guiding_sampleStorage);
+            guidingCacheUpdateTime += guidingFiledUpdateTimer.ElapsedSeconds();
+            if (guiding_field->GetIteration() >= guideSettings.guideNumTrainingWaves) {
+                guideTraining = false;
+            }
+            guiding_sampleStorage->Clear();
+        }
+    }
+
+    guiding_sampleStorage->Clear();
+#if defined(GUIDED_RR)
+    if (calculateImageSpaceGuidingBuffer &&
+        waveCounter == std::pow(2.0f, imageSpaceGuidingBufferUpdateWave)) {
+        Timer imageSpaceGuidingBufferTimer;
+        imageSpaceGuidingBuffer->Update();
+        imageSpaceGudingBufferUpdateTime += imageSpaceGuidingBufferTimer.ElapsedSeconds();
+        std::cout << "Denoiser::time = " << imageSpaceGuidingBufferTimer.ElapsedSeconds()
+                  << std::endl;
+        imageSpaceGuidingBufferReady = true;
+        imageSpaceGuidingBufferUpdateWave++;
+    }
+#endif
+}
+
+SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
+                                            SampledWavelengths &lambda, Sampler sampler,
+                                            ScratchBuffer &scratchBuffer,
+                                            VisibleSurface *visibleSurf) const {
+    openpgl::cpp::PathSegmentStorage *pathSegmentStorage =
+        guiding_threadPathSegmentStorage->Get();
+    openpgl::cpp::SurfaceSamplingDistribution *surfaceSamplingDistribution =
+        guiding_threadSurfaceSamplingDistribution->Get();
+    openpgl::cpp::VolumeSamplingDistribution *volumeSamplingDistribution =
+        guiding_threadVolumeSamplingDistribution->Get();
+
+    openpgl::cpp::PathSegment *pathSegmentData = nullptr;
+#if defined(GUIDED_RR)
+    openpgl::cpp::util::ImageSpaceGuidingBuffer::Sample cedSample;
+#endif
+    SampledSpectrum pixelContributionEstimate(1.f);
+    SampledSpectrum adjointEstimate(1.f);
+    bool guideRR = false;
+    const bool guideSurfaceRR = guideSettings.guideSurfaceRR;
+    const bool guideVolumeRR = guideSettings.guideVolumeRR;
+#if defined(GUIDED_RR)
+    if (guideSettings.guideRR && imageSpaceGuidingBufferReady) {
+#if defined(OPENPGL_VSP_GUIDING)
+        openpgl::cpp::Vector3f pgPixelContributionEstimate =
+            imageSpaceGuidingBuffer->GetContributionEstimate(
+                openpgl::cpp::Point2i(pPixel[0], pPixel[1]));
+#else
+        openpgl::cpp::Vector3f pgPixelContributionEstimate =
+            imageSpaceGuidingBuffer->GetPixelContributionEstimate(
+                openpgl::cpp::Point2i(pPixel[0], pPixel[1]));
+#endif
+        pixelContributionEstimate[0] = pgPixelContributionEstimate.x;
+        pixelContributionEstimate[1] = pgPixelContributionEstimate.y;
+        pixelContributionEstimate[2] = pgPixelContributionEstimate.z;
+        guideRR = true;
+    }
+#endif
+    // Declare state variables for volumetric path sampling
+    SampledSpectrum L(0.f), beta(1.f), r_u(1.f), r_l(1.f);
+    bool specularBounce = false, anyNonSpecularBounces = false;
+    int depth = 0;
+    Float etaScale = 1;
+
+    GuidedBSDF gbsdf(&sampler, guiding_field, surfaceSamplingDistribution,
+                     guideSettings.guideSurface, guideSettings.surfaceGuidingType);
+    GuidedPhaseFunction gphase(&sampler, guiding_field, volumeSamplingDistribution,
+                               guideSettings.guideVolume,
+                               guideSettings.volumeGuidingType);
+    float rr_correction = 1.0f;
+    float misPDF = 1.0f;
+
+    SampledSpectrum bsdfWeight(1.f);
+    bool add_direct_contribution = false;
+    Float w = 0.f;
+
+    Float regularizationGamma = guideSettings.regularizationGamma;
+    Float accumulatedRoughness = 0.f;
+
+    LightSampleContext prevIntrContext;
+
+    while (true) {
+        Float survivalProb = 1.f;
+        // Sample segment of volumetric scattering path
+        PBRT_DBG("%s\n", StringPrintf("Path tracer depth %d, current L = %s, beta = %s\n",
+                                      depth, L, beta)
+                             .c_str());
+        pstd::optional<ShapeIntersection> si = Intersect(ray);
+
+        SampledSpectrum transmittanceWeight = SampledSpectrum(1.0f);
+        if (ray.medium) {
+            // Sample the participating medium
+            bool scattered = false, terminated = false;
+            Float tMax = si ? si->tHit : Infinity;
+            // Initialize _RNG_ for sampling the majorant transmittance
+            uint64_t hash0 = Hash(sampler.Get1D());
+            uint64_t hash1 = Hash(sampler.Get1D());
+            RNG rng(hash0, hash1);
+
+            SampledSpectrum T_maj = SampleT_maj(
+                ray, tMax, sampler.Get1D(), rng, lambda,
+                [&](Point3f p, MediumProperties mp, SampledSpectrum sigma_maj,
+                    SampledSpectrum T_maj) {
+                    // Handle medium scattering event for ray
+                    if (!beta) {
+                        terminated = true;
+                        return false;
+                    }
+                    ++volumeInteractions;
+                    // Add emission from medium scattering event
+                    if (depth < maxDepth && mp.Le) {
+                        // Compute $\beta'$ at new path vertex
+                        Float pdf =
+                            sigma_maj[lambda.ChannelIdx()] * T_maj[lambda.ChannelIdx()];
+                        SampledSpectrum betap = beta * T_maj / pdf;
+
+                        // Compute rescaled path probability for absorption at path vertex
+                        SampledSpectrum r_e = r_u * sigma_maj * T_maj / pdf;
+
+                        // Update _L_ for medium emission
+                        if (r_e)
+                            L += betap * mp.sigma_a * mp.Le / r_e.Average();
+                    }
+
+                // Compute medium event probabilities for interaction
+#if defined(VOLUME_ABSORB)
+                    Float pAbsorb =
+                        mp.sigma_a[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
+                    Float pScatter =
+                        mp.sigma_s[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
+                    Float pNull = std::max<Float>(0, 1 - pAbsorb - pScatter);
+
+                    CHECK_GE(1 - pAbsorb - pScatter, -1e-6);
+                    // Sample medium scattering event type and update path
+                    Float um = rng.Uniform<Float>();
+                    int mode = SampleDiscrete({pAbsorb, pScatter, pNull}, um);
+                    if (mode == 0) {
+                        // Handle absorption along ray path
+                        terminated = true;
+                        return false;
+
+                    } else if (mode == 1) {
+#else
+                    SampledSpectrum sigma_t = mp.sigma_s + mp.sigma_a;
+                    SampledSpectrum albedo = mp.sigma_s / sigma_t;
+                    Float pScatter =
+                        sigma_t[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
+                    Float pNull = std::max<Float>(0, 1 - pScatter);
+
+                    CHECK_GE(1 - pScatter, -1e-6);
+                    // Sample medium scattering event type and update path
+                    Float um = rng.Uniform<Float>();
+                    int mode = SampleDiscrete({pScatter, pNull}, um);
+                    if (mode == 0) {
+#endif
+                        if (depth == 0) {
+                            SampledSpectrum albedo =
+                                mp.sigma_s / (mp.sigma_s + mp.sigma_a);
+                            RGB albedoRGB = albedo.ToRGB(lambda, *colorSpace);
+#if defined(GUIDED_RR)
+                            cedSample.albedo = openpgl::cpp::Vector3f(
+                                albedoRGB[0], albedoRGB[1], albedoRGB[2]);
+                            cedSample.normal =
+                                openpgl::cpp::Vector3f(-ray.d[0], -ray.d[1], -ray.d[2]);
+                            cedSample.SetSurfaceEvent(false);
+#endif
+                        }
+
+                        // Handle scattering along ray path
+                        // Stop path sampling if maximum depth has been reached
+                        if (depth++ >= maxDepth) {
+                            terminated = true;
+                            return false;
+                        }
+
+                    // Update _beta_ and _r_u_ for real-scattering event
+#if defined(VOLUME_ABSORB)
+                        Float pdf =
+                            T_maj[lambda.ChannelIdx()] * mp.sigma_s[lambda.ChannelIdx()];
+                        beta *= T_maj * mp.sigma_s / pdf;
+                        r_u *= T_maj * mp.sigma_s / pdf;
+#else
+                        Float pdf =
+                            T_maj[lambda.ChannelIdx()] * sigma_t[lambda.ChannelIdx()];
+                        beta *= T_maj * mp.sigma_s / pdf;
+                        r_u *= T_maj * sigma_t / pdf;
+#endif
+                        transmittanceWeight *= (T_maj * mp.sigma_s) / pdf;
+                        guiding_addTransmittanceWeight(
+                            pathSegmentData, transmittanceWeight, lambda, colorSpace);
+                        pathSegmentData =
+                            guiding_newVolumePathSegment(pathSegmentStorage, p, -ray.d);
+                        transmittanceWeight = SampledSpectrum(1.0f);
+
+                        if (beta && r_u) {
+                            // Sample direct lighting at volume-scattering event
+                            MediumInteraction intr(p, -ray.d, ray.time, ray.medium,
+                                                   mp.phase);
+
+                            Float v = sampler.Get1D();
+                            gphase.init(&intr.phase, p, ray.d, v);
+#ifdef GUIDED_RR
+                            if (guideRR && guideVolumeRR) {
+                                adjointEstimate =
+                                    gphase.InscatteredRadiance(-ray.d, true);
+                            }
+#endif
+                            // calculate survival property
+                            survivalProb = 1.0f;
+                            if (depth > minRRDepth) {
+#ifdef GUIDED_RR
+                                if (guideRR) {
+                                    if (guideVolumeRR) {
+                                        survivalProb =
+                                            specularBounce
+                                                ? 0.95
+                                                : openpgl::cpp::util::
+                                                      GuidedRussianRoulette(
+                                                          OPGLVector3f(beta),
+                                                          OPGLVector3f(adjointEstimate),
+                                                          OPGLVector3f(
+                                                              pixelContributionEstimate),
+                                                          0.1f);
+                                    } else {
+                                        survivalProb = 1.f;
+                                    }
+                                } else {
+                                    const SampledSpectrum rrThroughputWeight =
+                                        (beta / r_u.Average()) * rr_correction;
+                                    survivalProb =
+                                        specularBounce
+                                            ? 0.95
+                                            : openpgl::cpp::util::
+                                                  StandardThroughputBasedRussianRoulette(
+                                                      OPGLVector3f(rrThroughputWeight));
+                                }
+#else
+                                const SampledSpectrum rrThroughputWeight =
+                                    (beta / r_u.Average()) * rr_correction;
+                                survivalProb =
+                                    specularBounce
+                                        ? 0.95
+                                        : std::max(
+                                              0.f,
+                                              std::min(1.f, rrThroughputWeight
+                                                                .MaxComponentValue()));
+#endif
+                            }
+
+                            // Preform next-event estimation before RR
+                            if (useNEE) {
+                                SampledSpectrum Ld = SampleLd(intr, nullptr, &gphase,
+                                                              1.0f, lambda, sampler, r_u);
+                                L += beta * Ld;
+
+                                // Guiding - add scattered contribution from NEE
+                                guiding_addScatteredDirectLight(pathSegmentData, Ld,
+                                                                lambda, colorSpace);
+                            }
+
+                            // Perform stochastic path termination (Russian Roulette)
+                            if (survivalProb < 1 && depth > minRRDepth) {
+                                Float q = std::max<Float>(0, 1 - survivalProb);
+                                if (sampler.Get1D() < q) {
+                                    terminated = true;
+                                    return false;
+                                }
+                                beta /= 1 - q;
+                            }
+
+                            // Continue path
+                            // Sample new direction at real-scattering event
+                            Point2f u = sampler.Get2D();
+                            pstd::optional<PhaseFunctionSample> ps =
+                                gphase.Sample_p(-ray.d, u);
+                            if (!ps || ps->pdf == 0)
+                                terminated = true;
+                            else {
+                                // Update ray path state for indirect volume scattering
+                                Float phaseFunctionWeight = ps->p / ps->pdf;
+                                beta *= phaseFunctionWeight;
+                                r_l = r_u / ps->pdf;
+                                prevIntrContext = LightSampleContext(intr);
+                                scattered = true;
+                                ray.o = p;
+                                ray.d = ps->wi;
+                                specularBounce = false;
+                                anyNonSpecularBounces = true;
+
+                                guiding_addVolumeData(
+                                    pathSegmentData, phaseFunctionWeight, ps->wi, ps->pdf,
+                                    ps->meanCosine, survivalProb);
+                            }
+                        }
+                        return false;
+
+                    } else {
+                        // Handle null scattering along ray path
+                        SampledSpectrum sigma_n =
+                            ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
+                        Float pdf =
+                            T_maj[lambda.ChannelIdx()] * sigma_n[lambda.ChannelIdx()];
+                        beta *= T_maj * sigma_n / pdf;
+                        transmittanceWeight *= T_maj * sigma_n / pdf;
+                        if (pdf == 0) {
+                            beta = SampledSpectrum(0.f);
+                            transmittanceWeight = SampledSpectrum(0.f);
+                        }
+                        r_u *= T_maj * sigma_n / pdf;
+                        r_l *= T_maj * sigma_maj / pdf;
+                        return beta && r_u;
+                    }
+                });
+            // Handle terminated, scattered, and unscattered medium rays
+            if (terminated || !beta || !r_u)
+                break;
+            if (scattered)
+                continue;
+
+            transmittanceWeight *= T_maj / T_maj[lambda.ChannelIdx()];
+            beta *= T_maj / T_maj[lambda.ChannelIdx()];
+            r_u *= T_maj / T_maj[lambda.ChannelIdx()];
+            r_l *= T_maj / T_maj[lambda.ChannelIdx()];
+        }
+
+        // Handle surviving unscattered rays
+        guiding_addTransmittanceWeight(pathSegmentData, transmittanceWeight, lambda,
+                                       colorSpace);
+
+        // Add emitted light at volume path vertex or from the environment
+        if (!si) {
+            // Accumulate contributions from infinite light sources
+            for (const auto &light : infiniteLights) {
+                SampledSpectrum Le = light.Le(ray, lambda);
+                if (depth == 0 || specularBounce) {
+                    L += beta * Le / r_u.Average();
+                    guiding_addInfiniteLightEmission(pathSegmentStorage,
+                                                     guidingInfiniteLightDistance, ray,
+                                                     Le, 1.0f, lambda, colorSpace);
+                } else {
+                    // Add infinite light contribution using both PDFs with MIS
+                    Float lightPDF = lightSampler.PMF(prevIntrContext, light) *
+                                     light.PDF_Li(prevIntrContext, ray.d, true);
+                    r_l *= lightPDF;
+                    Float w_b = useNEE ? 1.0f / (r_u + r_l).Average() : 1.f;
+                    L += beta * w_b * Le;
+                    guiding_addInfiniteLightEmission(pathSegmentStorage,
+                                                     guidingInfiniteLightDistance, ray,
+                                                     Le, w_b, lambda, colorSpace);
+                }
+            }
+
+            break;
+        }
+        // Incorporate emission from surface hit by ray
+        SurfaceInteraction &isect = si->intr;
+        SampledSpectrum Le = isect.Le(-ray.d, lambda);
+        if (Le) {
+            // Add contribution of emission from intersected surface
+            if (depth == 0 || specularBounce) {
+                L += beta * Le / r_u.Average();
+
+                w = 1.0f;
+                add_direct_contribution = true;
+            } else {
+                // Add surface light contribution using both PDFs with MIS
+                Light areaLight(isect.areaLight);
+                Float lightPDF = lightSampler.PMF(prevIntrContext, areaLight) *
+                                 areaLight.PDF_Li(prevIntrContext, ray.d, true);
+                r_l *= lightPDF;
+                // TODO add handling of survivial probability
+                Float w_l = useNEE ? 1.0f / (r_u + r_l).Average() : 1.0f;
+                L += beta * w_l * Le;
+                w = w_l;
+                add_direct_contribution = true;
+            }
+        }
+
+        // Get BSDF and skip over medium boundaries
+        BSDF bsdf = isect.GetBSDF(ray, lambda, camera, scratchBuffer, sampler);
+        if (!bsdf) {
+            isect.SkipIntersection(&ray, si->tHit);
+            continue;
+        }
+
+        pathSegmentData = guiding_newSurfacePathSegment(pathSegmentStorage, ray, si);
+        transmittanceWeight = SampledSpectrum(1.0f);
+
+        if (add_direct_contribution) {
+            guiding_addSurfaceEmission(pathSegmentData, Le, w, lambda, colorSpace);
+        }
+        add_direct_contribution = false;
+
+        // Initialize _visibleSurf_ at first intersection
+#if defined(GUIDED_RR)
+        if (depth == 0 && (visibleSurf || calculateImageSpaceGuidingBuffer)) {
+#else
+        if (depth == 0 && (visibleSurf)) {
+#endif
+            // Estimate BSDF's albedo
+            // Define sample arrays _ucRho_ and _uRho_ for reflectance estimate
+            constexpr int nRhoSamples = 16;
+            const Float ucRho[nRhoSamples] = {
+                0.75741637, 0.37870818, 0.7083487, 0.18935409, 0.9149363, 0.35417435,
+                0.5990858,  0.09467703, 0.8578725, 0.45746812, 0.686759,  0.17708716,
+                0.9674518,  0.2995429,  0.5083201, 0.047338516};
+            const Point2f uRho[nRhoSamples] = {
+                Point2f(0.855985, 0.570367), Point2f(0.381823, 0.851844),
+                Point2f(0.285328, 0.764262), Point2f(0.733380, 0.114073),
+                Point2f(0.542663, 0.344465), Point2f(0.127274, 0.414848),
+                Point2f(0.964700, 0.947162), Point2f(0.594089, 0.643463),
+                Point2f(0.095109, 0.170369), Point2f(0.825444, 0.263359),
+                Point2f(0.429467, 0.454469), Point2f(0.244460, 0.816459),
+                Point2f(0.756135, 0.731258), Point2f(0.516165, 0.152852),
+                Point2f(0.180888, 0.214174), Point2f(0.898579, 0.503897)};
+
+            const SampledSpectrum albedo = bsdf.rho(isect.wo, ucRho, uRho);
+            const RGB albedoRGB = albedo.ToRGB(lambda, *colorSpace);
+
+            if (visibleSurf)
+                *visibleSurf = VisibleSurface(isect, albedo, lambda);
+#if defined(GUIDED_RR)
+            cedSample.albedo =
+                openpgl::cpp::Vector3f(albedoRGB[0], albedoRGB[1], albedoRGB[2]);
+            cedSample.normal = openpgl::cpp::Vector3f(isect.n[0], isect.n[1], isect.n[2]);
+            cedSample.SetSurfaceEvent(true);
+#endif
+        }
+
+        // Terminate path if maximum depth reached
+        if (depth++ >= maxDepth)
+            break;
+
+        ++surfaceInteractions;
+        // Possibly regularize the BSDF
+        if (regularize && anyNonSpecularBounces) {
+            ++regularizedBSDFs;
+            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
+        }
+
+        // Guiding - Check if we can use guiding. If so intialize the guiding distribution
+        Float v = sampler.Get1D();
+        gbsdf.init(&bsdf, ray, si, v);
+#ifdef GUIDED_RR
+        if (guideRR && guideSurfaceRR) {
+            adjointEstimate = gbsdf.OutgoingRadiance(-ray.d);
+        }
+
+        if (guideRR && depth > minRRDepth) {
+            if (guideSurfaceRR) {
+                survivalProb =
+                    specularBounce
+                        ? 0.95
+                        : openpgl::cpp::util::GuidedRussianRoulette(
+                              OPGLVector3f(beta), OPGLVector3f(adjointEstimate),
+                              OPGLVector3f(pixelContributionEstimate), 0.1f);
+            } else {
+                survivalProb = 1.f;
+            }
+        }
+#endif
+        if (depth == 1 && visibleSurf && guiding_field->GetIteration() > 0) {
+            visibleSurf->guidingData.id = gbsdf.getId();
+        }
+
+        // Sample illumination from lights to find attenuated path contribution
+        if (useNEE && IsNonSpecular(bsdf.Flags())) {
+            SampledSpectrum Ld =
+                SampleLd(isect, &gbsdf, nullptr, 1.0f, lambda, sampler, r_u);
+            L += beta * Ld;
+            DCHECK(IsInf(L.y(lambda)) == false);
+
+            // Guiding - add scattered contribution from NEE
+            guiding_addScatteredDirectLight(pathSegmentData, Ld, lambda, colorSpace);
+        }
+        prevIntrContext = LightSampleContext(isect);
+
+        // Sample BSDF to get new path direction
+        // Vector3f wo = isect.wo;  // Note isect.wo does an explicit Normalize step.
+        Vector3f wo = -ray.d;  // Use -ray.d to be on par to GuidedPath
+        Float u = sampler.Get1D();
+        pstd::optional<BSDFSample> bs = gbsdf.Sample_f(wo, u, sampler.Get2D());
+        if (!bs)
+            break;
+
+        accumulatedRoughness = bs->sampledRoughness;
+
+        if (guideSettings.rrCorrection) {
+            rr_correction *= bs->pdf / bs->bsdfPdf;
+        }
+        misPDF = bs->misPdf;
+        // Update _beta_ and rescaled path probabilities for BSDF scattering
+        bsdfWeight = bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
+        beta *= bsdfWeight;
+        // if (bs->pdfIsProportional)
+        //     r_l = r_u / bsdf.PDF(wo, bs->wi);
+        // else
+        //     r_l = r_u / bs->pdf;
+        r_l = r_u / bs->misPdf;
+
+        PBRT_DBG("%s\n", StringPrintf("Sampled BSDF, f = %s, pdf = %f -> beta = %s",
+                                      bs->f, bs->pdf, beta)
+                             .c_str());
+        DCHECK(IsInf(beta.y(lambda)) == false);
+        // Update volumetric integrator path state after surface scattering
+        specularBounce = bs->IsSpecular();
+        anyNonSpecularBounces |= !bs->IsSpecular();
+        if (bs->IsTransmission())
+            etaScale *= Sqr(bs->eta);
+        ray = isect.SpawnRay(ray, bsdf, bs->wi, bs->flags, bs->eta);
+
+        // Account for attenuated subsurface scattering, if applicable
+        /*
+        BSSRDF bssrdf = isect.GetBSSRDF(ray, lambda, camera, scratchBuffer);
+        if (bssrdf && bs->IsTransmission()) {
+            // Sample BSSRDF probe segment to find exit point
+            Float uc = sampler.Get1D();
+            Point2f up = sampler.Get2D();
+            pstd::optional<BSSRDFProbeSegment> probeSeg = bssrdf.SampleSp(uc, up);
+            if (!probeSeg)
+                break;
+
+            // Sample random intersection along BSSRDF probe segment
+            uint64_t seed = MixBits(FloatToBits(sampler.Get1D()));
+            WeightedReservoirSampler<SubsurfaceInteraction>
+            interactionSampler(seed);
+            // Intersect BSSRDF sampling ray against the scene geometry
+            Interaction base(probeSeg->p0, ray.time, Medium());
+            while (true) {
+                Ray r = base.SpawnRayTo(probeSeg->p1);
+                if (r.d == Vector3f(0, 0, 0))
+                    break;
+                pstd::optional<ShapeIntersection> si = Intersect(r, 1);
+                if (!si)
+                    break;
+                base = si->intr;
+                if (si->intr.material == isect.material)
+                    interactionSampler.Add(SubsurfaceInteraction(si->intr), 1.f);
+            }
+
+            if (!interactionSampler.HasSample())
+                break;
+
+            // Convert probe intersection to _BSSRDFSample_
+            SubsurfaceInteraction ssi = interactionSampler.GetSample();
+            BSSRDFSample bssrdfSample =
+                bssrdf.ProbeIntersectionToSample(ssi, scratchBuffer);
+            if (!bssrdfSample.Sp || !bssrdfSample.pdf)
+                break;
+
+            // Update path state for subsurface scattering
+            Float pdf = interactionSampler.SampleProbability() *
+            bssrdfSample.pdf[0]; beta *= bssrdfSample.Sp / pdf; r_u *= bssrdfSample.pdf /
+            bssrdfSample.pdf[0]; SurfaceInteraction pi = ssi; pi.wo = bssrdfSample.wo;
+            prevIntrContext = LightSampleContext(pi);
+            // Possibly regularize subsurface BSDF
+            BSDF &Sw = bssrdfSample.Sw;
+            anyNonSpecularBounces = true;
+            if (regularize) {
+                ++regularizedBSDFs;
+                Sw.Regularize(regularizationGamma, accumulatedRoughness);
+            } else
+                ++totalBSDFs;
+
+            // Account for attenuated direct illumination subsurface scattering
+            L += SampleLd(pi, &Sw, lambda, sampler, beta, r_u);
+
+            // Sample ray for indirect subsurface scattering
+            Float u = sampler.Get1D();
+            pstd::optional<BSDFSample> bs = Sw.Sample_f(pi.wo, u,
+            sampler.Get2D()); if (!bs) break;
+
+            accumulatedRoughness = bs->sampledRoughness;
+
+            beta *= bs->f * AbsDot(bs->wi, pi.shading.n) / bs->pdf;
+            r_l = r_u / bs->pdf;
+            // Don't increment depth this time...
+            DCHECK(!IsInf(beta.y(lambda)));
+            specularBounce = bs->IsSpecular();
+            ray = RayDifferential(pi.SpawnRay(bs->wi));
+        }
+        */
+        // Possibly terminate volumetric path with Russian roulette
+        if (!beta)
+            break;
+        // SampledSpectrum rrBeta = beta * etaScale / r_u.Average();
+        //         PBRT_DBG("%s\n",
+        //          StringPrintf("etaScale %f -> rrBeta %s", etaScale, rrBeta).c_str());
+        if (!guideRR && depth > minRRDepth) {
+            const SampledSpectrum rrThroughputWeight =
+                (beta / r_u.Average()) * rr_correction * etaScale;
+#ifdef GUIDED_RR
+            survivalProb =
+                specularBounce
+                    ? 0.95
+                    : openpgl::cpp::util::StandardThroughputBasedRussianRoulette(
+                          OPGLVector3f(rrThroughputWeight));
+#else
+            survivalProb =
+                specularBounce
+                    ? 0.95
+                    : std::max(0.f,
+                               std::min(1.f, rrThroughputWeight.MaxComponentValue()));
+#endif
+        }
+        if (survivalProb < 1 && depth > minRRDepth) {
+            Float q = std::max<Float>(0, 1 - survivalProb);
+            if (sampler.Get1D() < q)
+                break;
+            beta /= 1 - q;
+        }
+        // Guiding - Add BSDF data to the current path segment
+        guiding_addSurfaceData(pathSegmentData, bsdfWeight, bs->wi, bs->eta,
+                               bs->sampledRoughness, bs->pdf, survivalProb, lambda,
+                               colorSpace);
+    }
+
+    pathLength << depth;
+#if defined(GUIDED_RR)
+    if (calculateImageSpaceGuidingBuffer) {
+#if defined(PBRT_RGB_RENDERING)
+        RGB color = L.ToRGB(lambda, *colorSpace);
+#else
+        RGB color = sensor->ToSensorRGB(L, lambda);
+#endif
+        cedSample.contribution = openpgl::cpp::Vector3f(color[0], color[1], color[2]);
+        imageSpaceGuidingBuffer->AddSample(openpgl::cpp::Point2i(pPixel[0], pPixel[1]),
+                                           cedSample);
+    }
+#endif
+    if (guideTraining) {
+        // pathSegmentStorage->ValidateSegments();
+        pathSegmentStorage->PropagateSamples(guiding_sampleStorage, true, true);
+        pathSegmentStorage->Clear();
+    } else {
+        pathSegmentStorage->Clear();
+    }
+    return L;
+}
+
+SampledSpectrum GuidedVolPathIntegrator::SampleLd(
+    const Interaction &intr, const GuidedBSDF *bsdf, const GuidedPhaseFunction *phase,
+    const Float survivalProb, SampledWavelengths &lambda, Sampler sampler,
+    SampledSpectrum r_p) const {
+    // Estimate light-sampled direct illumination at _intr_
+    // Initialize _LightSampleContext_ for volumetric light sampling
+    LightSampleContext ctx;
+    if (bsdf) {
+        ctx = LightSampleContext(intr.AsSurface());
+        // Try to nudge the light sampling position to correct side of the surface
+        BxDFFlags flags = bsdf->Flags();
+        if (IsReflective(flags) && !IsTransmissive(flags))
+            ctx.pi = intr.OffsetRayOrigin(intr.wo);
+        else if (IsTransmissive(flags) && !IsReflective(flags))
+            ctx.pi = intr.OffsetRayOrigin(-intr.wo);
+
+    } else
+        ctx = LightSampleContext(intr);
+
+    // Sample a light source using _lightSampler_
+    Float u = sampler.Get1D();
+    pstd::optional<SampledLight> sampledLight = lightSampler.Sample(ctx, u);
+    Point2f uLight = sampler.Get2D();
+    if (!sampledLight)
+        return SampledSpectrum(0.f);
+    Light light = sampledLight->light;
+    DCHECK(light && sampledLight->p != 0);
+
+    // Sample a point on the light source
+    pstd::optional<LightLiSample> ls = light.SampleLi(ctx, uLight, lambda, true);
+    if (!ls || !ls->L || ls->pdf == 0)
+        return SampledSpectrum(0.f);
+    Float p_l = sampledLight->p * ls->pdf;
+
+    // Evaluate BSDF or phase function for light sample direction
+    Float scatterPDF;
+    SampledSpectrum f_hat;
+    Vector3f wo = intr.wo, wi = ls->wi;
+    if (bsdf) {
+        // Update _f_hat_ and _scatterPDF_ accounting for the BSDF
+        f_hat = bsdf->f(wo, wi) * AbsDot(wi, intr.AsSurface().shading.n);
+        scatterPDF = survivalProb * bsdf->PDF(wo, wi);
+
+    } else {
+        // Update _f_hat_ and _scatterPDF_ accounting for the phase function
+        CHECK(intr.IsMediumInteraction());
+        // PhaseFunction phase = intr.AsMedium().phase;
+        f_hat = SampledSpectrum(phase->p(wo, wi));
+        scatterPDF = survivalProb * phase->PDF(wo, wi);
+    }
+    if (!f_hat)
+        return SampledSpectrum(0.f);
+
+    // Declare path state variables for ray to light source
+    Ray lightRay = intr.SpawnRayTo(ls->pLight);
+    SampledSpectrum T_ray(1.f), r_l(1.f), r_u(1.f);
+    RNG rng(Hash(lightRay.o), Hash(lightRay.d));
+
+    while (lightRay.d != Vector3f(0, 0, 0)) {
+        // Trace ray through media to estimate transmittance
+        pstd::optional<ShapeIntersection> si = Intersect(lightRay, 1 - ShadowEpsilon);
+        // Handle opaque surface along ray's path
+        if (si && si->intr.material)
+            return SampledSpectrum(0.f);
+        // Update transmittance for current ray segment
+        if (lightRay.medium) {
+            Float tMax = si ? si->tHit : (1 - ShadowEpsilon);
+            Float u = rng.Uniform<Float>();
+            SampledSpectrum T_maj =
+                SampleT_maj(lightRay, tMax, u, rng, lambda,
+                            [&](Point3f p, MediumProperties mp, SampledSpectrum sigma_maj,
+                                SampledSpectrum T_maj) {
+                                // Update ray transmittance estimate at sampled point
+                                // Update _T_ray_ and PDFs using ratio-tracking estimator
+                                SampledSpectrum sigma_n =
+                                    ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
+                                Float pdf = T_maj[lambda.ChannelIdx()] *
+                                            sigma_maj[lambda.ChannelIdx()];
+                                T_ray *= T_maj * sigma_n / pdf;
+                                r_l *= T_maj * sigma_maj / pdf;
+                                r_u *= T_maj * sigma_n / pdf;
+
+                                // Possibly terminate transmittance computation using
+                                // Russian roulette
+                                SampledSpectrum Tr = T_ray / (r_l + r_u).Average();
+                                if (Tr.MaxComponentValue() < 0.05f) {
+                                    Float q = 0.75f;
+                                    if (rng.Uniform<Float>() < q)
+                                        T_ray = SampledSpectrum(0.);
+                                    else
+                                        T_ray /= 1 - q;
+                                }
+
+                                if (!T_ray)
+                                    return false;
+                                return true;
+                            });
+            // Update transmittance estimate for final segment
+            T_ray *= T_maj / T_maj[lambda.ChannelIdx()];
+            r_l *= T_maj / T_maj[lambda.ChannelIdx()];
+            r_u *= T_maj / T_maj[lambda.ChannelIdx()];
+        }
+        // Generate next ray segment or return final transmittance
+        if (!T_ray)
+            return SampledSpectrum(0.f);
+        if (!si)
+            break;
+        lightRay = si->intr.SpawnRayTo(ls->pLight);
+    }
+    // Return path contribution function estimate for direct lighting
+    r_l *= r_p * p_l;
+    r_u *= r_p * scatterPDF;
+    if (IsDeltaLight(light.Type()))
+        return f_hat * T_ray * ls->L / r_l.Average();
+    else
+        return f_hat * T_ray * ls->L / (r_l + r_u).Average();
+}
+
+std::string GuidedVolPathIntegrator::ToString() const {
+    return StringPrintf(
+        "[ GuidedVolPathIntegrator maxDepth: %d lightSampler: %s regularize: %s ]",
+        maxDepth, lightSampler, regularize);
+}
+
+std::unique_ptr<GuidedVolPathIntegrator> GuidedVolPathIntegrator::Create(
+    const ParameterDictionary &parameters, const RGBColorSpace *colorSpace, Camera camera,
+    Sampler sampler, Primitive aggregate, std::vector<Light> lights, const FileLoc *loc) {
+    int maxDepth = parameters.GetOneInt("maxdepth", 5);
+    int minRRDepth = parameters.GetOneInt("minrrdepth", 1);
+    bool useNEE = parameters.GetOneBool("usenee", true);
+    GuidingSettings settings;
+    settings.knnLookup = parameters.GetOneBool("knnlookup", true);
+    settings.guideSurface = parameters.GetOneBool("surfaceguiding", true);
+    settings.guideVolume = parameters.GetOneBool("volumeguiding", true);
+    settings.guideRR = parameters.GetOneBool("rrguiding", false);
+    settings.guideSurfaceRR = parameters.GetOneBool("surfacerrguiding", true);
+    settings.guideVolumeRR = parameters.GetOneBool("volumerrguiding", true);
+
+    settings.rrCorrection = parameters.GetOneBool("rrcorrection", true);
+
+    settings.guideNumTrainingWaves = parameters.GetOneInt("trainingSamples", 128);
+
+    std::string strGuidingDistributionType =
+        parameters.GetOneString("distribution", "PAVMM");
+    if (strGuidingDistributionType == "PAVMM") {
+        settings.distributionType = EGuideDistributionPAVMM;
+    } else if (strGuidingDistributionType == "DQT") {
+        settings.distributionType = EGuideDistributionDQT;
+    } else if (strGuidingDistributionType == "PAVMMV2") {
+        settings.distributionType = EGuideDistributionPAVMMV2;
+    }
+
+    settings.enableGuiding = settings.guideSurface || settings.guideVolume;
+    std::string strSurfaceGuidingType =
+        parameters.GetOneString("surfaceguidingtype", "ris");
+    settings.surfaceGuidingType = strSurfaceGuidingType == "mis" ? EGuideMIS : EGuideRIS;
+    std::string strVolumeGuidingType =
+        parameters.GetOneString("volumeguidingtype", "mis");
+    settings.volumeGuidingType = strVolumeGuidingType == "mis" ? EGuideMIS : EGuideRIS;
+
+    settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
+    settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);
+    settings.guidingCacheFileName = parameters.GetOneString("guidingCacheFileName", "");
+
+    settings.storeContributionEstimate =
+        parameters.GetOneBool("storeContributionEstimate", false);
+    settings.loadContributionEstimate =
+        parameters.GetOneBool("loadContributionEstimate", false);
+    settings.contributionEstimateFileName =
+        parameters.GetOneString("contributionEstimateFileName", "");
+
+    std::string lightStrategy = parameters.GetOneString("lightsampler", "bvh");
+    bool regularize = parameters.GetOneBool("regularize", false);
+    settings.regularizationGamma = parameters.GetOneFloat("regGamma", 0.1f);
+
+    return std::make_unique<GuidedVolPathIntegrator>(
+        maxDepth, minRRDepth, useNEE, settings, colorSpace, camera, sampler, aggregate,
+        lights, lightStrategy, regularize);
+}
+#endif
 
 }  // namespace pbrt
