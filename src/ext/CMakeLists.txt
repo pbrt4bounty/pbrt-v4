@@ -137,3 +137,182 @@ add_subdirectory (glad)
 set_property (TARGET glfw PROPERTY FOLDER "ext")
 set_property (TARGET glad PROPERTY FOLDER "ext")
 
+###########################################################################
+# TBB
+if (PBRT_WITH_PATH_GUIDING OR PBRT_WITH_OIDN)
+include(ExternalProject)
+  set(TBB_ARGS "")
+
+  set(TBB_TEST OFF CACHE BOOL "" FORCE)
+  set(TBB_STRICT OFF CACHE BOOL "" FORCE)
+
+  set(TBB_ARGS ${TBB_ARGS}
+    -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_INSTALL_PREFIX}
+    -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}
+    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+    -DTBB_TEST=OFF
+    -DTBB_STRICT=OFF
+  )
+
+  if(APPLE)
+    set(CMAKE_OSX_ARCHITECTURES ${CMAKE_OSX_ARCHITECTURES})
+    set(CMAKE_OSX_DEPLOYMENT_TARGET ${CMAKE_OSX_DEPLOYMENT_TARGET})
+    set(TBB_ARGS ${TBB_ARGS}
+        -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
+        -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
+    )
+  endif()
+
+  ExternalProject_Add(TBB
+    PREFIX tbb
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tbb
+    CMAKE_ARGS
+      ${TBB_ARGS}
+    BUILD_ALWAYS OFF
+  )
+endif()
+
+###########################################################################
+# Open Image Denoise
+if (PBRT_WITH_OIDN)
+include(ExternalProject)
+  find_package (OpenImageDenoise 2.3.0)
+
+  if (OIDN_FOUND)
+    message (STATUS "Found Open Image Denoise version ${OIDN_VERSION}")
+  else ()
+    message (STATUS "Open Image Denoise not found; building it from scratch.")
+    message(STATUS "ISPC_EXECUTABLE = ${ISPC_EXECUTABLE}")
+    
+    if(NOT ISPC_EXECUTABLE)
+      set(GET_ISPC ON)
+      include(get_ispc)
+    endif()
+    set(OIDN_ARGS "")
+
+    #set(TBB_ROOT ${CMAKE_CURRENT_BINARY_DIR}/tbb)
+    #set(TBB_DIR ${CMAKE_CURRENT_BINARY_DIR}/tbb)
+    set(ISPC_EXECUTABLE ${ISPC_EXECUTABLE})
+    set(OIDN_APPS OFF)
+
+    message(STATUS "TBB_ROOT = ${TBB_ROOT}")
+    message(STATUS "TBB_DIR = ${TBB_DIR}")
+
+    set(OIDN_ARGS ${OIDN_ARGS}
+      -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_INSTALL_PREFIX}
+      -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}
+      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      -DISPC_EXECUTABLE=${ISPC_EXECUTABLE}
+      -DOIDN_APPS=OFF
+      -DTBB_ROOT=${CMAKE_INSTALL_PREFIX}
+    )
+
+    if(APPLE AND (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64" OR CMAKE_OSX_ARCHITECTURES MATCHES "arm64"))
+      set(OIDN_DEVICE_METAL ON)
+      set(OIDN_ARGS ${OIDN_ARGS}
+        -DOIDN_DEVICE_METAL=ON
+      )
+    endif()
+
+    if(NOT APPLE AND NOT "${PBRT_OPTIX7_PATH}" STREQUAL "")
+      find_package (CUDA)
+      if(CUDA_FOUND)
+        set(OIDN_DEVICE_CUDA ON)
+        set(OIDN_ARGS ${OIDN_ARGS}
+        -DOIDN_DEVICE_CUDA=ON
+      )
+      endif()
+    endif()
+
+    #add_subdirectory (oidn)
+    ExternalProject_Add(OIDN
+      PREFIX oidn
+      SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/oidn
+      BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/oidn
+      CMAKE_ARGS
+        ${OIDN_ARGS}
+      BUILD_ALWAYS OFF
+    )
+
+    ExternalProject_Add_StepDependencies(OIDN
+    configure
+      TBB
+      $<$<BOOL:${GET_ISPC}>:ispc>
+    )
+
+    #add_dependencies(OIDN tbb)
+    #add_dependencies(oidn TBB)
+    #set_property (TARGET OpenImageDenoise PROPERTY FOLDER "ext/oidn")
+    
+    set (OIDN_INCLUDE_DIR
+      ${CMAKE_CURRENT_SOURCE_DIR}/oidn/include
+      PARENT_SCOPE
+    )
+
+    set (OIDN_LIBRARIES
+      openpgl
+      tbb
+      PARENT_SCOPE
+    )
+  endif()
+
+endif()
+
+###########################################################################
+# Open PGL
+if (PBRT_WITH_PATH_GUIDING)
+  find_package (openpgl CONFIG)
+
+  if (openpgl_FOUND)
+    message (STATUS "Found OpenPGL version ${OPENPGL_VERSION}")
+    get_target_property(OPENPGL_LIBRARIES openpgl::openpgl LOCATION)
+    get_target_property(OPENPGL_INCLUDE_DIR openpgl::openpgl INTERFACE_INCLUDE_DIRECTORIES)
+    set(OPENPGL_LIBRARIES ${OPENPGL_LIBRARIES} tbb PARENT_SCOPE)
+    set(OPENPGL_INCLUDE_DIR ${OPENPGL_INCLUDE_DIR} PARENT_SCOPE)
+  else ()
+    message (STATUS "OpenPGL not found; building it from scratch.")
+
+    set(OPENPGL_ARGS ${OPENPGL_ARGS}
+      -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_INSTALL_PREFIX}
+      -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}
+      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      -DOPENPGL_BUILD_STATIC=OFF
+      -DOPENPGL_TBB_ROOT=${CMAKE_INSTALL_PREFIX}
+      -DOPENPGL_EF_RADIANCE_CACHES=ON
+      -DOPENPGL_DIRECTION_COMPRESSION=ON
+      -DOPENPGL_RADIANCE_COMPRESSION=ON
+      -DOPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER=ON
+      -DOPENPGL_EF_VSP_GUIDING=ON
+    )
+
+    ExternalProject_Add(OpenPGL
+      PREFIX openpgl
+      SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/openpgl
+      CMAKE_ARGS
+        ${OPENPGL_ARGS}
+      BUILD_ALWAYS ON
+    )
+
+    ExternalProject_Add_StepDependencies(OpenPGL
+    configure
+      TBB
+      OIDN
+    )
+
+    #set(BUILD_STATIC ON CACHE BOOL "" FORCE)
+    #add_subdirectory (openpgl/superbuild)
+    #set_property (TARGET ep_openpgl PROPERTY FOLDER "ext/openpgl")
+    set (OPENPGL_DEP True PARENT_SCOPE)
+    set (OPENPGL_INCLUDE_DIR
+      ${CMAKE_INSTALL_PREFIX}/include
+      PARENT_SCOPE
+    )
+
+    set (OPENPGL_LIBRARIES
+      openpgl
+      tbb
+      PARENT_SCOPE
+    )
+  endif()
+
+endif()

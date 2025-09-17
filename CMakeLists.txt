@@ -104,6 +104,30 @@ if (PBRT_DBG_LOGGING)
   list (APPEND PBRT_DEFINITIONS "PBRT_DBG_LOGGING")
 endif ()
 
+###########################################################################
+# path guiding (Open PGL)
+option(PBRT_WITH_PATH_GUIDING "Build PBRT with path guiding (Open PGL) support." ON)
+
+if(PBRT_WITH_PATH_GUIDING)
+  list (APPEND PBRT_DEFINITIONS "PBRT_WITH_PATH_GUIDING")
+endif()
+
+###########################################################################
+# path guiding (Open PGL)
+option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." ON)
+
+if(PBRT_WITH_OIDN)
+  list (APPEND PBRT_DEFINITIONS "PBRT_WITH_OIDN")
+endif()
+
+###########################################################################
+# Enable RGB mode
+option(PBRT_WITH_RGB "Enable RGB rendering in favor of spectral rendering." ON)
+
+if(PBRT_WITH_RGB)
+  list (APPEND PBRT_DEFINITIONS "PBRT_RGB_RENDERING")
+endif()
+
 #######################################
 ## ext
 
@@ -608,6 +632,7 @@ set (PBRT_SOURCE_HEADERS
   src/pbrt/lights.h
   src/pbrt/materials.h
   src/pbrt/media.h
+  src/pbrt/media_sampleTMaj.h # VSPG implementation
   src/pbrt/options.h
   src/pbrt/paramdict.h
   src/pbrt/parser.h
@@ -623,6 +648,7 @@ set (PBRT_SOURCE_HEADERS
 SET (PBRT_CPU_SOURCE
   src/pbrt/cpu/aggregates.cpp
   src/pbrt/cpu/integrators.cpp
+  src/pbrt/cpu/guidedvolpathvspgintegrator.cpp # VSPG implementation
   src/pbrt/cpu/primitive.cpp
   src/pbrt/cpu/render.cpp
 )
@@ -663,6 +689,7 @@ SET (PBRT_UTIL_SOURCE
   src/pbrt/util/check.cpp
   src/pbrt/util/color.cpp
   src/pbrt/util/colorspace.cpp
+  src/pbrt/denoiser.cpp
   src/pbrt/util/display.cpp
   src/pbrt/util/error.cpp
   src/pbrt/util/file.cpp
@@ -909,6 +936,15 @@ target_include_directories (pbrt_lib PUBLIC
   ${GLAD_INCLUDE}
 )
 
+if (PBRT_WITH_PATH_GUIDING)
+  target_include_directories (pbrt_lib SYSTEM PUBLIC ${OPENPGL_INCLUDE_DIR})
+endif()
+
+if (PBRT_WITH_OIDN)
+  target_include_directories (pbrt_lib SYSTEM PUBLIC ${OIDN_INCLUDE_DIR})
+endif()
+
+
 if (PBRT_CUDA_ENABLED AND PBRT_OPTIX7_PATH)
     target_include_directories (pbrt_lib SYSTEM PUBLIC ${PBRT_OPTIX7_PATH}/include)
 endif ()
@@ -938,6 +974,22 @@ set (ALL_PBRT_LIBS
   glad
   OpenGL::GL
 )
+
+link_directories(${CMAKE_INSTALL_PREFIX}/lib)
+link_directories(${CMAKE_INSTALL_PREFIX}/lib64)
+if(PBRT_WITH_PATH_GUIDING)
+  set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS}
+    ${OPENPGL_LIBRARIES})
+  if(OPENPGL_DEP)
+    add_dependencies(pbrt_lib OpenPGL)
+  endif()
+endif()
+
+if(PBRT_WITH_OIDN)
+  set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS}
+      OpenImageDenoise)
+  add_dependencies(pbrt_lib OIDN)
+endif()
 
 if (PBRT_CUDA_ENABLED)
   set_property (TARGET pbrt_lib PROPERTY CUDA_SEPARABLE_COMPILATION ON)
@@ -1145,6 +1197,7 @@ set (PBRT_TEST_SOURCE
   src/pbrt/util/vecmath_test.cpp
   )
 
+if(NOT PBRT_WITH_RGB)
 add_executable (pbrt_test src/pbrt/cmd/pbrt_test.cpp ${PBRT_TEST_SOURCE})
 
 target_link_libraries (pbrt_test PRIVATE ${ALL_PBRT_LIBS} pbrt_opt pbrt_warnings)
@@ -1157,6 +1210,7 @@ add_sanitizers (pbrt_test)
 add_test (pbrt_unit_test pbrt_test)
 
 set_property (TARGET pbrt_test PROPERTY FOLDER "cmd")
+endif()
 
 ###############################
 # Installation
