@@ -1,4 +1,5 @@
 // pbrt is Copyright(c) 1998-2020 Matt Pharr, Wenzel Jakob, and Greg Humphreys.
+// Modifications Copyright 2023 Intel Corporation.
 // The pbrt source code is licensed under the Apache License, Version 2.0.
 // SPDX: Apache-2.0
 
@@ -143,7 +144,13 @@ class BSDF {
     }
 
     PBRT_CPU_GPU
-    void Regularize() { bxdf.Regularize(); }
+    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) { bxdf.Regularize(regularizationGamma, accumulatedRoughness); }
+
+    PBRT_CPU_GPU 
+    float GetEta() const { return bxdf.GetEta(); };
+
+    PBRT_CPU_GPU 
+    float GetRoughness() const { return bxdf.GetRoughness(); };
 
   private:
     // BSDF Private Members

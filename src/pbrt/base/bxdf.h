@@ -1,4 +1,5 @@
 // pbrt is Copyright(c) 1998-2020 Matt Pharr, Wenzel Jakob, and Greg Humphreys.
+// Modifications Copyright 2023 Intel Corporation.
 // The pbrt source code is licensed under the Apache License, Version 2.0.
 // SPDX: Apache-2.0
 
@@ -122,12 +123,15 @@ struct BSDFSample {
     // BSDFSample Public Methods
     BSDFSample() = default;
     PBRT_CPU_GPU
-    BSDFSample(SampledSpectrum f, Vector3f wi, Float pdf, BxDFFlags flags, Float eta = 1,
-               bool pdfIsProportional = false)
+    BSDFSample(SampledSpectrum f, Vector3f wi, Float pdf, BxDFFlags flags, Float sampledRoughness, 
+                Float eta = 1, bool pdfIsProportional = false)
         : f(f),
           wi(wi),
           pdf(pdf),
+          bsdfPdf(pdf),
+          misPdf(pdf),
           flags(flags),
+          sampledRoughness(sampledRoughness),
           eta(eta),
           pdfIsProportional(pdfIsProportional) {}
 
@@ -146,8 +150,11 @@ struct BSDFSample {
     SampledSpectrum f;
     Vector3f wi;
     Float pdf = 0;
+    Float bsdfPdf = 0;
+    Float misPdf = 0;
     BxDFFlags flags;
     Float eta = 1;
+    Float sampledRoughness = 1.0f;
     bool pdfIsProportional = false;
 };
 
@@ -159,6 +166,7 @@ class HairBxDF;
 class MeasuredBxDF;
 class ConductorBxDF;
 class NormalizedFresnelBxDF;
+class CookTorranceBxDF;
 class CoatedDiffuseBxDF;
 class CoatedConductorBxDF;
 
@@ -166,7 +174,7 @@ class CoatedConductorBxDF;
 class BxDF
     : public TaggedPointer<DiffuseTransmissionBxDF, DiffuseBxDF, CoatedDiffuseBxDF,
                            CoatedConductorBxDF, DielectricBxDF, ThinDielectricBxDF,
-                           HairBxDF, MeasuredBxDF, ConductorBxDF, NormalizedFresnelBxDF> {
+                           HairBxDF, MeasuredBxDF, ConductorBxDF, NormalizedFresnelBxDF, CookTorranceBxDF> {
   public:
     // BxDF Interface
     PBRT_CPU_GPU inline BxDFFlags Flags() const;
@@ -192,7 +200,11 @@ class BxDF
     SampledSpectrum rho(pstd::span<const Point2f> u1, pstd::span<const Float> uc2,
                         pstd::span<const Point2f> u2) const;
 
-    PBRT_CPU_GPU inline void Regularize();
+    PBRT_CPU_GPU inline void Regularize(const Float regularizationGamma, const Float accumulatedRoughness);
+
+    PBRT_CPU_GPU float GetEta() const;
+
+    PBRT_CPU_GPU float GetRoughness() const;
 };
 
 }  // namespace pbrt

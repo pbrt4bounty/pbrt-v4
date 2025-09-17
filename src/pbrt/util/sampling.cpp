@@ -25,8 +25,8 @@
 namespace pbrt {
 
 // Sampling Function Definitions
-PBRT_CPU_GPU pstd::array<Float, 3> SampleSphericalTriangle(const pstd::array<Point3f, 3> &v, Point3f p,
-                                              Point2f u, Float *pdf) {
+PBRT_CPU_GPU pstd::array<Float, 3> SampleSphericalTriangle(
+    const pstd::array<Point3f, 3> &v, Point3f p, Point2f u, Float *pdf) {
     if (pdf)
         *pdf = 0;
     // Compute vectors _a_, _b_, and _c_ to spherical triangle vertices
@@ -160,8 +160,8 @@ PBRT_CPU_GPU Point2f InvertSphericalTriangleSample(const pstd::array<Point3f, 3>
     return Point2f(Clamp(u0, 0, 1), Clamp(u1, 0, 1));
 }
 
-PBRT_CPU_GPU Point3f SampleSphericalRectangle(Point3f pRef, Point3f s, Vector3f ex, Vector3f ey,
-                                 Point2f u, Float *pdf) {
+PBRT_CPU_GPU Point3f SampleSphericalRectangle(Point3f pRef, Point3f s, Vector3f ex,
+                                              Vector3f ey, Point2f u, Float *pdf) {
     // Compute local reference frame and transform rectangle coordinates
     Float exl = Length(ex), eyl = Length(ey);
     Frame R = Frame::FromXY(ex / exl, ey / eyl);
@@ -220,8 +220,7 @@ PBRT_CPU_GPU Point3f SampleSphericalRectangle(Point3f pRef, Point3f s, Vector3f 
 }
 
 PBRT_CPU_GPU Point2f InvertSphericalRectangleSample(Point3f pRef, Point3f s, Vector3f ex,
-                                                    Vector3f ey,
-                                       Point3f pRect) {
+                                                    Vector3f ey, Point3f pRect) {
     // TODO: Delete anything unused in the below...
 
     // SphQuadInit()
@@ -345,7 +344,8 @@ PBRT_CPU_GPU Point2f InvertSphericalRectangleSample(Point3f pRef, Point3f s, Vec
     return u;
 }
 
-PBRT_CPU_GPU Vector3f SampleHenyeyGreenstein(Vector3f wo, Float g, Point2f u, Float *pdf) {
+PBRT_CPU_GPU Vector3f SampleHenyeyGreenstein(Vector3f wo, Float g, Point2f u,
+                                             Float *pdf) {
     // When g \approx -1 and u[0] \approx 0 or with g \approx 1 and u[0]
     // \approx 1, the computation of cosTheta below is unstable and can
     // give, leading to NaNs. For now we limit g to the range where it is
@@ -382,8 +382,9 @@ Point2f RejectionSampleDisk(RNG &rng) {
     return p;
 }
 
-PBRT_CPU_GPU Float SampleCatmullRom(pstd::span<const Float> nodes, pstd::span<const Float> f,
-                       pstd::span<const Float> F, Float u, Float *fval, Float *pdf) {
+PBRT_CPU_GPU Float SampleCatmullRom(pstd::span<const Float> nodes,
+                                    pstd::span<const Float> f, pstd::span<const Float> F,
+                                    Float u, Float *fval, Float *pdf) {
     CHECK_EQ(nodes.size(), f.size());
     CHECK_EQ(f.size(), F.size());
     // Map _u_ to a spline interval by inverting _F_
@@ -422,9 +423,11 @@ PBRT_CPU_GPU Float SampleCatmullRom(pstd::span<const Float> nodes, pstd::span<co
     return x0 + width * t;
 }
 
-PBRT_CPU_GPU Float SampleCatmullRom2D(pstd::span<const Float> nodes1, pstd::span<const Float> nodes2,
-                         pstd::span<const Float> values, pstd::span<const Float> cdf,
-                         Float alpha, Float u, Float *fval, Float *pdf) {
+PBRT_CPU_GPU Float SampleCatmullRom2D(pstd::span<const Float> nodes1,
+                                      pstd::span<const Float> nodes2,
+                                      pstd::span<const Float> values,
+                                      pstd::span<const Float> cdf, Float alpha, Float u,
+                                      Float *fval, Float *pdf) {
     // Determine offset and coefficients for the _alpha_ parameter
     int offset;
     Float weights[4];

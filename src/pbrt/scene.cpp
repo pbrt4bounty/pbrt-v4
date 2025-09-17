@@ -246,6 +246,12 @@ void BasicSceneBuilder::WorldBegin(FileLoc loc) {
     scene->SetOptions(filter, film, camera, sampler, integrator, accelerator);
 }
 
+void BasicSceneBuilder::WorldEnd(FileLoc loc) {
+        // Reset graphics state for _WorldBegin_
+    currentBlock = BlockState::WorldBlock;
+    scene->CreateCamera(camera);
+}
+
 void BasicSceneBuilder::MakeNamedMedium(const std::string &origName,
                                         ParsedParameterVector params, FileLoc loc) {
     std::string name = NormalizeUTF8(origName);
@@ -420,7 +426,7 @@ void BasicSceneBuilder::ObjectInstance(const std::string &origName, FileLoc loc)
     //         opacityMapName,
     //         outputFilePath);
 
-    // parametersj
+    // parameters
 void makePCG(const std::string &targetMeshFilename,
                 const std::string &densityMapFilename,
                  const int &nSamples_,
@@ -1055,8 +1061,30 @@ void BasicScene::SetOptions(SceneEntity filter, SceneEntity film,
         return Sampler::Create(sampler.name, sampler.parameters, res, &sampler.loc,
                                alloc);
     });
-
     // Enqueue asynchronous job to create camera
+    cameraJob = RunAsync([camera, this]() {
+        LOG_VERBOSE("Starting to create camera");
+        Allocator alloc = threadAllocators.Get();
+        //Medium cameraMedium = GetMedium(camera.medium, &camera.loc);
+        Medium cameraMedium = nullptr;
+        Camera c = Camera::Create(camera.name, camera.parameters, cameraMedium,
+                                  camera.cameraTransform, this->film, &camera.loc, alloc);
+        LOG_VERBOSE("Finished creating camera");
+        return c;
+    });
+    cameraJob->Wait();
+}
+
+// BasicScene Method Definitions
+void BasicScene::CreateCamera(CameraSceneEntity camera) {
+    
+    Medium cameraMedium = GetMedium(camera.medium, &camera.loc);
+    if(cameraMedium) {
+        std::cout << "SetMedium" << std::endl;
+        this->camera.SetMedium(cameraMedium);
+    }
+    // Enqueue asynchronous job to create camera
+    /*
     cameraJob = RunAsync([camera, this]() {
         LOG_VERBOSE("Starting to create camera");
         Allocator alloc = threadAllocators.Get();
@@ -1067,6 +1095,7 @@ void BasicScene::SetOptions(SceneEntity filter, SceneEntity film,
         LOG_VERBOSE("Finished creating camera");
         return c;
     });
+    */
 }
 
 void BasicScene::AddMedium(MediumSceneEntity medium) {

@@ -22,7 +22,7 @@
 namespace pbrt {
 
 void RenderCPU(BasicScene &parsedScene) {
-    Allocator alloc;
+    //Allocator alloc;
     ThreadLocal<Allocator> threadAllocators([]() { return Allocator(); });
 
     // Create media first (so have them for the camera...)
@@ -87,6 +87,14 @@ void RenderCPU(BasicScene &parsedScene) {
         Warning("GBufferFilm is not supported by the \"%s\" integrator. The channels "
                 "other than R, G, B will be zero.",
                 parsedScene.integrator.name);
+    if (film.Is<GuidedGBufferFilm>() &&
+        !(parsedScene.integrator.name == "guidedpath" ||
+          parsedScene.integrator.name == "guidedvolpath" ||
+          parsedScene.integrator.name == "guidedvolpathvspg"))
+        Warning(
+            "GuidedGBufferFilm is not supported by the \"%s\" integrator. The channels "
+            "other than R, G, B will be zero.",
+            parsedScene.integrator.name);
 
     bool haveSubsurface = false;
     for (pbrt::Material mtl : materials)
