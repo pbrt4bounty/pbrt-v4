@@ -130,7 +130,7 @@ void PrintStackTrace() {
         SymFromAddr(process, address, NULL, symbol);
         if (SymGetLineFromAddr64(process, address, &displacement, line))
             fprintf(stderr, "(%-40s)\t0x%p - %s + line %d\n", line->FileName,
-                    (void *)symbol->Address, symbol->Name, line->LineNumber);
+                    (void *)symbol->Address, symbol->Name, (int)line->LineNumber);
         else
             fprintf(stderr, "(%-40s)\t0x%p - %s\n", "unknown", (void *)symbol->Address,
                     symbol->Name);

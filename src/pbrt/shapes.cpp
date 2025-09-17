@@ -3,7 +3,7 @@
 // SPDX: Apache-2.0
 
 #include <pbrt/shapes.h>
-
+#include <pbrt/util/cyHairFile.h>
 #include <pbrt/textures.h>
 #ifdef PBRT_BUILD_GPU_RENDERER
 #include <pbrt/gpu/util.h>
@@ -762,7 +762,8 @@ pstd::vector<Shape> Curve::Create(const Transform *renderFromObject,
                                   const Transform *objectFromRender,
                                   bool reverseOrientation,
                                   const ParameterDictionary &parameters,
-                                  const FileLoc *loc, Allocator alloc) {
+                                  const FileLoc *loc, Allocator alloc,
+                                  std::vector<Point3f> cp) {
     Float width = parameters.GetOneFloat("width", 1.f);
     Float width0 = parameters.GetOneFloat("width0", width);
     Float width1 = parameters.GetOneFloat("width1", width);
@@ -784,7 +785,14 @@ pstd::vector<Shape> Curve::Create(const Transform *renderFromObject,
     }
 
     int nSegments;
-    std::vector<Point3f> cp = parameters.GetPoint3fArray("P");
+    if (cp.size() == 0) {
+        cp = parameters.GetPoint3fArray("P");
+        if (cp.size() == 0) {
+            Error(loc, "Invalid number of control points %d: to create a curve",
+                  (int)cp.size());
+            return {};
+        }
+    }
     if (basis == "bezier") {
         // After the first segment, which uses degree+1 control points,
         // subsequent segments reuse the last control point of the previous
@@ -1405,9 +1413,80 @@ pstd::vector<Shape> Shape::Create(
         shapes = BilinearPatch::CreatePatches(mesh, alloc);
     }
     // Create multiple-_Shape_ types
-    else if (name == "curve")
+    else if (name == "hairmesh") {
+        // check for a file
+        std::string filename = parameters.GetOneString("hairfile", "");
+        if (!filename.empty()) {
+            //
+            cyHairFile hairfile;
+            // Load the hair model
+            int result = hairfile.LoadFromFile(filename.c_str());
+
+            // Check for errors
+            switch (result) {
+            case CY_HAIR_FILE_ERROR_CANT_OPEN_FILE:
+                printf("Error: Cannot open hair file!.\n");
+                return 0;
+            case CY_HAIR_FILE_ERROR_CANT_READ_HEADER:
+                printf("Error: Cannot read hair file header!.\n");
+                return 0;
+            case CY_HAIR_FILE_ERROR_WRONG_SIGNATURE:
+                printf("Error: File has wrong signature!.\n");
+                return 0;
+            case CY_HAIR_FILE_ERROR_READING_SEGMENTS:
+                printf("Error: Cannot read hair segments.\n");
+                return 0;
+            case CY_HAIR_FILE_ERROR_READING_POINTS:
+                printf("Error: Cannot read hair points!.\n");
+                return 0;
+            case CY_HAIR_FILE_ERROR_READING_COLORS:
+                printf("Error: Cannot read hair colors!.\n");
+                return 0;
+            case CY_HAIR_FILE_ERROR_READING_THICKNESS:
+                printf("Error: Cannot read hair thickness!.\n");
+                return 0;
+            case CY_HAIR_FILE_ERROR_READING_TRANSPARENCY:
+                printf("Error: Cannot read hair transparency!.\n");
+                return 0;
+            default:
+                printf("Hair file %s loaded!.", filename.c_str());
+            }
+            //
+            printf("\nTotal hair strands: %i\n", (int)hairfile.GetHeader().hair_count);
+            printf("Total hair vertices: %i\n", (int)hairfile.GetHeader().point_count);
+
+            // for each hair segment coordinates
+            int segments = hairfile.GetHeader().d_segments;
+            int hairCount = hairfile.GetHeader().hair_count;
+            const unsigned short *curveSegments = hairfile.GetSegmentsArray();
+            //
+            Point3f pos;
+            int pIdx = 0;
+            // each loop is a entire curve
+            for (int hairIndex = 0; hairIndex < hairCount; hairIndex++) {
+                //
+                segments = curveSegments[hairIndex] + 1;
+                std::vector<Point3f> curvepoints;
+
+                // loop for each hair step
+                for (int step = 0; step < segments; ++step, pIdx += 3) {
+                    pos.x = hairfile.GetPointsArray()[pIdx + 0];
+                    pos.y = hairfile.GetPointsArray()[pIdx + 1];
+                    pos.z = hairfile.GetPointsArray()[pIdx + 2];
+                    //
+                    curvepoints.push_back(pos);
+                }
+                auto c =
+                    Curve::Create(renderFromObject, objectFromRender, reverseOrientation,
+                                  parameters, loc, alloc, curvepoints);
+                shapes.insert(shapes.end(), c.begin(), c.end());
+            }
+        } else {
+            ErrorExit(loc, "%s: unable to load file.", name);
+        }
+    } else if (name == "curve")
         shapes = Curve::Create(renderFromObject, objectFromRender, reverseOrientation,
-                               parameters, loc, alloc);
+                               parameters, loc, alloc, {});
     else if (name == "trianglemesh") {
         TriangleMesh *mesh = Triangle::CreateMesh(renderFromObject, reverseOrientation,
                                                   parameters, loc, alloc);

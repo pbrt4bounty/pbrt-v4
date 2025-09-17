@@ -90,7 +90,8 @@ class OptiXAggregate : public WavefrontAggregate {
         ThreadLocal<cudaStream_t> &threadCUDAStreams);
 
     static BilinearPatchMesh *diceCurveToBLP(const ShapeSceneEntity &shape, int nDiceU,
-                                             int nDiceV, Allocator alloc);
+                                             int nDiceV, Allocator alloc,
+                                             std::vector<Point3f> cp);
 
     static BVH buildBVHForBLPs(
         const std::vector<ShapeSceneEntity> &shapes, OptixDeviceContext optixContext,

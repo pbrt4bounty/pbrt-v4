@@ -3,6 +3,7 @@
 // SPDX: Apache-2.0
 
 #include <pbrt/gpu/optix/aggregate.h>
+#include <pbrt/util/cyHairFile.h>
 
 #include <pbrt/gpu/optix/optix.h>
 #include <pbrt/gpu/util.h>
@@ -545,9 +546,9 @@ STAT_COUNTER("Geometry/Curves", nCurves);
 STAT_COUNTER("Geometry/Bilinear patches created for diced curves", nBLPsForCurves);
 
 BilinearPatchMesh *OptiXAggregate::diceCurveToBLP(const ShapeSceneEntity &shape,
-                                                  int nDiceU, int nDiceV,
-                                                  Allocator alloc) {
-    CHECK_EQ(shape.name, "curve");
+                                                  int nDiceU, int nDiceV, Allocator alloc,
+                                                  std::vector<Point3f> cp) {
+    //CHECK_EQ(shape.name, "curve");
     const ParameterDictionary &parameters = shape.parameters;
     const FileLoc *loc = &shape.loc;
 
@@ -578,7 +579,14 @@ BilinearPatchMesh *OptiXAggregate::diceCurveToBLP(const ShapeSceneEntity &shape,
     }
 
     int nSegments;
-    std::vector<Point3f> cp = parameters.GetPoint3fArray("P");
+    if (cp.size() == 0) {
+        //printf("Not curve points data\n");
+        cp = parameters.GetPoint3fArray("P");
+        if (cp.size() == 0) {
+            printf("Invalid number of points to create a curve\n");
+            return {};
+        }
+    }
     bool bezierBasis = (basis == "bezier");
     if (bezierBasis) {
         // After the first segment, which uses degree+1 control points,
@@ -774,7 +782,8 @@ OptiXAggregate::BVH OptiXAggregate::buildBVHForBLPs(
     std::vector<size_t> meshIndexToShapeIndex;
     for (size_t i = 0; i < shapes.size(); ++i) {
         const auto &shape = shapes[i];
-        if (shape.name == "bilinearmesh" || shape.name == "curve")
+        if (shape.name == "bilinearmesh" || shape.name == "curve" ||
+            shape.name == "hairmesh")
             meshIndexToShapeIndex.push_back(i);
     }
 
@@ -799,10 +808,54 @@ OptiXAggregate::BVH OptiXAggregate::buildBVHForBLPs(
             nPatches += mesh->nPatches;
         } else if (shape.name == "curve") {
             BilinearPatchMesh *curveMesh =
-                diceCurveToBLP(shape, 5 /* nseg */, 5 /* nvert */, alloc);
+                diceCurveToBLP(shape, 5 /* nseg */, 5 /* nvert */, alloc, {});
             if (curveMesh) {
                 meshes[meshIndex] = curveMesh;
                 nPatches += curveMesh->nPatches;
+            }
+        } else if (shape.name == "hairmesh") {
+            // here all the code to check for a valid file, before call _diceCurveToBLP_
+            std::string filename = shape.parameters.GetOneString("hairfile", "");
+            if (!filename.empty()) {
+                printf("Have Hair mesh file: %s\n", filename.c_str());
+                //
+                cyHairFile hairfile;
+                // Load the hair model
+                int result = hairfile.LoadFromFile(filename.c_str());
+                //
+                printf("\nHair strands: %i\n", (int)hairfile.GetHeader().hair_count);
+                printf("Hair vertices: %i\n", (int)hairfile.GetHeader().point_count);
+
+                // for each hair segment coordinates
+                int segments = hairfile.GetHeader().d_segments;
+                int hairCount = hairfile.GetHeader().hair_count;
+                const unsigned short *curveSegments = hairfile.GetSegmentsArray();
+                //
+                Point3f pos;
+                int pIdx = 0;
+
+                // each loop is a entire curve
+                for (int hairIndex = 0; hairIndex < hairCount; hairIndex++) {
+                    //
+                    segments = curveSegments[hairIndex] + 1;
+                    std::vector<Point3f> curvepoints;
+
+                    // loop for each hair step
+                    for (int step = 0; step < segments; ++step, pIdx += 3) {
+                        pos.x = hairfile.GetPointsArray()[pIdx + 0];
+                        pos.y = hairfile.GetPointsArray()[pIdx + 1];
+                        pos.z = hairfile.GetPointsArray()[pIdx + 2];
+                        //
+                        curvepoints.push_back(pos);
+        }
+                    BilinearPatchMesh *curveMesh =
+                        diceCurveToBLP(shape, 5, 5, alloc, curvepoints);
+                    //
+                    if (curveMesh) {
+                        meshes[meshIndex] = curveMesh;
+                        nPatches += curveMesh->nPatches;
+                    }
+                }
             }
         }
     });
@@ -1095,7 +1148,6 @@ OptixModule OptiXAggregate::createOptiXModule(OptixDeviceContext optixContext,
 #else
 #define OPTIX_MODULE_CREATE_FN optixModuleCreateFromPTX
 #endif
-
     OPTIX_CHECK_WITH_LOG(
         OPTIX_MODULE_CREATE_FN(
             optixContext, &moduleCompileOptions, &pipelineCompileOptions,
@@ -1103,7 +1155,6 @@ OptixModule OptiXAggregate::createOptiXModule(OptixDeviceContext optixContext,
         ),
         log
     );
-
     LOG_VERBOSE("%s", log);
 
     return optixModule;
@@ -1299,7 +1350,6 @@ OptiXAggregate::OptiXAggregate(
     pipelineLinkOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 #endif
 #endif // OPTIX_VERSION
-
     OPTIX_CHECK_WITH_LOG(
         optixPipelineCreate(optixContext, &pipelineCompileOptions, &pipelineLinkOptions,
                             allPGs, sizeof(allPGs) / sizeof(allPGs[0]), log, &logSize,
@@ -1378,7 +1428,7 @@ OptiXAggregate::OptiXAggregate(
         if (shape.name != "sphere" && shape.name != "cylinder" && shape.name != "disk" &&
             shape.name != "trianglemesh" && shape.name != "plymesh" &&
             shape.name != "loopsubdiv" && shape.name != "bilinearmesh" &&
-            shape.name != "curve")
+            shape.name != "curve" && shape.name != "hairmesh")
             ErrorExit(&shape.loc, "%s: unknown shape", shape.name);
 
     LOG_VERBOSE("Starting to read PLY meshes");

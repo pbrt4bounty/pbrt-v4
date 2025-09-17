@@ -1223,7 +1223,8 @@ class Curve {
                                       const Transform *objectFromRender,
                                       bool reverseOrientation,
                                       const ParameterDictionary &parameters,
-                                      const FileLoc *loc, Allocator alloc);
+                                      const FileLoc *loc, Allocator alloc,
+                                      std::vector<Point3f> cp);
 
     PBRT_CPU_GPU
     Bounds3f Bounds() const;
