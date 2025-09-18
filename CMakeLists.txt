@@ -114,7 +114,7 @@ endif()
 
 ###########################################################################
 # path guiding (Open PGL)
-option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." OFF)
+option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." ON)
 
 if(PBRT_WITH_OIDN)
   list (APPEND PBRT_DEFINITIONS "PBRT_WITH_OIDN")

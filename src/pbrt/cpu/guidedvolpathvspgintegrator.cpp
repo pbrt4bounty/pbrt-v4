@@ -175,7 +175,7 @@ GuidedVolPathVSPGIntegrator::GuidedVolPathVSPGIntegrator(
 
     Vector2i resolution = camera.GetFilm().PixelBounds().Diagonal();
     sensor = camera.GetFilm().GetPixelSensor();
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
     if (guideSettings.loadISGBuffer) {
         if (FileExists(guideSettings.isgBufferFileName)) {
             imageSpaceGuidingBuffer = new openpgl::cpp::util::ImageSpaceGuidingBuffer(
@@ -213,7 +213,7 @@ GuidedVolPathVSPGIntegrator::GuidedVolPathVSPGIntegrator(
         imageSpaceGuidingBuffer = new openpgl::cpp::util::ImageSpaceGuidingBuffer(cfg);
 #endif
     }
-#endif // OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER
+#endif // PBRT_WITH_OIDN
 
     if (guideSettings.loadTrBuffer) {
         if (FileExists(guideSettings.trBufferFileName)) {
@@ -257,7 +257,7 @@ GuidedVolPathVSPGIntegrator::~GuidedVolPathVSPGIntegrator() {
                   << guideSettings.guidingCacheFileName << std::endl;
         guiding_field->Store(guideSettings.guidingCacheFileName);
     }
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
     if (guideSettings.storeISGBuffer) {
         imageSpaceGuidingBuffer->Store(guideSettings.isgBufferFileName);
     }
@@ -269,7 +269,7 @@ GuidedVolPathVSPGIntegrator::~GuidedVolPathVSPGIntegrator() {
     delete guiding_device;
     delete guiding_sampleStorage;
     delete guiding_field;
-#if defined (OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
     delete imageSpaceGuidingBuffer;
 #endif
     delete trBuffer;
@@ -301,7 +301,7 @@ void GuidedVolPathVSPGIntegrator::PostProcessWave() {
     guiding_sampleStorage->Clear();
 
     if (waveCounter == std::pow(2.0f, bufferWave)) {
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
         if (calculateImageSpaceGuidingBuffer) {
             Timer isgBufferTimer;
             imageSpaceGuidingBuffer->Update();
@@ -326,7 +326,7 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
         guiding_threadVolumeSamplingDistribution->Get();
 
     openpgl::cpp::PathSegment *pathSegmentData = nullptr;
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
     openpgl::cpp::util::ImageSpaceGuidingBuffer::Sample isgbSample;
 #endif
     SampledSpectrum pixelContributionEstimate(1.f);
@@ -334,7 +334,7 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
     bool guideRR = false;
     const bool guideSurfaceRR = guideSettings.guideSurfaceRR;
     const bool guideVolumeRR = guideSettings.guideVolumeRR;
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
     if (guideSettings.guideRR && imageSpaceGuidingBufferReady) {
 #if defined(OPENPGL_VSP_GUIDING)
         openpgl::cpp::Vector3f pgPixelContributionEstimate =
@@ -400,7 +400,7 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
             // updated pointer address Therefore we need to pass a pointer to
             // pathSegmentData (i.e., a double pointer)
             openpgl::cpp::PathSegment **pathSegmentDataPointer = &pathSegmentData;
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
             SampleDistance(pPixel, ray, tMax, lambda, sampler, rng, scattered, terminated,
                            depth, L, beta, r_u, r_l, specularBounce,
                            anyNonSpecularBounces, prevIntrContext, lastVertexVolume,
@@ -520,7 +520,7 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
                 *visibleSurf = VisibleSurface(isect, albedo, lambda);
 
             RGB rgbAlbedo = albedo.ToRGB(lambda, *colorSpace);
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
             isgbSample.albedo = {rgbAlbedo[0], rgbAlbedo[1], rgbAlbedo[2]};
             isgbSample.normal = {isect.n[0], isect.n[1], isect.n[2]};
             isgbSample.SetSurfaceEvent(true);
@@ -706,7 +706,7 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
     }
 
     pathLength << depth;
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
     if (calculateImageSpaceGuidingBuffer) {
 #if defined(PBRT_RGB_RENDERING)
         RGB colorRGB = L.ToRGB(lambda, *colorSpace);
@@ -726,7 +726,7 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
     }
     return L;
 }
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
 void GuidedVolPathVSPGIntegrator::SampleDistance(
     Point2i pPixel, RayDifferential &ray, Float tMax, SampledWavelengths &lambda,
     Sampler &sampler, RNG &rng, bool &scattered, bool &terminated, int &depth,
@@ -893,7 +893,7 @@ void GuidedVolPathVSPGIntegrator::SampleDistance(
             // Select the volume event = continue scattering inside the volume
             Point3f p = selectedCandidate.p;
             MediumProperties mp = selectedCandidate.mp;
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
             if (depth == 0) {
                 SampledSpectrum albedo = mp.sigma_s / (mp.sigma_s + mp.sigma_a);
                 RGB rgbAlbedo = albedo.ToRGB(lambda, *colorSpace);
@@ -1085,7 +1085,7 @@ void GuidedVolPathVSPGIntegrator::SampleDistance(
                 int mode = SampleDiscrete({pScatter, pNull}, um);
                 if (mode == 0) {
 #endif
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
                     if (depth == 0) {
                         SampledSpectrum albedo = mp.sigma_s / (mp.sigma_s + mp.sigma_a);
 
@@ -1255,7 +1255,7 @@ void GuidedVolPathVSPGIntegrator::SampleDistance(
 inline Float GuidedVolPathVSPGIntegrator::GetPrimaryRayVolumeScatterProbability(
     const Point2i &pPixel, bool &scatterPrimary) const {
     Float vsp = -1.f;
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
     if (imageSpaceGuidingBuffer->IsReady()) {
 #if defined(OPENPGL_VSP_GUIDING)
         vsp = imageSpaceGuidingBuffer->GetVolumeScatterProbabilityEstimate(

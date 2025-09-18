@@ -605,7 +605,7 @@ private:
                         bool guideRR, bool guideVolumeRR,
                         SampledSpectrum &adjointEstimate, SampledSpectrum &pixelContributionEstimate) const;
 
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
     void SampleDistance(Point2i pPixel, RayDifferential &ray, Float tMax,
                       SampledWavelengths &lambda, Sampler &sampler, RNG &rng,
                       bool &scattered, bool &terminated, int &depth, SampledSpectrum &L,
@@ -660,7 +660,7 @@ private:
     TrBuffer* trBuffer {nullptr};
     bool trBufferLoad {false};
     bool calculateTrBuffer {false};
-#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+#if defined(PBRT_WITH_OIDN)
     openpgl::cpp::util::ImageSpaceGuidingBuffer* imageSpaceGuidingBuffer{nullptr};
 #endif
     bool imageSpaceGuidingBufferReady {false};
