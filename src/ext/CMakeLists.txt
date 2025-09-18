@@ -296,7 +296,7 @@ if (PBRT_WITH_PATH_GUIDING)
     ExternalProject_Add_StepDependencies(OpenPGL
     configure
       TBB
-      OIDN
+      # OIDN
     )
 
     #set(BUILD_STATIC ON CACHE BOOL "" FORCE)
