@@ -602,9 +602,25 @@ private:
                         const GuidedBSDF &gbsdf, GuidedPhaseFunction &gphase, GuidedInscatteredRadiance ginscatteredradiance,
                         float rr_correction,
                         SampledSpectrum &transmittanceWeight,
-                        openpgl::cpp::util::ImageSpaceGuidingBuffer::Sample &isgbSample,
                         bool guideRR, bool guideVolumeRR,
                         SampledSpectrum &adjointEstimate, SampledSpectrum &pixelContributionEstimate) const;
+
+#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
+    void SampleDistance(Point2i pPixel, RayDifferential &ray, Float tMax,
+                      SampledWavelengths &lambda, Sampler &sampler, RNG &rng,
+                      bool &scattered, bool &terminated, int &depth, SampledSpectrum &L,
+                      SampledSpectrum &beta, SampledSpectrum &r_u, SampledSpectrum &r_l,
+                      bool &specularBounce, bool &anyNonSpecularBounces,
+                      LightSampleContext &prevIntrContext, bool &lastVertexVolume,
+                      openpgl::cpp::PathSegmentStorage *pathSegmentStorage,
+                      openpgl::cpp::PathSegment **pathSegmentDataPointer,
+                      const GuidedBSDF &gbsdf, GuidedPhaseFunction &gphase,
+                      GuidedInscatteredRadiance ginscatteredradiance, float rr_correction,
+                      SampledSpectrum &transmittanceWeight,
+                      openpgl::cpp::util::ImageSpaceGuidingBuffer::Sample &isgbSample,
+                      bool guideRR, bool guideVolumeRR, SampledSpectrum &adjointEstimate,
+                      SampledSpectrum &pixelContributionEstimate) const;
+#endif
 
     inline Float GetPrimaryRayVolumeScatterProbability(const Point2i &pPixel, bool &scatterPrimary) const;
 
@@ -644,9 +660,9 @@ private:
     TrBuffer* trBuffer {nullptr};
     bool trBufferLoad {false};
     bool calculateTrBuffer {false};
-
+#if defined(OPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER)
     openpgl::cpp::util::ImageSpaceGuidingBuffer* imageSpaceGuidingBuffer{nullptr};
-
+#endif
     bool imageSpaceGuidingBufferReady {false};
     bool calculateImageSpaceGuidingBuffer {false};
 
