@@ -71,7 +71,10 @@ jobs:
     
     - name: Build
       # We need to limit the number of jobs so that it doesn't OOM 
-      run: cmake --build build --parallel 3 --config Release
+      run: |
+        cmake --build build --parallel 3 --config Release
+        cmake --build build --parallel 3 --config Install
+
 
 
 
