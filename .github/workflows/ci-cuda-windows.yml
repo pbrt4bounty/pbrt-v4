@@ -72,18 +72,20 @@ jobs:
       if: ${{ matrix.os == 'windows-latest' }}
       run: |
         cd build
-        cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT"/scripts/buildsystems/vcpkg.cmake -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DPBRT_OPTIX7_PATH=../src/ext/optix-dev -DPBRT_GPU_SHADER_MODEL=sm_80
+        cmake .. -DCMAKE_INSTALL_PREFIX=./deploy -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DPBRT_OPTIX7_PATH=../src/ext/optix-dev -DPBRT_GPU_SHADER_MODEL=sm_80
+        
+    # cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT"/scripts/buildsystems/vcpkg.cmake -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DPBRT_OPTIX7_PATH=../src/ext/optix-dev -DPBRT_GPU_SHADER_MODEL=sm_80
 
     - name: Build
       # We need to limit the number of jobs so that it doesn't OOM 
-      run: cmake --build build --parallel 3 --config Release
+      run: cmake --build build --parallel 3 --config Release --target install
 
     - name: Save Windows executable
       if: ${{ matrix.os == 'windows-latest' }}
       uses: actions/upload-artifact@v4
       with:
         name: pbrt-v4
-        path: "${{ github.workspace }}/build/Release/pbrt.exe"
+        path: "${{ github.workspace }}/build/deploy/pbrt.exe"
 
 
 
