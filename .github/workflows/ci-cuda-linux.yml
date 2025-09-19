@@ -73,10 +73,11 @@ jobs:
       # We need to limit the number of jobs so that it doesn't OOM 
       run: cmake --build build --parallel 3 --config Release --target install
 
-    - name: Save Windows executable
+    - name: Save Linux executable
       if: ${{ matrix.os == 'ubuntu-22.04' }}
       uses: actions/upload-artifact@v4
       with:
         name: pbrt-v4
-        path: "${{ github.workspace }}/build/deploy/pbrt"
+        path: "${{ github.workspace }}/build/deploy/bin/pbrt"
+
 
