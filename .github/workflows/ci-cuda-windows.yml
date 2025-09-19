@@ -83,7 +83,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: pbrt-v4_${{ matrix.os }}_${{ matrix.optix }}
-        path: "${{ github.workspace }}/build/deploy/pbrt.exe"
+        path: "${{ github.workspace }}/build/deploy/bin/pbrt.exe"
         retention-days: 1
 
 
