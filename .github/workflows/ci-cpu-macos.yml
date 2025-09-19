@@ -39,10 +39,10 @@ jobs:
     - name: Configure
       run: |
         cd build
-        cmake .. -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True ${{ matrix.config }}
+        cmake .. -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True ${{ matrix.config }} -DCMAKE_INSTALL_PREFIX=./deploy
       
     - name: Build
-      run: cmake --build build --parallel --config Release
+      run: cmake --build build --parallel --config Release --target install
       
     #- name: Test
     #  if: ${{ matrix.config == '' }}
