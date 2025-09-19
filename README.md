@@ -23,5 +23,12 @@ From other forks:
 My small contributions..
   - Added Progresbar for interactive mode using [ImGui](https://github.com/ocornut/imgui) ![progres bar](images/progress_bar.png)
   - Added the ability to set the different EXR channels defined in the GBuffer as user defined AOVS.
+
+    The way to define which AOV's we want to generate is to add an array of integers, from 0 to 9 ``` "integer aovs' [ 0 1 2 3 ...]" ```
+    where each number corresponds to a certain [pass](https://github.com/pbrt4bounty/pbrt-v4/blob/path_guiding/src/pbrt/film.cpp#L803).
+    By default, the AOV main, (0) is always created even if it is not included in the array. Because this branch is intended to be used in Blender,
+    we changed the name of the AOV 'main' to 'Combined' and defined with RGBA channels, to avoid a Blender warning, when the image is loaded into the internal buffer.
+    This is the implementation into Blender ![render passes interface](images/AOVS.png)
+    
   - Added support to use the binary hair definition files from Cem Yuksel format( only for CPU..) https://github.com/cemyuksel/cyCodeBase
   - (w.i.p)
