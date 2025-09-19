@@ -238,7 +238,7 @@ inline PBRT_CPU_GPU void TraceTransmittance(ShadowRayWorkItem sr,
                         sigma_n[2], sigma_maj[0], sigma_maj[1], sigma_maj[2]);
                     PBRT_DBG(
                         "T_ray %f %f %f r_l %f %f %f r_u %f %f %f\n",
-                        T_ray[0], T_ray[1], T_ray[2] r_l[0], r_l[1],
+                        T_ray[0], T_ray[1], T_ray[2], r_l[0], r_l[1],
                         r_l[2], r_u[0], r_u[1], r_u[2]);
 #endif
                     if (!T_ray)
