@@ -44,7 +44,7 @@ jobs:
     - name: Build
       run: cmake --build build --parallel --config Release
       
-    - name: Test
-      #if: ${{ matrix.config == '' }}
-      #run: ./pbrt_test
-      #working-directory: build
+    #- name: Test
+    #  if: ${{ matrix.config == '' }}
+    #  run: ./pbrt_test
+    #  working-directory: build
