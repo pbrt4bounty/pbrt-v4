@@ -76,7 +76,7 @@ jobs:
 
     - name: Build
       # We need to limit the number of jobs so that it doesn't OOM 
-      run: cmake --build build --parallel 3 --config Install
+      run: cmake --build build --parallel 3 --config Release --target Install
 
     - name: Save Windows executable
       if: ${{ matrix.os == 'windows-latest' }}
