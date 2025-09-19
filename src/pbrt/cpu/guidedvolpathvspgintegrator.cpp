@@ -385,7 +385,7 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
         // Sample segment of volumetric scattering path
         PBRT_DBG("%s\n", StringPrintf("Path tracer depth %d, current L = %s, beta = %s\n",
                                       depth, L, beta)
-                             .c_str())
+                             .c_str());
         pstd::optional<ShapeIntersection> si = Intersect(ray);
         Float tMax = si ? si->tHit : Infinity;
 
