@@ -779,8 +779,9 @@ inline void guiding_addScatteredDirectLight(openpgl::cpp::PathSegment* pathSegme
                                             const RGBColorSpace* colorSpace) {
     if (pathSegmentData) {
         const Vector3f LdVec3 = spectral_to_vec3(Ld, lambda, *colorSpace);
-        const pgl_vec3f pglLd = openpgl::cpp::Vector3(
-            std::max(0.f, LdVec3.x), std::max(0.f, LdVec3.y), std::max(0.f, LdVec3.z));
+        const pgl_vec3f pglLd = openpgl::cpp::Vector3(std::max(Float(0.0), LdVec3.x),
+                                                      std::max(Float(0.0), LdVec3.y),
+                                                      std::max(Float(0.0), LdVec3.z));
         openpgl::cpp::AddScatteredContribution(pathSegmentData, pglLd);
     }
 }
@@ -791,8 +792,9 @@ inline void guiding_addSurfaceEmission(openpgl::cpp::PathSegment* pathSegmentDat
                                        const RGBColorSpace* colorSpace) {
     if (pathSegmentData) {
         const Vector3f LeVec3 = spectral_to_vec3(Le, lambda, *colorSpace);
-        const pgl_vec3f pglLe = openpgl::cpp::Vector3(
-            std::max(0.f, LeVec3.x), std::max(0.f, LeVec3.y), std::max(0.f, LeVec3.z));
+        const pgl_vec3f pglLe = openpgl::cpp::Vector3(std::max(Float(0.0), LeVec3.x),
+                                                      std::max(Float(0.0), LeVec3.y),
+                                                      std::max(Float(0.0), LeVec3.z));
         openpgl::cpp::SetDirectContribution(pathSegmentData, pglLe);
         openpgl::cpp::SetMiWeight(pathSegmentData, misWeight);
     }
@@ -805,9 +807,9 @@ inline void guiding_addTransmittanceWeight(openpgl::cpp::PathSegment* pathSegmen
     if (pathSegmentData) {
         const Vector3f transmittanceVec3 =
             spectral_to_vec3(transmittance, lambda, *colorSpace);
-        const pgl_vec3f pglTransmittance = openpgl::cpp::Vector3(
-            std::max(0.f, transmittanceVec3.x), std::max(0.f, transmittanceVec3.y),
-            std::max(0.f, transmittanceVec3.z));
+        const pgl_vec3f pglTransmittance = openpgl::cpp::Vector3(std::max(Float(0.0), transmittanceVec3.x),
+                                  std::max(Float(0.0), transmittanceVec3.y),
+                                  std::max(Float(0.0), transmittanceVec3.z));
         // std::cout << "transmittance: " << transmittance[0] << "\t" << transmittance[1]
         // << "\t" << transmittance[2] << "\t" << transmittance[3] << std::endl; std::cout
         // << "pglTransmittance: " << transmittanceRGB.r << "\t" << transmittanceRGB.g <<
@@ -827,8 +829,9 @@ inline void guiding_addInfiniteLightEmission(
     openpgl::cpp::PathSegment* pathSegmentData = pathSegmentStorage->NextSegment();
     if (pathSegmentData) {
         const Vector3f LeVec3 = spectral_to_vec3(Le, lambda, *colorSpace);
-        const pgl_vec3f pglLe = openpgl::cpp::Vector3(
-            std::max(0.f, LeVec3.x), std::max(0.f, LeVec3.y), std::max(0.f, LeVec3.z));
+        const pgl_vec3f pglLe = openpgl::cpp::Vector3(std::max(Float(0.0), LeVec3.x),
+                                                      std::max(Float(0.0), LeVec3.y),
+                                                      std::max(Float(0.0), LeVec3.z));
 
         const Vector3f wo = -ray.d;
         const Point3f p = ray.o + guidingInfiniteLightDistance * ray.d;
@@ -859,9 +862,10 @@ inline void guiding_addSurfaceData(openpgl::cpp::PathSegment* pathSegmentData,
     if (pathSegmentData) {
         bool is_delta = sampledRoughness < 0.001f;
         const Vector3f bsdfWeightVec3 = spectral_to_vec3(bsdfWeight, lambda, *colorSpace);
-        const pgl_vec3f pglBsdfWeight = openpgl::cpp::Vector3(
-            std::max(0.f, bsdfWeightVec3.x), std::max(0.f, bsdfWeightVec3.y),
-            std::max(0.f, bsdfWeightVec3.z));
+        const pgl_vec3f pglBsdfWeight =
+            openpgl::cpp::Vector3(std::max(Float(0.0), bsdfWeightVec3.x),
+                                  std::max(Float(0.0), bsdfWeightVec3.y),
+                                  std::max(Float(0.0), bsdfWeightVec3.z));
         const pgl_vec3f pglWi = openpgl::cpp::Vector3(wi[0], wi[1], wi[2]);
 
         openpgl::cpp::SetTransmittanceWeight(pathSegmentData, pglOne);

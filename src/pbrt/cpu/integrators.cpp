@@ -4236,7 +4236,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
         ++totalBSDFs;
 
         // Guiding - Check if we can use guiding. If so intialize the guiding distribution
-        Float v = guideSettings.knnLookup ? sampler.Get1D() : -1.0f;
+        float v = guideSettings.knnLookup ? sampler.Get1D() : -1.0f;
         gbsdf.init(&bsdf, ray, si, v);
 #ifdef GUIDED_RR
         adjointEstimate = gbsdf.OutgoingRadiance(-ray.d);
@@ -4309,8 +4309,8 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
             survivalProb =
                 specularBounce
                     ? 0.95
-                    : std::max(0.f,
-                               std::min(1.f, rrThroughputWeight.MaxComponentValue()));
+                    : std::max((Float)0.0,
+                               std::min((Float)1.0, rrThroughputWeight.MaxComponentValue()));
 #endif
         }
         if (survivalProb < 1 && depth > minRRDepth) {
@@ -4795,7 +4795,7 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
                             MediumInteraction intr(p, -ray.d, ray.time, ray.medium,
                                                    mp.phase);
 
-                            Float v = sampler.Get1D();
+                            float v = sampler.Get1D();
                             gphase.init(&intr.phase, p, ray.d, v);
 #ifdef GUIDED_RR
                             if (guideRR && guideVolumeRR) {
@@ -4838,9 +4838,9 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
                                 survivalProb =
                                     specularBounce
                                         ? 0.95
-                                        : std::max(
-                                              0.f,
-                                              std::min(1.f, rrThroughputWeight
+                                        : std::max((Float)0.0,
+                                                   std::min((Float)1.0,
+                                                            rrThroughputWeight
                                                                 .MaxComponentValue()));
 #endif
                             }
@@ -5037,7 +5037,7 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
         }
 
         // Guiding - Check if we can use guiding. If so intialize the guiding distribution
-        Float v = sampler.Get1D();
+        float v = sampler.Get1D();
         gbsdf.init(&bsdf, ray, si, v);
 #ifdef GUIDED_RR
         if (guideRR && guideSurfaceRR) {
@@ -5197,8 +5197,8 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
             survivalProb =
                 specularBounce
                     ? 0.95
-                    : std::max(0.f,
-                               std::min(1.f, rrThroughputWeight.MaxComponentValue()));
+                    : std::max((Float)0.0,
+                          std::min((Float)1.0, rrThroughputWeight.MaxComponentValue()));
 #endif
         }
         if (survivalProb < 1 && depth > minRRDepth) {

@@ -1009,7 +1009,7 @@ template <>
 struct hash<pbrt::RGBIlluminantSpectrum> {
     PBRT_CPU_GPU
     size_t operator()(const pbrt::RGBIlluminantSpectrum &s) const {
-        float rgb[] = {s.rgb.r, s.rgb.g, s.rgb.b};
+        pbrt::Float rgb[] = {s.rgb.r, s.rgb.g, s.rgb.b};
         return pbrt::HashBuffer(rgb, 3);
     }
 };

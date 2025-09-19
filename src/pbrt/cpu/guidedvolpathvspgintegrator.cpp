@@ -545,7 +545,7 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
         }
 
         // Guiding - Check if we can use guiding. If so intialize the guiding distribution
-        Float v = sampler.Get1D();
+        float v = sampler.Get1D();
         gbsdf.init(&bsdf, ray, si, v);
         if (guideRR && guideSurfaceRR) {
 #ifdef OPENPGL_RADIANCE_CACHES
@@ -781,7 +781,7 @@ void GuidedVolPathVSPGIntegrator::SampleDistance(
     }
 
     if (guideScatterDecision)
-        vsp = std::max(std::min(vsp, 0.999f), 0.001f);
+        vsp = std::max(std::min(vsp, (Float)0.999), (Float)0.001);
 
     int densityQueryCountPerSegment = 0;
 
@@ -937,7 +937,7 @@ void GuidedVolPathVSPGIntegrator::SampleDistance(
                 // Sample direct lighting at volume-scattering event
                 MediumInteraction intr(p, -ray.d, ray.time, ray.medium, mp.phase);
 
-                Float v = sampler.Get1D();
+                float v = sampler.Get1D();
                 gphase.init(&intr.phase, p, ray.d, v);
                 if (guideRR && guideVolumeRR) {
 #ifdef OPENPGL_RADIANCE_CACHES
@@ -1136,7 +1136,7 @@ void GuidedVolPathVSPGIntegrator::SampleDistance(
                         // Sample direct lighting at volume-scattering event
                         MediumInteraction intr(p, -ray.d, ray.time, ray.medium, mp.phase);
 
-                        Float v = sampler.Get1D();
+                        float v = sampler.Get1D();
                         gphase.init(&intr.phase, p, ray.d, v);
                         if (guideRR && guideVolumeRR) {
 #ifdef OPENPGL_RADIANCE_CACHES

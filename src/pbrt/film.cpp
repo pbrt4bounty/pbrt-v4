@@ -576,7 +576,7 @@ void RGBFilm::ApplyBilateralFilter(Image &image, Float sigmaSpatial, Float sigma
             for (int x = tile.pMin.x; x < tile.pMax.x; ++x) {
                 
                 auto center = get(x, y); // pixel value at (x,y)
-                std::vector<float> sum = {0, 0, 0}; // std::array<Float, 3> sum = {0, 0, 0};// sum of pixelvalues
+                std::vector<Float> sum = {0, 0, 0}; // std::array<Float, 3> sum = {0, 0, 0};// sum of pixelvalues
                 Float weightSum = 0; // sum of weights
 
                 // looping over each kernel neighborhood pixels

@@ -266,8 +266,8 @@ CookTorranceBxDF CookTorranceMaterial::GetBxDF(TextureEvaluator texEval,
         urough = TrowbridgeReitzDistribution::RoughnessToAlpha(urough);
         vrough = TrowbridgeReitzDistribution::RoughnessToAlpha(vrough);
     }
-    urough = std::max(0.001f, urough);
-    vrough = std::max(0.001f, vrough);
+    urough = std::max(Float(0.001), urough);
+    vrough = std::max(Float(0.001), vrough);
     TrowbridgeReitzDistribution distrib(urough, vrough);
 
     // Float thick = texEval(thickness, ctx);

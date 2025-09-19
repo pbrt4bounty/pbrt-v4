@@ -867,7 +867,7 @@ class EarthMedium {
     PBRT_CPU_GPU
     Float ExponentialDensity(Point3f p) const {
         Float distance = Distance(p, center) - innerRadius_atmosphere;
-        distance = std::min(std::max(distance, 0.f), outerRadius_atmosphere);
+        distance = std::min(std::max(distance, Float(0.0)), outerRadius_atmosphere);
         return FastExp(-distance / h) + densityOffset;
     }
 
