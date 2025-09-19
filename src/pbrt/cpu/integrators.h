@@ -546,6 +546,7 @@ public:
         float vspMISRatio {0.5f};
         VSPCriterion vspCriterion {EContribution};
         bool collisionProbabilityBias {false};
+        Float regularizationGamma{0.1f};
     };
 
     struct CandidateData {

@@ -374,6 +374,9 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
     bool add_direct_contribution = false;
     Float w = 0.f;
 
+    Float regularizationGamma = guideSettings.regularizationGamma;
+    Float accumulatedRoughness = 0.f;
+
     LightSampleContext prevIntrContext;
 
     int channelIdx = lambda.ChannelIdx();
@@ -535,7 +538,10 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize(0.f, 0.f);  // siggraph lo pide
+            // bounty: add something to process:
+            //  - regularizationGamma is set from a exposed parameter in the UI
+            //  - accumulatedRoughness is not exposed and it uses the value that is declared
+            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
         }
 
         // Guiding - Check if we can use guiding. If so intialize the guiding distribution
@@ -1484,6 +1490,7 @@ std::unique_ptr<GuidedVolPathVSPGIntegrator> GuidedVolPathVSPGIntegrator::Create
 
     std::string lightStrategy = parameters.GetOneString("lightsampler", "bvh");
     bool regularize = parameters.GetOneBool("regularize", false);
+    guideSettings.regularizationGamma = parameters.GetOneFloat("regGamma", 0.1f);
 
     return std::make_unique<GuidedVolPathVSPGIntegrator>(
         maxDepth, minRRDepth, useNEE, guideSettings, colorSpace, camera, sampler,
