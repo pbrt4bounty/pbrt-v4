@@ -36,7 +36,7 @@ jobs:
       with:
         cuda: ${{ matrix.cuda }}
         method: 'network'
-        sub-packages: '[ "nvcc", "cudart" ] # , "visual_studio_integration" ]'
+        sub-packages: '[ "nvcc", "cudart" ]' # , "visual_studio_integration" ]'
 
     - name: Check NVCC
       run: nvcc -V
