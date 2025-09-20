@@ -36,7 +36,7 @@ jobs:
       with:
         cuda: ${{ matrix.cuda }}
         method: 'network'
-        sub-packages: '[ "nvcc", "visual_studio_integration" ]'
+        sub-packages: '[ "nvcc" ]'
 
     - name: Check NVCC
       run: nvcc -V
@@ -72,7 +72,7 @@ jobs:
       if: ${{ matrix.os == 'windows-latest' }}
       run: |
         cd build
-        cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT"/scripts/buildsystems/vcpkg.cmake -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DPBRT_OPTIX7_PATH=../src/ext/optix-dev -DPBRT_GPU_SHADER_MODEL=sm_80
+        cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT"/scripts/buildsystems/vcpkg.cmake -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DPBRT_OPTIX7_PATH=${{ github.workspace }}/src/ext/optix-dev -DPBRT_GPU_SHADER_MODEL=sm_80
 
     - name: Build
       # We need to limit the number of jobs so that it doesn't OOM 
