@@ -23,8 +23,8 @@ jobs:
       fail-fast: false
       matrix:
         optix: [ optix-8.0.0 ] # optix-7.5.0, optix-7.7.0, optix-8.0.0 ]
-        cuda: [ '12.4.0' ]     # '11.7.0', '12.1.0', '12.2.2', '12.3.2' ]
-        os: [ windows-2019 ] 
+        cuda: [ '12.2.2' ]     # '11.7.0', '12.1.0', '12.2.2', '12.3.2' ]
+        os: [ windows-2022 ] 
 
     name: GPU Build Only (${{ matrix.os }}, CUDA ${{ matrix.cuda }}, ${{ matrix.optix }})
 
@@ -62,14 +62,14 @@ jobs:
       uses: lukka/get-cmake@latest
 
     - name: Install pkgconfig and zlib
-      if: ${{ matrix.os == 'windows-2019' }}
+      if: ${{ matrix.os == 'windows-2022' }}
       run: |
         choco install pkgconfiglite
         vcpkg install zlib:x64-windows
         vcpkg install zlib:x64-windows-static
 
     - name: Configure (Windows)
-      if: ${{ matrix.os == 'windows-2019' }}
+      if: ${{ matrix.os == 'windows-2022' }}
       run: |
         cd build
         cmake -G "Visual Studio 16 2019" .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT"/scripts/buildsystems/vcpkg.cmake -DCMAKE_CUDA_COMPILER="C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin\\nvcc.exe" -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DPBRT_OPTIX7_PATH=${{ github.workspace }}/src/ext/optix-dev -DPBRT_GPU_SHADER_MODEL=sm_80 -DCMAKE_CUDA_ARCHITECTURES=80 -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/build/deploy
@@ -80,7 +80,7 @@ jobs:
       run: cmake --build build --parallel 3 --config Release --target Install
 
     - name: Save Windows executable
-      if: ${{ matrix.os == 'windows-2019' }}
+      if: ${{ matrix.os == 'windows-2022' }}
       uses: actions/upload-artifact@v4
       with:
         name: pbrt-v4_${{ matrix.os }}_${{ matrix.optix }}
