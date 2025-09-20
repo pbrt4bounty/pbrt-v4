@@ -226,7 +226,7 @@ if (CMAKE_CUDA_COMPILER)
 was found. GPU support is therefore disabled. If you have multiple versions\
 of CUDA installed, please update your PATH.")
   else ()
-    find_package (CUDA REQUIRED)
+    find_package (CUDAToolkit REQUIRED)
 
     # This seems to be necessary starting with 3.17.1, but gives an error
     # about 17 being an unsupported version earlier...
@@ -1060,7 +1060,7 @@ set_property (TARGET pbrt_exe PROPERTY FOLDER "cmd")
 
 ######################
 # imgtool
-
+if(BUILD_TOOLS)
 add_executable (imgtool src/pbrt/cmd/imgtool.cpp)
 add_executable (pbrt::imgtool ALIAS imgtool)
 
@@ -1148,6 +1148,7 @@ target_link_libraries (cyhair2pbrt PRIVATE pbrt_opt pbrt_warnings)
 add_sanitizers (cyhair2pbrt)
 
 set_property (TARGET cyhair2pbrt PROPERTY FOLDER "cmd")
+endif() # tools
 
 # Only do this if both targets actually exist
 if (TARGET Ptex_static AND TARGET zlibstatic)
@@ -1214,16 +1215,23 @@ endif()
 
 ###############################
 # Installation
-
-install (TARGETS
-  pbrt_exe
-  imgtool
-  pspec
-  plytool
-  cyhair2pbrt
-  DESTINATION
-  bin
+if(BUILD_TOOLS)
+  install (TARGETS
+    pbrt_exe
+    imgtool
+    pspec
+    plytool
+    cyhair2pbrt
+    DESTINATION
+    bin
   )
+else()
+  install (TARGETS
+    pbrt_exe
+    DESTINATION
+    bin
+  )
+endif()
 
 install (TARGETS
   pbrt_lib
