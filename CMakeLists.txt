@@ -1060,7 +1060,7 @@ set_property (TARGET pbrt_exe PROPERTY FOLDER "cmd")
 
 ######################
 # imgtool
-if(BUILD_TOOLS)
+if (BUILD_TOOLS)
 add_executable (imgtool src/pbrt/cmd/imgtool.cpp)
 add_executable (pbrt::imgtool ALIAS imgtool)
 
@@ -1215,7 +1215,7 @@ endif()
 
 ###############################
 # Installation
-if(BUILD_TOOLS)
+if (BUILD_TOOLS)
   install (TARGETS
     pbrt_exe
     imgtool
@@ -1226,15 +1226,7 @@ if(BUILD_TOOLS)
     bin
   )
 else()
-  install (TARGETS
-    pbrt_exe
-    DESTINATION
-    bin
-  )
+  install (TARGETS pbrt_exe DESTINATION bin )
 endif()
 
-install (TARGETS
-  pbrt_lib
-  DESTINATION
-  lib
-  )
+install (TARGETS pbrt_lib DESTINATION lib )
