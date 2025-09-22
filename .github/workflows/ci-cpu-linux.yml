@@ -71,13 +71,13 @@ jobs:
     - name: Build
       run: cmake --build build --parallel 4 --config Release --target install
 
-      - name: Save Linux executable
-        if: ${{ matrix.config == '' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: pbrt-v4_ubuntu-22.04_${{ matrix.compilers.cc }}
-          path: "${{ github.workspace }}/build/deploy/bin/"
-          retention-days: 1
+    - name: Save Linux executable
+      if: ${{ matrix.config == '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: pbrt-v4_ubuntu-22.04_${{ matrix.compilers.cc }}
+        path: "${{ github.workspace }}/build/deploy/bin/"
+        retention-days: 1
     
     - name: Test
       if: ${{ matrix.config == '-DPBRT_WITH_RGB=False' }}
