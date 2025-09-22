@@ -723,7 +723,7 @@ NanoVDBMedium *NanoVDBMedium::Create(const ParameterDictionary &parameters,
 #if !defined(PBRT_RGB_RENDERING)
     return alloc.new_object<NanoVDBMedium>(
         renderFromMedium, sigma_a, sigma_s, sigmaScale, g, std::move(densityGrid),
-        std::move(temperatureGrid), LeScale, temperatureOffset, temperatureScale, majorantScale, densityOffset, alloc);
+        std::move(temperatureGrid), LeScale, temperatureOffset, temperatureScale, alloc);
 #else
     const RGBColorSpace* cs = parameters.ColorSpace();
     return alloc.new_object<NanoVDBMedium>(
@@ -798,8 +798,7 @@ EarthMedium *EarthMedium::Create(const ParameterDictionary &parameters,
         renderFromMedium, sigma_a_atmosphere, sigma_s_atmosphere, sigmaScale_atmosphere,
         sigma_a_cloud, sigma_s_cloud, sigmaScale_cloud, g, innerRadius_atmosphere,
         innerRadius_cloud, outerRadius_atmosphere, outerRadius_cloud, center, decay,
-        majorantScale, densityOffset, rotationx, rotationy, rotationz, rotationy,
-        heightMap, alloc);
+        majorantScale, densityOffset, rotationx, rotationy, rotationz, heightMap, alloc);
 #else
     const RGBColorSpace *cs = parameters.ColorSpace();
     return alloc.new_object<EarthMedium>(

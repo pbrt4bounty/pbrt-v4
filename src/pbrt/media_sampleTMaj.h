@@ -33,6 +33,7 @@
 #include <limits>
 #include <memory>
 #include <vector>
+#include <iostream>
 
 namespace pbrt {
 
