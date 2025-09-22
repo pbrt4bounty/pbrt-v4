@@ -52,7 +52,7 @@ if (NOT ZLIB_FOUND)
 
   # try to make openexr happy about this...
   set (ZLIB_LIBRARY zlibstatic)
-  set (ZLIB_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/zlib ${CMAKE_CURRENT_BINARY_DIR}/zlib)
+  set (ZLIB_INCLUDE_DIR ${ZLIB_INCLUDE_DIRS})
   set (ZLIB_FOUND TRUE)
 
   set_property (TARGET zlibstatic PROPERTY FOLDER "ext")
