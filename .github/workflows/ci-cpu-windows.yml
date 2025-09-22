@@ -48,19 +48,19 @@ jobs:
         cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT"/scripts/buildsystems/vcpkg.cmake -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/build/deploy -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True ${{ matrix.config }}
       
     - name: Build
-      run: cmake --build build --parallel 3 --config Release --target Install
+      run: cmake --build build --parallel 3 --config Release
 
     - name: Test
       if: ${{ matrix.config == '' }}
-      run: ${{ github.workspace }}/build/deploy/bin/pbrt_test.exe
+      run: ./Release/pbrt_test.exe
       working-directory: build
 
-    - name: Save Windows executable
-      if: ${{  matrix.config == '' }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: pbrt-v4
-        path: "${{ github.workspace }}/build/deploy/bin/"
-        retention-days: 1
+    #- name: Save Windows executable
+    #  if: ${{  matrix.config == '' }}
+    #  uses: actions/upload-artifact@v4
+    #  with:
+    #    name: pbrt-v4
+    #    path: "${{ github.workspace }}/build/deploy/bin/"
+    #    retention-days: 1
     
     
