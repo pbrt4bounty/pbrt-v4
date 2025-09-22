@@ -39,12 +39,20 @@ jobs:
     - name: Configure
       run: |
         cd build
-        cmake .. -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True ${{ matrix.config }} -DCMAKE_INSTALL_PREFIX=./deploy
+        cmake .. -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DCMAKE_INSTALL_PREFIX=./deploy ${{ matrix.config }}
       
     - name: Build
       run: cmake --build build --parallel --config Release --target install
       
-    #- name: Test
-    #  if: ${{ matrix.config == '' }}
-    #  run: ./pbrt_test
-    #  working-directory: build
+    - name: Test
+      if: ${{ matrix.config == '' }}
+      run: ./pbrt_test
+      working-directory: build
+
+    - name: Save MacOS executable
+      if: ${{ matrix.config == '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: pbrt-v4_${{ matrix.os }}
+        path: "${{ github.workspace }}/build/deploy/bin/"
+        retention-days: 1
