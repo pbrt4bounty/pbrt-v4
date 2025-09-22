@@ -71,7 +71,7 @@ jobs:
     
     - name: Build
       # We need to limit the number of jobs so that it doesn't OOM 
-      run: cmake --build build --parallel 3 --config Release --target Install
+      run: cmake --build build --parallel 3 --config Release --target install
 
     - name: Save Linux executable
       if: ${{ matrix.os == 'ubuntu-22.04' }}
@@ -80,6 +80,7 @@ jobs:
         name: pbrt-v4_${{ matrix.os }}_${{ matrix.optix }}
         path: "${{ github.workspace }}/build/deploy/bin/"
         retention-days: 1
+
 
 
 
