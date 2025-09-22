@@ -65,7 +65,7 @@ jobs:
     - name: Configure
       run: |
         cd build
-        env CC=${{ matrix.compilers.cc }} CXX=${{ matrix.compilers.cxx }} cmake .. -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True ${{ matrix.config }}
+        env CC=${{ matrix.compilers.cc }} CXX=${{ matrix.compilers.cxx }} cmake .. -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DCMAKE_INSTALL_PREFIX=./deploy ${{ matrix.config }}
       
     - name: Build
       run: cmake --build build --parallel --config Release
