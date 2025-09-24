@@ -199,7 +199,7 @@ HomogeneousMedium *HomogeneousMedium::Create(const ParameterDictionary &paramete
     return alloc.new_object<HomogeneousMedium>(sig_a, sig_s, sigmaScale, Le, LeScale, g,
                                                alloc);
 #else
-    const RGBColorSpace* cs = parameters.ColorSpace();
+    const RGBColorSpace *cs = parameters.ColorSpace();
     return alloc.new_object<HomogeneousMedium>(sig_a, sig_s, sigmaScale, Le, LeScale, g,
                                                cs, alloc);
 #endif
@@ -219,15 +219,16 @@ GridMedium::GridMedium(const Bounds3f &bounds, const Transform &renderFromMedium
                        Spectrum sigma_a, Spectrum sigma_s, Float sigmaScale, Float g,
                        SampledGrid<Float> d,
                        pstd::optional<SampledGrid<Float>> temperature,
-                       Float temperatureScale, Float temperatureOffset,
-                       Spectrum Le, SampledGrid<Float> LeGrid, Allocator alloc)
+                       Float temperatureScale, Float temperatureOffset, Spectrum Le,
+                       SampledGrid<Float> LeGrid, Allocator alloc)
 #else
 GridMedium::GridMedium(const Bounds3f &bounds, const Transform &renderFromMedium,
                        Spectrum sigma_a, Spectrum sigma_s, Float sigmaScale, Float g,
                        SampledGrid<Float> d,
                        pstd::optional<SampledGrid<Float>> temperature,
-                       Float temperatureScale, Float temperatureOffset,
-                       Spectrum Le, SampledGrid<Float> LeGrid, const RGBColorSpace* cs, Allocator alloc)
+                       Float temperatureScale, Float temperatureOffset, Spectrum Le,
+                       SampledGrid<Float> LeGrid, const RGBColorSpace *cs,
+                       Allocator alloc)
 #endif
     : bounds(bounds),
       renderFromMedium(renderFromMedium),
@@ -342,17 +343,17 @@ GridMedium *GridMedium::Create(const ParameterDictionary &parameters,
         sigma_s = alloc.new_object<ConstantSpectrum>(1.f);
     Float sigmaScale = parameters.GetOneFloat("scale", 1.f);
 
-    Float temperatureOffset = parameters.GetOneFloat("temperatureoffset",
-                                                     parameters.GetOneFloat("temperaturecutoff", 0.f));
+    Float temperatureOffset = parameters.GetOneFloat(
+        "temperatureoffset", parameters.GetOneFloat("temperaturecutoff", 0.f));
     Float temperatureScale = parameters.GetOneFloat("temperaturescale", 1.f);
 
 #if !defined(PBRT_RGB_RENDERING)
-    return alloc.new_object<GridMedium>(
-        Bounds3f(p0, p1), renderFromMedium, sigma_a, sigma_s, sigmaScale, g,
-        std::move(densityGrid), std::move(temperatureGrid), temperatureScale,
-        temperatureOffset, Le, std::move(LeGrid), alloc);
+    return alloc.new_object<GridMedium>(Bounds3f(p0, p1), renderFromMedium, sigma_a,
+                                        sigma_s, sigmaScale, g, std::move(densityGrid),
+                                        std::move(temperatureGrid), temperatureScale,
+                                        temperatureOffset, Le, std::move(LeGrid), alloc);
 #else
-    const RGBColorSpace* cs = parameters.ColorSpace();
+    const RGBColorSpace *cs = parameters.ColorSpace();
     return alloc.new_object<GridMedium>(
         Bounds3f(p0, p1), renderFromMedium, sigma_a, sigma_s, sigmaScale, g,
         std::move(densityGrid), std::move(temperatureGrid), temperatureScale,
@@ -514,10 +515,10 @@ CloudMedium *CloudMedium::Create(const ParameterDictionary &parameters,
                                          sigma_s, g, density, wispiness, frequency,
                                          alloc);
 #else
-    const RGBColorSpace* cs = parameters.ColorSpace();
+    const RGBColorSpace *cs = parameters.ColorSpace();
     return alloc.new_object<CloudMedium>(Bounds3f(p0, p1), renderFromMedium, sigma_a,
-                                         sigma_s, g, density, wispiness, frequency,
-                                         cs, alloc);
+                                         sigma_s, g, density, wispiness, frequency, cs,
+                                         alloc);
 #endif
 }
 
@@ -560,7 +561,7 @@ NanoVDBMedium::NanoVDBMedium(const Transform &renderFromMedium, Spectrum sigma_a
                              nanovdb::GridHandle<NanoVDBBuffer> tg, Float LeScale,
                              Float temperatureOffset, Float temperatureScale,
                              Float majorantScale, Float densityOffset,
-                             const RGBColorSpace* cs, Allocator alloc)
+                             const RGBColorSpace *cs, Allocator alloc)
 #endif
     : renderFromMedium(renderFromMedium),
 #if !defined(PBRT_RGB_RENDERING)
@@ -699,8 +700,8 @@ NanoVDBMedium *NanoVDBMedium::Create(const ParameterDictionary &parameters,
     temperatureGrid = readGrid<NanoVDBBuffer>(filename, temperaturename, loc, alloc);
 
     Float LeScale = parameters.GetOneFloat("Lescale", 1.f);
-    Float temperatureOffset = parameters.GetOneFloat("temperatureoffset",
-                                                     parameters.GetOneFloat("temperaturecutoff", 0.f));
+    Float temperatureOffset = parameters.GetOneFloat(
+        "temperatureoffset", parameters.GetOneFloat("temperaturecutoff", 0.f));
     Float temperatureScale = parameters.GetOneFloat("temperaturescale", 1.f);
 
     Float densityOffset = parameters.GetOneFloat("densityoffset", 0.f);
@@ -725,10 +726,11 @@ NanoVDBMedium *NanoVDBMedium::Create(const ParameterDictionary &parameters,
         renderFromMedium, sigma_a, sigma_s, sigmaScale, g, std::move(densityGrid),
         std::move(temperatureGrid), LeScale, temperatureOffset, temperatureScale, alloc);
 #else
-    const RGBColorSpace* cs = parameters.ColorSpace();
+    const RGBColorSpace *cs = parameters.ColorSpace();
     return alloc.new_object<NanoVDBMedium>(
         renderFromMedium, sigma_a, sigma_s, sigmaScale, g, std::move(densityGrid),
-        std::move(temperatureGrid), LeScale, temperatureOffset, temperatureScale, majorantScale, densityOffset, cs, alloc);
+        std::move(temperatureGrid), LeScale, temperatureOffset, temperatureScale,
+        majorantScale, densityOffset, cs, alloc);
 
 #endif
 }

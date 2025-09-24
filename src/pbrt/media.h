@@ -232,7 +232,7 @@ class HomogeneousMedium {
           Le_spec(Le, alloc),
 #else
     HomogeneousMedium(Spectrum sigma_a, Spectrum sigma_s, Float sigmaScale, Spectrum Le,
-                      Float LeScale, Float g, const RGBColorSpace* cs, Allocator alloc)
+                      Float LeScale, Float g, const RGBColorSpace *cs, Allocator alloc)
         : sigma_a_spec(*cs, sigma_a.ToRGBUnbounded(*cs).GetRGB()),
           sigma_s_spec(*cs, sigma_s.ToRGBUnbounded(*cs).GetRGB()),
           Le_spec(*cs, Le.ToRGBUnbounded(*cs).GetRGB()),
@@ -291,14 +291,14 @@ class GridMedium {
     GridMedium(const Bounds3f &bounds, const Transform &renderFromMedium,
                Spectrum sigma_a, Spectrum sigma_s, Float sigmaScale, Float g,
                SampledGrid<Float> density, pstd::optional<SampledGrid<Float>> temperature,
-               Float temperatureScale, Float temperatureOffset,
-               Spectrum Le, SampledGrid<Float> LeScale, Allocator alloc);
+               Float temperatureScale, Float temperatureOffset, Spectrum Le,
+               SampledGrid<Float> LeScale, Allocator alloc);
 #else
     GridMedium(const Bounds3f &bounds, const Transform &renderFromMedium,
                Spectrum sigma_a, Spectrum sigma_s, Float sigmaScale, Float g,
                SampledGrid<Float> density, pstd::optional<SampledGrid<Float>> temperature,
-               Float temperatureScale, Float temperatureOffset,
-               Spectrum Le, SampledGrid<Float> LeScale, const RGBColorSpace* cs, Allocator alloc);
+               Float temperatureScale, Float temperatureOffset, Spectrum Le,
+               SampledGrid<Float> LeScale, const RGBColorSpace *cs, Allocator alloc);
 #endif
     static GridMedium *Create(const ParameterDictionary &parameters,
                               const Transform &renderFromMedium, const FileLoc *loc,
@@ -492,7 +492,8 @@ class CloudMedium {
 #else
     CloudMedium(const Bounds3f &bounds, const Transform &renderFromMedium,
                 Spectrum sigma_a, Spectrum sigma_s, Float g, Float density,
-                Float wispiness, Float frequency, const RGBColorSpace* cs, Allocator alloc)
+                Float wispiness, Float frequency, const RGBColorSpace *cs,
+                Allocator alloc)
 #endif
         : bounds(bounds),
           renderFromMedium(renderFromMedium),
@@ -506,7 +507,8 @@ class CloudMedium {
           phase(g),
           density(density),
           wispiness(wispiness),
-          frequency(frequency) {}
+          frequency(frequency) {
+    }
 
     PBRT_CPU_GPU
     bool IsEmissive() const { return false; }
@@ -672,9 +674,8 @@ class NanoVDBMedium {
     NanoVDBMedium(const Transform &renderFromMedium, Spectrum sigma_a, Spectrum sigma_s,
                   Float sigmaScale, Float g, nanovdb::GridHandle<NanoVDBBuffer> dg,
                   nanovdb::GridHandle<NanoVDBBuffer> tg, Float LeScale,
-                  Float temperatureOffset, Float temperatureScale,
-                  Float majorantScale, Float densityOffset,
-                  const RGBColorSpace* cs, Allocator alloc);
+                  Float temperatureOffset, Float temperatureScale, Float majorantScale,
+                  Float densityOffset, const RGBColorSpace *cs, Allocator alloc);
 #endif
     PBRT_CPU_GPU
     bool IsEmissive() const { return temperatureFloatGrid && LeScale > 0; }
@@ -888,7 +889,7 @@ class EarthMedium {
         std::swap(uv[0], uv[1]);
         return uv;
     }
-    
+
     PBRT_CPU_GPU
     Vector3f RotateAroundX(Vector3f dir) const {
         Point2f result(std::acos(dir.x), std::atan2(dir.z, dir.y));
@@ -961,8 +962,8 @@ PBRT_CPU_GPU inline Float PhaseFunction::p(Vector3f wo, Vector3f wi) const {
     return Dispatch(p);
 }
 
-PBRT_CPU_GPU inline pstd::optional<PhaseFunctionSample> PhaseFunction::Sample_p(Vector3f wo,
-                                                                   Point2f u) const {
+PBRT_CPU_GPU inline pstd::optional<PhaseFunctionSample> PhaseFunction::Sample_p(
+    Vector3f wo, Point2f u) const {
     auto sample = [&](auto ptr) { return ptr->Sample_p(wo, u); };
     return Dispatch(sample);
 }
@@ -972,9 +973,10 @@ PBRT_CPU_GPU inline Float PhaseFunction::PDF(Vector3f wo, Vector3f wi) const {
     return Dispatch(pdf);
 }
 
-// bounty: in the VSPG implementation this is defined 'inline Float PhaseFunction::MeanCosine() const'
-// but in the siggraph-course branch is set 'PBRT_CPU_GPU Float PhaseFunction::MeanCosine() const'
-// there, we uses a mix way: PBRT_CPU_GPU inline
+// bounty: in the VSPG implementation this is defined 'inline Float
+// PhaseFunction::MeanCosine() const' but in the siggraph-course branch is set
+// 'PBRT_CPU_GPU Float PhaseFunction::MeanCosine() const' there, we uses a mix way:
+// PBRT_CPU_GPU inline
 PBRT_CPU_GPU inline Float PhaseFunction::MeanCosine() const {
     auto meancosine = [&](auto ptr) { return ptr->MeanCosine(); };
     return Dispatch(meancosine);
@@ -985,8 +987,8 @@ PBRT_CPU_GPU inline pstd::optional<RayMajorantSegment> RayMajorantIterator::Next
     return Dispatch(next);
 }
 
-PBRT_CPU_GPU inline MediumProperties Medium::SamplePoint(Point3f p,
-                                            const SampledWavelengths &lambda) const {
+PBRT_CPU_GPU inline MediumProperties Medium::SamplePoint(
+    Point3f p, const SampledWavelengths &lambda) const {
     auto sample = [&](auto ptr) { return ptr->SamplePoint(p, lambda); };
     return Dispatch(sample);
 }
@@ -1007,7 +1009,7 @@ inline RayMajorantIterator Medium::SampleRay(Ray ray, Float tMax,
     return DispatchCPU(sample);
 }
 
-inline bool Medium::IsHomogeneous() const{
+inline bool Medium::IsHomogeneous() const {
     auto homo = [&](auto ptr) { return ptr->IsHomogeneous(); };
     return Dispatch(homo);
 }

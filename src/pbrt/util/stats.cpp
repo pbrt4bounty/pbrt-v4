@@ -369,7 +369,7 @@ void StatsAccumulator::Print(FILE *dest) {
         std::string category, title;
         getCategoryAndTitle(counter.first, &category, &title);
         toPrint[category].push_back(
-            StringPrintf("%-42s               %7.4f Sec",title, counter.second));
+            StringPrintf("%-42s               %7.4f Sec", title, counter.second));
     }
 
     size_t totalMemoryReported = 0;
@@ -470,7 +470,8 @@ void StatsAccumulator::WritePixelImages() const {
     };
 
     for (size_t i = 0; i < stats->pixelCounterImages.size(); ++i) {
-        std::string n = pixelStatsBaseName + "-" + rewriteSlashes(stats->pixelCounterNames[i]) + ".exr";
+        std::string n = pixelStatsBaseName + "-" +
+                        rewriteSlashes(stats->pixelCounterNames[i]) + ".exr";
 
         auto AllZero = [](const Image &im) {
             for (int y = 0; y < im.Resolution().y; ++y)
@@ -484,7 +485,8 @@ void StatsAccumulator::WritePixelImages() const {
     }
 
     for (size_t i = 0; i < stats->pixelRatioImages.size(); ++i) {
-        std::string n = pixelStatsBaseName + "-" + rewriteSlashes(stats->pixelRatioNames[i]) + ".exr";
+        std::string n =
+            pixelStatsBaseName + "-" + rewriteSlashes(stats->pixelRatioNames[i]) + ".exr";
 
         auto AllZero = [](const Image &im) {
             for (int y = 0; y < im.Resolution().y; ++y)

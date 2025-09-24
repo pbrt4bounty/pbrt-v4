@@ -11,16 +11,16 @@
 namespace pbrt {
 
 class PBRTExporter {
-    public:
+  public:
     PBRTExporter(Procedural &procedural);
 
     void exportInstances(std::vector<Transform> instanceTransforms,
-                         std::string outputFile); 
-    
-    private:
+                         std::string outputFile);
+
+  private:
     Procedural &procedural;
 };
 
-}
+}  // namespace pbrt
 
 #endif

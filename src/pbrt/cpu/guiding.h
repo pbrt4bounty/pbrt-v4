@@ -807,7 +807,8 @@ inline void guiding_addTransmittanceWeight(openpgl::cpp::PathSegment* pathSegmen
     if (pathSegmentData) {
         const Vector3f transmittanceVec3 =
             spectral_to_vec3(transmittance, lambda, *colorSpace);
-        const pgl_vec3f pglTransmittance = openpgl::cpp::Vector3(std::max(Float(0.0), transmittanceVec3.x),
+        const pgl_vec3f pglTransmittance =
+            openpgl::cpp::Vector3(std::max(Float(0.0), transmittanceVec3.x),
                                   std::max(Float(0.0), transmittanceVec3.y),
                                   std::max(Float(0.0), transmittanceVec3.z));
         // std::cout << "transmittance: " << transmittance[0] << "\t" << transmittance[1]

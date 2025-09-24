@@ -115,8 +115,8 @@ int main(int argc, char *argv[]) {
     // of the range until we get there; the bounding box is updated as
     // well so that the remaining volume doesn't shift spatially.
     auto round = [=](int &low, int &high, Float &c0, Float &c1) {
-        Float delta = (c1-c0) / (high-low);
-        int mult = 1 << downsample; // want a multiple of this in resolution
+        Float delta = (c1 - c0) / (high - low);
+        int mult = 1 << downsample;  // want a multiple of this in resolution
         while ((high - low) % mult) {
             ++low;
             c0 += delta;
@@ -139,14 +139,16 @@ int main(int argc, char *argv[]) {
 
     while (downsample > 0) {
         std::vector<Float> v2;
-        for (int z = 0; z < nz/2; ++z)
-            for (int y = 0; y < ny/2; ++y)
-                for (int x = 0; x < nx/2; ++x) {
-                    auto v = [&](int dx, int dy, int dz) -> Float{
-                        return values[(2*x+dx) + nx * ((2*y+dy) + ny * (2*z+dz))];
+        for (int z = 0; z < nz / 2; ++z)
+            for (int y = 0; y < ny / 2; ++y)
+                for (int x = 0; x < nx / 2; ++x) {
+                    auto v = [&](int dx, int dy, int dz) -> Float {
+                        return values[(2 * x + dx) +
+                                      nx * ((2 * y + dy) + ny * (2 * z + dz))];
                     };
-                    v2.push_back((v(0,0,0) + v(1,0,0) + v(0,1,0) + v(1,1,0) +
-                                  v(0,0,1) + v(1,0,1) + v(0,1,1) + v(1,1,1))/8);
+                    v2.push_back((v(0, 0, 0) + v(1, 0, 0) + v(0, 1, 0) + v(1, 1, 0) +
+                                  v(0, 0, 1) + v(1, 0, 1) + v(0, 1, 1) + v(1, 1, 1)) /
+                                 8);
                 }
 
         values = std::move(v2);
@@ -157,15 +159,17 @@ int main(int argc, char *argv[]) {
     }
 
     printf("\"integer nx\" %d \"integer ny\" %d  \"integer nz\" %d\n", nx, ny, nz);
-    printf("\t\"point3 p0\" [ %f %f %f ] \"point3 p1\" [ %f %f %f ]\n",
-           bounds.pMin.x, bounds.pMin.y, bounds.pMin.z,
-           bounds.pMax.x, bounds.pMax.y, bounds.pMax.z);
+    printf("\t\"point3 p0\" [ %f %f %f ] \"point3 p1\" [ %f %f %f ]\n", bounds.pMin.x,
+           bounds.pMin.y, bounds.pMin.z, bounds.pMax.x, bounds.pMax.y, bounds.pMax.z);
     printf("\t\"float %s\" [\n", grid.c_str());
     for (int i = 0; i < values.size(); ++i) {
         Float d = values[i];
-        if (d == 0) printf("0 ");
-        else printf("%f ", d);
-        if ((i % 20) == 19) printf("\n");
+        if (d == 0)
+            printf("0 ");
+        else
+            printf("%f ", d);
+        if ((i % 20) == 19)
+            printf("\n");
     }
     printf("]\n");
 }

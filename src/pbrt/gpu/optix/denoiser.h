@@ -15,7 +15,7 @@
 
 namespace pbrt {
 
-class OptixDenoiser: public Denoiser {
+class OptixDenoiser : public Denoiser {
   public:
     OptixDenoiser(Vector2i resolution, bool haveAlbedoAndNormal);
 

@@ -264,7 +264,7 @@ std::vector<std::pair<Sampler, std::string>> GetSamplers(const Point2i &resoluti
                        "Sobol Owen Scramble"));
     samplers.push_back(std::make_pair(new IndependentSampler(spp), "Independent"));
     samplers.push_back(
-        std::make_pair(new StratifiedSampler(sqrtSpp,sqrtSpp, true), "Stratified"));
+        std::make_pair(new StratifiedSampler(sqrtSpp, sqrtSpp, true), "Stratified"));
     samplers.push_back(std::make_pair(new PMJ02BNSampler(spp), "PMJ02bn"));
 
     return samplers;

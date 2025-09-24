@@ -22,7 +22,7 @@
 namespace pbrt {
 
 void RenderCPU(BasicScene &parsedScene) {
-    //Allocator alloc;
+    // Allocator alloc;
     ThreadLocal<Allocator> threadAllocators([]() { return Allocator(); });
 
     // Create media first (so have them for the camera...)

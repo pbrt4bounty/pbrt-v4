@@ -8,8 +8,8 @@
 
 namespace pbrt {
 
-std::tuple<std::vector<float>, int, int>
-PCGSampling::loadDensityMap(const std::string &filename) {
+std::tuple<std::vector<float>, int, int> PCGSampling::loadDensityMap(
+    const std::string &filename) {
     auto imgData = Image::Read(filename);
     auto &image = imgData.image;
 
@@ -26,11 +26,8 @@ PCGSampling::loadDensityMap(const std::string &filename) {
     return {densities, nu, nv};
 }
 
-std::vector<Point2f>
-PCGSampling::sampleUVValues(
-    const std::tuple<std::vector<float>, int, int> &densityMapData,
-    int nSamples
-) {
+std::vector<Point2f> PCGSampling::sampleUVValues(
+    const std::tuple<std::vector<float>, int, int> &densityMapData, int nSamples) {
     auto &densityVec = std::get<0>(densityMapData);
     int nu = std::get<1>(densityMapData);
     int nv = std::get<2>(densityMapData);
@@ -49,4 +46,4 @@ PCGSampling::sampleUVValues(
     return samples;
 }
 
-} 
+}  // namespace pbrt

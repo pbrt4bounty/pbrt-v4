@@ -343,8 +343,9 @@ class RayQueue : public WorkQueue<RayWorkItem> {
 };
 
 // RayQueue Inline Methods
-PBRT_CPU_GPU inline int RayQueue::PushCameraRay(const Ray &ray, const SampledWavelengths &lambda,
-                                   int pixelIndex) {
+PBRT_CPU_GPU inline int RayQueue::PushCameraRay(const Ray &ray,
+                                                const SampledWavelengths &lambda,
+                                                int pixelIndex) {
     int index = AllocateEntry();
     DCHECK(!ray.HasNaN());
     this->ray[index] = ray;
@@ -363,9 +364,9 @@ PBRT_CPU_GPU inline int RayQueue::PushCameraRay(const Ray &ray, const SampledWav
 PBRT_CPU_GPU
 inline int RayQueue::PushIndirectRay(
     const Ray &ray, int depth, const LightSampleContext &prevIntrCtx,
-    const SampledSpectrum &beta, const SampledSpectrum &r_u,
-    const SampledSpectrum &r_l, const SampledWavelengths &lambda, Float etaScale,
-    bool specularBounce, bool anyNonSpecularBounces, int pixelIndex) {
+    const SampledSpectrum &beta, const SampledSpectrum &r_u, const SampledSpectrum &r_l,
+    const SampledWavelengths &lambda, Float etaScale, bool specularBounce,
+    bool anyNonSpecularBounces, int pixelIndex) {
     int index = AllocateEntry();
     DCHECK(!ray.HasNaN());
     this->ray[index] = ray;

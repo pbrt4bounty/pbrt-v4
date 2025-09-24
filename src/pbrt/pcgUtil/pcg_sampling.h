@@ -11,15 +11,12 @@ namespace pbrt {
 
 class PCGSampling {
   public:
+    std::tuple<std::vector<float>, int, int> loadDensityMap(const std::string &filename);
 
-    std::tuple<std::vector<float>, int, int>
-    loadDensityMap(const std::string &filename);
-
-    std::vector<Point2f>
-    sampleUVValues(const std::tuple<std::vector<float>, int, int> &densityMapData,
-                   int nSamples);
+    std::vector<Point2f> sampleUVValues(
+        const std::tuple<std::vector<float>, int, int> &densityMapData, int nSamples);
 };
 
-}
+}  // namespace pbrt
 
 #endif  

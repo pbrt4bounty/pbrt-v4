@@ -217,7 +217,8 @@ int main(int argc, char *argv[]) {
             ParseArg(&iter, args.end(), "wavefront", &options.wavefront, onError) ||
             ParseArg(&iter, args.end(), "write-partial-images",
                      &options.writePartialImages, onError) ||
-            ParseArg(&iter, args.end(), "volMajScale", &options.volumeMajorantScale, onError) ||
+            ParseArg(&iter, args.end(), "volMajScale", &options.volumeMajorantScale,
+                     onError) ||
             ParseArg(&iter, args.end(), "upgrade", &options.upgrade, onError)) {
             // success
         } else if (*iter == "--help" || *iter == "-help" || *iter == "-h") {

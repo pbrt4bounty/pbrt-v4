@@ -34,13 +34,13 @@ class ThinDielectricMaterial;
 class MixMaterial;
 
 // Material Definition
-class Material
-    : public TaggedPointer<  // Material Types
-          CoatedDiffuseMaterial, CoatedConductorMaterial, ConductorMaterial, CookTorranceMaterial,
-          DielectricMaterial, DiffuseMaterial, DiffuseTransmissionMaterial, HairMaterial,
-          MeasuredMaterial, SubsurfaceMaterial, ThinDielectricMaterial, MixMaterial
+class Material : public TaggedPointer<  // Material Types
+                     CoatedDiffuseMaterial, CoatedConductorMaterial, ConductorMaterial,
+                     CookTorranceMaterial, DielectricMaterial, DiffuseMaterial,
+                     DiffuseTransmissionMaterial, HairMaterial, MeasuredMaterial,
+                     SubsurfaceMaterial, ThinDielectricMaterial, MixMaterial
 
-          > {
+                     > {
   public:
     // Material Interface
     using TaggedPointer::TaggedPointer;

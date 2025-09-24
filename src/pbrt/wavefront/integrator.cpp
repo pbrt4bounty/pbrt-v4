@@ -356,11 +356,11 @@ Float WavefrontPathIntegrator::Render() {
                 // Generate camera rays for current scanline range
                 RayQueue *cameraRayQueue = CurrentRayQueue(0);
                 Do(
-                   "Reset ray queue", PBRT_CPU_GPU_LAMBDA() {
-                       PBRT_DBG("Starting scanlines at y0 = %d, sample %d / %d\n", y0,
-                                sampleIndex, samplesPerPixel);
-                       cameraRayQueue->Reset();
-                   });
+                    "Reset ray queue", PBRT_CPU_GPU_LAMBDA() {
+                        PBRT_DBG("Starting scanlines at y0 = %d, sample %d / %d\n", y0,
+                                 sampleIndex, samplesPerPixel);
+                        cameraRayQueue->Reset();
+                    });
 
                 Transform cameraMotion;
                 if (gui)
@@ -368,51 +368,53 @@ Float WavefrontPathIntegrator::Render() {
                         renderFromCamera * gui->GetCameraTransform() * cameraFromRender;
                 GenerateCameraRays(y0, cameraMotion, sampleIndex);
                 Do(
-                   "Update camera ray stats",
-                   PBRT_CPU_GPU_LAMBDA() { stats->cameraRays += cameraRayQueue->Size(); });
+                    "Update camera ray stats", PBRT_CPU_GPU_LAMBDA() {
+                        stats->cameraRays += cameraRayQueue->Size();
+                    });
 
                 // Trace rays and estimate radiance up to maximum ray depth
                 for (int wavefrontDepth = 0; true; ++wavefrontDepth) {
                     // Reset queues before tracing rays
                     RayQueue *nextQueue = NextRayQueue(wavefrontDepth);
                     Do(
-                       "Reset queues before tracing rays", PBRT_CPU_GPU_LAMBDA() {
-                           nextQueue->Reset();
-                           // Reset queues before tracing next batch of rays
-                           if (mediumSampleQueue)
-                               mediumSampleQueue->Reset();
-                           if (mediumScatterQueue)
-                               mediumScatterQueue->Reset();
+                        "Reset queues before tracing rays", PBRT_CPU_GPU_LAMBDA() {
+                            nextQueue->Reset();
+                            // Reset queues before tracing next batch of rays
+                            if (mediumSampleQueue)
+                                mediumSampleQueue->Reset();
+                            if (mediumScatterQueue)
+                                mediumScatterQueue->Reset();
 
-                           if (escapedRayQueue)
-                               escapedRayQueue->Reset();
-                           hitAreaLightQueue->Reset();
+                            if (escapedRayQueue)
+                                escapedRayQueue->Reset();
+                            hitAreaLightQueue->Reset();
 
-                           basicEvalMaterialQueue->Reset();
-                           universalEvalMaterialQueue->Reset();
+                            basicEvalMaterialQueue->Reset();
+                            universalEvalMaterialQueue->Reset();
 
-                           if (bssrdfEvalQueue)
-                               bssrdfEvalQueue->Reset();
-                           if (subsurfaceScatterQueue)
-                               subsurfaceScatterQueue->Reset();
-                       });
+                            if (bssrdfEvalQueue)
+                                bssrdfEvalQueue->Reset();
+                            if (subsurfaceScatterQueue)
+                                subsurfaceScatterQueue->Reset();
+                        });
 
                     // Follow active ray paths and accumulate radiance estimates
                     GenerateRaySamples(wavefrontDepth, sampleIndex);
 
                     // Find closest intersections along active rays
                     aggregate->IntersectClosest(
-                                                maxQueueSize, CurrentRayQueue(wavefrontDepth), escapedRayQueue,
-                                                hitAreaLightQueue, basicEvalMaterialQueue, universalEvalMaterialQueue,
-                                                mediumSampleQueue, NextRayQueue(wavefrontDepth));
+                        maxQueueSize, CurrentRayQueue(wavefrontDepth), escapedRayQueue,
+                        hitAreaLightQueue, basicEvalMaterialQueue,
+                        universalEvalMaterialQueue, mediumSampleQueue,
+                        NextRayQueue(wavefrontDepth));
 
                     if (wavefrontDepth > 0) {
                         // As above, with the indexing...
                         RayQueue *statsQueue = CurrentRayQueue(wavefrontDepth);
                         Do(
-                           "Update indirect ray stats", PBRT_CPU_GPU_LAMBDA() {
-                               stats->indirectRays[wavefrontDepth] += statsQueue->Size();
-                           });
+                            "Update indirect ray stats", PBRT_CPU_GPU_LAMBDA() {
+                                stats->indirectRays[wavefrontDepth] += statsQueue->Size();
+                            });
                     }
 
                     SampleMediumInteraction(wavefrontDepth);
@@ -426,7 +428,8 @@ Float WavefrontPathIntegrator::Render() {
 
                     EvaluateMaterialsAndBSDFs(wavefrontDepth, cameraMotion);
 
-                    // Do immediately so that we have space for shadow rays for subsurface..
+                    // Do immediately so that we have space for shadow rays for
+                    // subsurface..
                     TraceShadowRays(wavefrontDepth);
 
                     SampleSubsurface(wavefrontDepth);
@@ -471,7 +474,6 @@ Float WavefrontPathIntegrator::Render() {
                     });
             }
         }
-
     }
 
     if (gui) {
@@ -504,14 +506,13 @@ void WavefrontPathIntegrator::HandleEscapedRays() {
             for (const auto &light : *infiniteLights) {
                 if (SampledSpectrum Le = light.Le(Ray(w.rayo, w.rayd), w.lambda); Le) {
                     // Compute path radiance contribution from infinite light
-                    PBRT_DBG("L %f %f %f %f beta %f %f %f %f Le %f %f %f %f\n", L[0], L[1],
-                             L[2], L[3], w.beta[0], w.beta[1], w.beta[2], w.beta[3],
+                    PBRT_DBG("L %f %f %f %f beta %f %f %f %f Le %f %f %f %f\n", L[0],
+                             L[1], L[2], L[3], w.beta[0], w.beta[1], w.beta[2], w.beta[3],
                              Le[0], Le[1], Le[2], Le[3]);
                     PBRT_DBG("depth %d specularBounce %d pdf uni %f %f %f %f "
                              "pdf nee %f %f %f %f\n",
-                             w.depth, w.specularBounce,
-                             w.r_u[0], w.r_u[1], w.r_u[2], w.r_u[3],
-                             w.r_l[0], w.r_l[1], w.r_l[2], w.r_l[3]);
+                             w.depth, w.specularBounce, w.r_u[0], w.r_u[1], w.r_u[2],
+                             w.r_u[3], w.r_l[0], w.r_l[1], w.r_l[2], w.r_l[3]);
 
                     if (w.depth == 0 || w.specularBounce) {
                         L += w.beta * Le / w.r_u.Average();
