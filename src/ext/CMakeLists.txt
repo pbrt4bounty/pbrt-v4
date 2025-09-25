@@ -200,7 +200,7 @@ include(ExternalProject)
     message(STATUS "TBB_DIR = ${TBB_DIR}")
     
     set(WITH_RT_FILTERS ON CACHE BOOL "" FORCE)
-    if (APPLE OR CMAKE_SYSTEM_NAME STREQUAL Linux) # AND NOT LOCAL_BUILD)
+    if (APPLE AND NOT LOCAL_BUILD) # OR CMAKE_SYSTEM_NAME STREQUAL Linux)
       set(WITH_RT_FILTERS OFF)
     endif()
     set(OIDN_ARGS ${OIDN_ARGS}
