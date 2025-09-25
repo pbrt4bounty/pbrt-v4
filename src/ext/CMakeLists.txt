@@ -225,7 +225,7 @@ include(ExternalProject)
 
     if(NOT APPLE AND NOT "${PBRT_OPTIX7_PATH}" STREQUAL "")
       if(CMAKE_SYSTEM_NAME STREQUAL Linux)
-        find_package (CUDA 12.2) #Toolkit 12.2 REQUIRED)
+        find_package (CUDAToolkit 12.2 REQUIRED)
       else()
         find_package (CUDA)
       endif()
