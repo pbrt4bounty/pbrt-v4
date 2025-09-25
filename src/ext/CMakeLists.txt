@@ -227,9 +227,9 @@ include(ExternalProject)
       if(CMAKE_SYSTEM_NAME STREQUAL Linux)
         find_package (CUDAToolkit 12.2 REQUIRED)
       else()
-        find_package (CUDA)
+        find_package (CUDAToolkit 12.4 REQUIRED)
       endif()
-      if(CUDA_FOUND)
+      if(CUDA_FOUND OR CUDAToolkit_FOUND)
         set(OIDN_DEVICE_CUDA ON)
         set(OIDN_ARGS ${OIDN_ARGS}
         -DOIDN_DEVICE_CUDA=ON
