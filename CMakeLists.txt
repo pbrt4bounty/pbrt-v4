@@ -118,7 +118,7 @@ endif()
 
 ###########################################################################
 # path guiding (Open PGL)
-option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." OFF)
+option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." ON)
 
 if(PBRT_WITH_OIDN)
   list (APPEND PBRT_DEFINITIONS "PBRT_WITH_OIDN")
@@ -230,7 +230,7 @@ if (CMAKE_CUDA_COMPILER)
 was found. GPU support is therefore disabled. If you have multiple versions\
 of CUDA installed, please update your PATH.")
   else ()
-    find_package (CUDAToolkit 12.2 REQUIRED)
+    find_package (CUDA) #Toolkit 12.2 REQUIRED)
 
     # This seems to be necessary starting with 3.17.1, but gives an error
     # about 17 being an unsupported version earlier...
