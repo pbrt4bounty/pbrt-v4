@@ -96,6 +96,10 @@ if (MSVC)
   list (APPEND PBRT_DEFINITIONS "PBRT_IS_MSVC" "_CRT_SECURE_NO_WARNINGS")
   list (APPEND PBRT_DEFINITIONS "PBRT_IS_MSVC" "_ENABLE_EXTENDED_ALIGNED_STORAGE")
 endif ()
+if(APPLE)
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE )
+  set(CMAKE_INSTALL_RPATH .)
+endif()
 
 if (PBRT_FLOAT_AS_DOUBLE)
   list (APPEND PBRT_DEFINITIONS "PBRT_FLOAT_AS_DOUBLE")
@@ -1230,3 +1234,21 @@ else()
 endif()
 
 install (TARGETS pbrt_lib DESTINATION lib )
+
+if (APPLE)
+  install(FILES
+    ${CMAKE_INSTALL_PREFIX}/lib/libtbb.12.dylib
+    ${CMAKE_INSTALL_PREFIX}/lib/libtbb.12.17.dylib
+    ${CMAKE_INSTALL_PREFIX}/lib/libopenpgl.0.dylib
+    ${CMAKE_INSTALL_PREFIX}/lib/libopenpgl.0.8.0.dylib
+    DESTINATION bin)
+
+  if(PBRT_WITH_OIDN)
+    install(FILES
+      ${CMAKE_INSTALL_PREFIX}/lib/libOpenImageDenoise.2.dylib
+      ${CMAKE_INSTALL_PREFIX}/lib/libOpenImageDenoise.2.3.3.dylib
+      ${CMAKE_INSTALL_PREFIX}/lib/libOpenImageDenoise_core.2.3.3.dylib
+      ${CMAKE_INSTALL_PREFIX}/lib/libOpenImageDenoise_device_cpu.2.3.3.dylib
+      DESTINATION bin)
+  endif()
+endif()

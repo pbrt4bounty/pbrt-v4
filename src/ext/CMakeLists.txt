@@ -174,6 +174,7 @@ endif()
 
 ###########################################################################
 # Open Image Denoise
+set(METAL_DEVICE OFF CACHE BOOL "" FORCE)
 if (PBRT_WITH_OIDN)
 include(ExternalProject)
   find_package (OpenImageDenoise 2.3.0)
@@ -208,9 +209,9 @@ include(ExternalProject)
     )
 
     if(APPLE AND (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64" OR CMAKE_OSX_ARCHITECTURES MATCHES "arm64"))
-      set(OIDN_DEVICE_METAL ON)
+      set(OIDN_DEVICE_METAL ${METAL_DEVICE}) #ON)
       set(OIDN_ARGS ${OIDN_ARGS}
-        -DOIDN_DEVICE_METAL=ON
+        -DOIDN_DEVICE_METAL=${METAL_DEVICE} #ON
       )
     endif()
 
