@@ -200,8 +200,10 @@ include(ExternalProject)
     message(STATUS "TBB_DIR = ${TBB_DIR}")
     
     set(WITH_RT_FILTERS ON CACHE BOOL "" FORCE)
-    if (APPLE AND NOT LOCAL_BUILD) # OR CMAKE_SYSTEM_NAME STREQUAL Linux)
-      set(WITH_RT_FILTERS OFF)
+    if (APPLE OR CMAKE_SYSTEM_NAME STREQUAL Linux)
+      if (NOT LOCAL_BUILD)
+        set(WITH_RT_FILTERS OFF)
+      endif()
     endif()
     set(OIDN_ARGS ${OIDN_ARGS}
       -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_INSTALL_PREFIX}
