@@ -67,7 +67,7 @@ jobs:
     - name: Configure (Linux)
       run: |
         cd build
-        cmake .. -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DPBRT_WITH_OIDN=True -DCMAKE_INSTALL_PREFIX=./deploy -DPBRT_OPTIX7_PATH=../src/ext/optix-dev -DPBRT_GPU_SHADER_MODEL=sm_80 -DCMAKE_CUDA_ARCHITECTURES=80
+        cmake .. -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DCMAKE_INSTALL_PREFIX=./deploy -DPBRT_OPTIX7_PATH=../src/ext/optix-dev -DPBRT_GPU_SHADER_MODEL=sm_80 -DCMAKE_CUDA_ARCHITECTURES=80
     
     - name: Build
       # We need to limit the number of jobs so that it doesn't OOM 
@@ -80,6 +80,7 @@ jobs:
         name: pbrt-v4_${{ matrix.os }}_${{ matrix.optix }}
         path: "${{ github.workspace }}/build/deploy/bin/"
         retention-days: 1
+
 
 
 
