@@ -73,7 +73,7 @@ jobs:
       if: ${{ matrix.os == 'windows-latest' }}
       run: |
         cd build
-        cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT"/scripts/buildsystems/vcpkg.cmake -DCMAKE_CUDA_COMPILER="$env:CUDA_PATH"/bin/nvcc.exe -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DPBRT_OPTIX7_PATH=${{ github.workspace }}/src/ext/optix-dev -DPBRT_GPU_SHADER_MODEL=sm_80 -DCMAKE_CUDA_ARCHITECTURES=80 -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/build/deploy ${{ matrix.config }}
+        cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT"/scripts/buildsystems/vcpkg.cmake -DCMAKE_CUDA_COMPILER="$env:CUDA_PATH"/bin/nvcc.exe -DPBRT_CUDA_TOOL_KIT=${{ matrix.cuda }} -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DPBRT_OPTIX7_PATH=${{ github.workspace }}/src/ext/optix-dev -DPBRT_GPU_SHADER_MODEL=sm_80 -DCMAKE_CUDA_ARCHITECTURES=80 -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/build/deploy ${{ matrix.config }}
     
     - name: Build
       # We need to limit the number of jobs so that it doesn't OOM 
