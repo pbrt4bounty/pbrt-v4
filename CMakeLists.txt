@@ -25,6 +25,7 @@ option (PBRT_NVML "Use NVML for GPU performance measurement" OFF)
 option (PBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES "Use pregenerated rgbspectrum_*.cpp files rather than running rgb2spec_opt to generate them at build time" OFF)
 set (PBRT_OPTIX7_PATH $ENV{PBRT_OPTIX7_PATH} CACHE PATH "Path to OptiX 7 SDK")
 set (PBRT_GPU_SHADER_MODEL "" CACHE STRING "")
+set (PBRT_CUDA_TOOL_KIT "" CACHE STRING "")
 
 
 
@@ -91,6 +92,10 @@ if (MSVC)
   list (APPEND PBRT_DEFINITIONS "PBRT_IS_MSVC" "_CRT_SECURE_NO_WARNINGS")
   list (APPEND PBRT_DEFINITIONS "PBRT_IS_MSVC" "_ENABLE_EXTENDED_ALIGNED_STORAGE")
 endif ()
+if(APPLE)
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE )
+  set(CMAKE_INSTALL_RPATH .)
+endif()
 
 if (PBRT_FLOAT_AS_DOUBLE)
   list (APPEND PBRT_DEFINITIONS "PBRT_FLOAT_AS_DOUBLE")
@@ -106,7 +111,7 @@ set (BUILD_SHARED_LIBS OFF)
 
 add_subdirectory (${CMAKE_CURRENT_SOURCE_DIR}/src/ext)
 
-find_package(OpenEXR 3.1.1)
+find_package(OpenEXR 3.3.1)
 
 if (OPENEXR_FOUND)
   message (STATUS "Found OpenEXR version ${OPENEXR_VERSION}")
@@ -193,11 +198,20 @@ check_language(CUDA)
 
 if (CMAKE_CUDA_COMPILER)
   if (CUDA_VERSION_MAJOR LESS 11)
-    message (WARNING "pbrt-v4 requires CUDA version 11.0 or later but version ${CUDA_VERSION_MAJOR}.${CUDA_VERSION_MINOR}\
-was found. GPU support is therefore disabled. If you have multiple versions\
-of CUDA installed, please update your PATH.")
+    message (WARNING "pbrt-v4 requires CUDA version 11.0 or later but version ${CUDA_VERSION_MAJOR}.${CUDA_VERSION_MINOR} was found. \
+    GPU support is therefore disabled. If you have multiple versions of CUDA installed, please update your PATH.")
   else ()
-    find_package (CUDA REQUIRED)
+    if(NOT CUDA_FOUND)
+      find_package (CUDAToolkit ${PBRT_CUDA_TOOL_KIT} REQUIRED)
+    endif()
+    # fix message when find for Cuda Toolkit package
+    if (CUDAToolkit_FOUND)
+      message(STATUS "Found CUDA Tool Kit: ${CUDAToolkit_VERSION}")
+      set(CUDA_VERSION_MAJOR ${CUDAToolkit_VERSION_MAJOR})
+      set(CUDA_VERSION_MINOR ${CUDAToolkit_VERSION_MINOR})
+      set(CUDA_VERSION_PATCH ${CUDAToolkit_VERSION_PATCH})
+      set(CUDA_FOUND 1)
+    endif()
 
     # This seems to be necessary starting with 3.17.1, but gives an error
     # about 17 being an unsupported version earlier...
@@ -747,15 +761,11 @@ if (PBRT_CUDA_ENABLED)
    src/pbrt/cameras.cpp
    src/pbrt/film.cpp
    src/pbrt/filters.cpp
-#   src/pbrt/genscene.cpp
    src/pbrt/interaction.cpp
    src/pbrt/lights.cpp
    src/pbrt/lightsamplers.cpp
    src/pbrt/materials.cpp
-#   src/pbrt/media.cpp
    src/pbrt/options.cpp
-#   src/pbrt/paramdict.cpp
-#   src/pbrt/parser.cpp
    src/pbrt/pbrt.cpp
    src/pbrt/samplers.cpp
    src/pbrt/shapes.cpp
@@ -766,22 +776,13 @@ if (PBRT_CUDA_ENABLED)
    src/pbrt/util/color.cpp
    src/pbrt/util/colorspace.cpp
    src/pbrt/util/error.cpp
-#   src/pbrt/util/file.cpp
-#   src/pbrt/util/float.cpp
-#   src/pbrt/util/image.cpp
    src/pbrt/util/log.cpp
-#   src/pbrt/util/loopsubdiv.cpp
    src/pbrt/util/lowdiscrepancy.cpp
    src/pbrt/util/math.cpp
-#   src/pbrt/util/memory.cpp
    src/pbrt/util/mesh.cpp
-#   src/pbrt/util/mipmap.cpp
    src/pbrt/util/noise.cpp
-#   src/pbrt/util/parallel.cpp
    src/pbrt/util/pmj02tables.cpp
    src/pbrt/util/primes.cpp
-#   src/pbrt/util/print.cpp
-#   src/pbrt/util/progressreporter.cpp
    src/pbrt/util/pstd.cpp
    src/pbrt/util/rng.cpp
    src/pbrt/util/sampling.cpp
@@ -789,8 +790,6 @@ if (PBRT_CUDA_ENABLED)
    src/pbrt/util/sobolmatrices.cpp
    src/pbrt/util/spectrum.cpp
    src/pbrt/util/stats.cpp
-#   src/pbrt/util/stbimage.cpp
-#   src/pbrt/util/string.cpp
    src/pbrt/util/transform.cpp
    src/pbrt/util/vecmath.cpp
 
@@ -928,7 +927,8 @@ set (ALL_PBRT_LIBS
   utf8proc
   glfw
   glad
-  OpenGL::GL)
+  OpenGL::GL
+)
 
 if (PBRT_CUDA_ENABLED)
   set_property (TARGET pbrt_lib PROPERTY CUDA_SEPARABLE_COMPILATION ON)
@@ -999,7 +999,7 @@ set_property (TARGET pbrt_exe PROPERTY FOLDER "cmd")
 
 ######################
 # imgtool
-
+if (BUILD_TOOLS)
 add_executable (imgtool src/pbrt/cmd/imgtool.cpp)
 add_executable (pbrt::imgtool ALIAS imgtool)
 
@@ -1087,6 +1087,7 @@ target_link_libraries (cyhair2pbrt PRIVATE pbrt_opt pbrt_warnings)
 add_sanitizers (cyhair2pbrt)
 
 set_property (TARGET cyhair2pbrt PROPERTY FOLDER "cmd")
+endif() # tools
 
 # Only do this if both targets actually exist
 if (TARGET Ptex_static AND TARGET zlibstatic)
@@ -1151,19 +1152,19 @@ set_property (TARGET pbrt_test PROPERTY FOLDER "cmd")
 
 ###############################
 # Installation
-
-install (TARGETS
-  pbrt_exe
-  imgtool
-  pspec
-  plytool
-  cyhair2pbrt
-  DESTINATION
-  bin
+if (BUILD_TOOLS)
+  install (TARGETS
+    pbrt_exe
+    imgtool
+    pspec
+    plytool
+    cyhair2pbrt
+    DESTINATION
+    bin
   )
+else()
+  install (TARGETS pbrt_exe DESTINATION bin )
+endif()
 
-install (TARGETS
-  pbrt_lib
-  DESTINATION
-  lib
-  )
+install (TARGETS pbrt_lib DESTINATION lib )
+

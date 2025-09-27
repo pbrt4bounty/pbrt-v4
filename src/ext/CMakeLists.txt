@@ -2,11 +2,18 @@
 cmake_minimum_required (VERSION 3.12)
 
 if (MSVC)
-  add_definitions(/D _CRT_SECURE_NO_WARNINGS /Dstrdup=_strdup
-    /wd4018 /wd4100 /wd4101 /wd4127 /wd4146 /wd4232 /wd4242 /wd4244 /wd4245 /wd4267 /wd4305 /wd4309 
+  add_definitions(/D_CRT_SECURE_NO_WARNINGS /Dstrdup=_strdup
+    /wd4005 /wd4018 /wd4100 /wd4101 /wd4127 /wd4146 /wd4232 /wd4242 /wd4244 /wd4245 /wd4267 /wd4305 /wd4309 
     /wd4310 /wd4334 /wd4456 /wd4464 /wd4668 /wd4701 /wd4703 /wd4711 /wd4756 /wd4820 /wd5045 /wd5250)
 endif ()
-
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang") # mute some Clang 16 warnings
+  add_definitions(
+    -Wno-deprecated-coroutine #-Wno-deprecated-non-prototype # zlib
+    -Wno-tautological-constant-out-of-range-compare # Ptex
+    -Wno-deprecated-declarations # utils, string
+    -Wno-shift-negative-value
+  ) 
+endif()
 ###########################################################################
 # stb
 
@@ -42,7 +49,7 @@ if (NOT ZLIB_FOUND)
 
   # try to make openexr happy about this...
   set (ZLIB_LIBRARY zlibstatic)
-  set (ZLIB_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/zlib ${CMAKE_CURRENT_BINARY_DIR}/zlib)
+  set (ZLIB_INCLUDE_DIR ${ZLIB_INCLUDE_DIRS})
   set (ZLIB_FOUND TRUE)
 
   set_property (TARGET zlibstatic PROPERTY FOLDER "ext")
@@ -52,7 +59,7 @@ if (NOT ZLIB_FOUND)
 endif ()
 
 set (ZLIB_INCLUDE_DIRS ${ZLIB_INCLUDE_DIRS} PARENT_SCOPE)
-set (ZLIB_LIBRARIES ${ZLIB_LIBARIES} PARENT_SCOPE)
+set (ZLIB_LIBRARIES ${ZLIB_LIBRARIES} PARENT_SCOPE)
 
 ###########################################################################
 # openexr
