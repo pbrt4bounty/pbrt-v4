@@ -74,12 +74,13 @@ jobs:
       run: cmake --build build --parallel 3 --config Release --target install
 
     - name: Save Linux executable
-      if: ${{ matrix.os == 'ubuntu-22.04' }}
+      #if: ${{ matrix.os == 'ubuntu-22.04' }}
       uses: actions/upload-artifact@v4
       with:
         name: pbrt-v4_${{ matrix.os }}_${{ matrix.optix }}
         path: "${{ github.workspace }}/build/deploy/bin/"
         retention-days: 1
+
 
 
 
