@@ -191,8 +191,6 @@ include(ExternalProject)
     endif()
     set(OIDN_ARGS "")
 
-    #set(TBB_ROOT ${CMAKE_CURRENT_BINARY_DIR}/tbb)
-    #set(TBB_DIR ${CMAKE_CURRENT_BINARY_DIR}/tbb)
     set(ISPC_EXECUTABLE ${ISPC_EXECUTABLE})
     set(OIDN_APPS OFF)
 
@@ -200,10 +198,8 @@ include(ExternalProject)
     message(STATUS "TBB_DIR = ${TBB_DIR}")
     
     set(WITH_RT_FILTERS ON CACHE BOOL "" FORCE)
-    if (APPLE OR CMAKE_SYSTEM_NAME STREQUAL Linux)
-      if (NOT LOCAL_BUILD)
+    if (NOT LOCAL_BUILD)
         set(WITH_RT_FILTERS OFF)
-      endif()
     endif()
     set(OIDN_ARGS ${OIDN_ARGS}
       -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_INSTALL_PREFIX}
@@ -238,7 +234,6 @@ include(ExternalProject)
       endif()
     endif()
 
-    #add_subdirectory (oidn)
     ExternalProject_Add(OIDN
       PREFIX oidn
       SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/oidn
@@ -253,10 +248,6 @@ include(ExternalProject)
       TBB
       $<$<BOOL:${GET_ISPC}>:ispc>
     )
-
-    #add_dependencies(OIDN tbb)
-    #add_dependencies(oidn TBB)
-    #set_property (TARGET OpenImageDenoise PROPERTY FOLDER "ext/oidn")
     
     set (OIDN_INCLUDE_DIR
       ${CMAKE_CURRENT_SOURCE_DIR}/oidn/include

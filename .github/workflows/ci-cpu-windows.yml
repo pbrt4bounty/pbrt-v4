@@ -16,7 +16,7 @@ jobs:
 
     strategy:
       matrix:
-        config: [ '-DPBRT_WITH_RGB=False' ] #'', '-DPBRT_DBG_LOGGING=True', '-DPBRT_FLOAT_AS_DOUBLE=True' ]
+        config: [ '' ] # , -DPBRT_WITH_OIDN=False' ] # , -DPBRT_WITH_RGB=False' ] #'', '-DPBRT_DBG_LOGGING=True', '-DPBRT_FLOAT_AS_DOUBLE=True' ]
       fail-fast: false
 
     runs-on: windows-latest
@@ -50,11 +50,6 @@ jobs:
     - name: Build
       run: cmake --build build --parallel 3 --config Release --target Install
 
-    - name: Test
-      if: ${{ matrix.config == '-DPBRT_WITH_RGB=False' }}
-      run: ./Release/pbrt_test.exe
-      working-directory: build
-
     - name: Save Windows executable
       if: ${{  matrix.config == '' }}
       uses: actions/upload-artifact@v4
@@ -62,5 +57,10 @@ jobs:
         name: pbrt-v4
         path: "${{ github.workspace }}/build/deploy/bin/"
         retention-days: 1
+    
+    - name: Test
+      if: ${{ matrix.config == '-DPBRT_WITH_RGB=False' }}
+      run: ./Release/pbrt_test.exe
+      working-directory: build
     
     
