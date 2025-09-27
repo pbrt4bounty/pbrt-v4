@@ -486,7 +486,7 @@ class DenselySampledSpectrum {
     Float operator()(Float lambda) const {
         DCHECK_GT(lambda, 0);
 #if defined(PBRT_RGB_RENDERING) && !defined(PBRT_IS_GPU_CODE)
-        //std::cout << "RGB mode: operator()(Float lambda) should not be called" << std::endl;
+        //LOG_VERBOSE("BlackbodySpectrum: operator()(Float lambda) should not be called in RGB rendering mode");
 #endif
         int offset = std::lround(lambda) - lambda_min;
         if (offset < 0 || offset >= values.size())
@@ -574,7 +574,8 @@ class BlackbodySpectrum {
     PBRT_CPU_GPU
     Float operator()(Float lambda) const {
 #if defined(PBRT_RGB_RENDERING) && !defined(PBRT_IS_GPU_CODE)
-        std::cout << "BlackbodySpectrum: operator()(Float lambda) should not be called in RGB rendering mode" << std::endl;
+        LOG_VERBOSE("BlackbodySpectrum: operator()(Float lambda) should not be called in "
+                    "RGB rendering mode");
 #endif
         return Blackbody(lambda, T) * normalizationFactor;
     }
@@ -613,7 +614,8 @@ class RGBAlbedoSpectrum {
 #else
         // TODO: fix = first channel, max, or avg
 #if defined(PBRT_RGB_RENDERING) && !defined(PBRT_IS_GPU_CODE)
-        std::cout << "RGBAlbedoSpectrum: operator()(Float lambda) should not be called in RGB rendering mode" << std::endl;
+        LOG_VERBOSE("BlackbodySpectrum: operator()(Float lambda) should not be called in "
+                    "RGB rendering mode");
 #endif
         return lambda;
 #endif
@@ -668,7 +670,8 @@ class RGBUnboundedSpectrum {
 #else
         // TODO: fix = first channel, max, or avg
 #if defined(PBRT_RGB_RENDERING) && !defined(PBRT_IS_GPU_CODE)
-        std::cout << "RGBUnboundedSpectrum: operator()(Float lambda) should not be called in RGB rendering mode" << std::endl;
+        LOG_VERBOSE("BlackbodySpectrum: operator()(Float lambda) should not be called in "
+                    "RGB rendering mode");
 #endif
         return lambda;
 #endif
@@ -762,7 +765,8 @@ class RGBIlluminantSpectrum {
 #else
         // TODO: fix = first channel, max, or avg
 #if defined(PBRT_RGB_RENDERING) && !defined(PBRT_IS_GPU_CODE)
-        std::cout << "RGBIlluminantSpectrum: operator()(Float lambda) should not be called in RGB rendering mode" << std::endl;
+        LOG_VERBOSE("BlackbodySpectrum: operator()(Float lambda) should not be called in "
+                    "RGB rendering mode");
 #endif
         return lambda;
 #endif
