@@ -25,6 +25,7 @@ option (PBRT_NVML "Use NVML for GPU performance measurement" OFF)
 option (PBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES "Use pregenerated rgbspectrum_*.cpp files rather than running rgb2spec_opt to generate them at build time" OFF)
 set (PBRT_OPTIX7_PATH $ENV{PBRT_OPTIX7_PATH} CACHE PATH "Path to OptiX 7 SDK")
 set (PBRT_GPU_SHADER_MODEL "" CACHE STRING "")
+set (PBRT_CUDA_TOOL_KIT "" CACHE STRING "")
 
 
 
@@ -229,8 +230,9 @@ if (CMAKE_CUDA_COMPILER)
     message (WARNING "pbrt-v4 requires CUDA version 11.0 or later but version ${CUDA_VERSION_MAJOR}.${CUDA_VERSION_MINOR} was found. \
     GPU support is therefore disabled. If you have multiple versions of CUDA installed, please update your PATH.")
   else ()
-    if(NOT CUDA_FOUND AND NOT CUDAToolkit_FOUND)
-      find_package (CUDAToolkit)
+    if(NOT CUDA_FOUND)
+      #message(STATUS "Find for specific CUDA Tool Kit: ${PBRT_CUDA_TOOL_KIT}")
+      find_package (CUDAToolkit ${PBRT_CUDA_TOOL_KIT} REQUIRED)
     endif()
     # fix message when find for Cuda Toolkit package
     if (CUDAToolkit_FOUND)
