@@ -226,11 +226,20 @@ check_language(CUDA)
 
 if (CMAKE_CUDA_COMPILER)
   if (CUDA_VERSION_MAJOR LESS 11)
-    message (WARNING "pbrt-v4 requires CUDA version 11.0 or later but version ${CUDA_VERSION_MAJOR}.${CUDA_VERSION_MINOR}\
-was found. GPU support is therefore disabled. If you have multiple versions\
-of CUDA installed, please update your PATH.")
+    message (WARNING "pbrt-v4 requires CUDA version 11.0 or later but version ${CUDA_VERSION_MAJOR}.${CUDA_VERSION_MINOR} was found. \
+    GPU support is therefore disabled. If you have multiple versions of CUDA installed, please update your PATH.")
   else ()
-    find_package (CUDA) #Toolkit 12.2 REQUIRED)
+    if(NOT CUDA_FOUND AND NOT CUDAToolkit_FOUND)
+      find_package (CUDAToolkit)
+    endif()
+    # fix message when find for Cuda Toolkit package
+    if (CUDAToolkit_FOUND)
+      message(STATUS "Found CUDA Tool Kit: ${CUDAToolkit_VERSION}")
+      set(CUDA_VERSION_MAJOR ${CUDAToolkit_VERSION_MAJOR})
+      set(CUDA_VERSION_MINOR ${CUDAToolkit_VERSION_MINOR})
+      set(CUDA_VERSION_PATCH ${CUDAToolkit_VERSION_PATCH})
+      set(CUDA_FOUND 1)
+    endif()
 
     # This seems to be necessary starting with 3.17.1, but gives an error
     # about 17 being an unsupported version earlier...

@@ -224,7 +224,12 @@ include(ExternalProject)
     endif()
 
     if(NOT APPLE AND NOT "${PBRT_OPTIX7_PATH}" STREQUAL "")
-      find_package (CUDA) #Toolkit 12.2 REQUIRED)
+      if(NOT CUDA_FOUND)
+        find_package (CUDAToolkit) # 12.2 REQUIRED)
+        if(CUDAToolkit_FOUND)
+          set(CUDA_FOUND 1)
+        endif()
+      endif()
       if(CUDA_FOUND)
         set(OIDN_DEVICE_CUDA ON)
         set(OIDN_ARGS ${OIDN_ARGS}
