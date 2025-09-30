@@ -231,7 +231,6 @@ if (CMAKE_CUDA_COMPILER)
     GPU support is therefore disabled. If you have multiple versions of CUDA installed, please update your PATH.")
   else ()
     if(NOT CUDA_FOUND)
-      #message(STATUS "Find for specific CUDA Tool Kit: ${PBRT_CUDA_TOOL_KIT}")
       find_package (CUDAToolkit ${PBRT_CUDA_TOOL_KIT} REQUIRED)
     endif()
     # fix message when find for Cuda Toolkit package
