@@ -199,7 +199,7 @@ include(ExternalProject)
     
     set(WITH_RT_FILTERS ON CACHE BOOL "" FORCE)
     if (NOT LOCAL_BUILD)
-        set(WITH_RT_FILTERS OFF)
+      set(WITH_RT_FILTERS OFF)
     endif()
     set(OIDN_ARGS ${OIDN_ARGS}
       -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_INSTALL_PREFIX}
@@ -220,21 +220,15 @@ include(ExternalProject)
     endif()
 
     if(NOT APPLE AND NOT "${PBRT_OPTIX7_PATH}" STREQUAL "")
-      if(NOT CUDA_FOUND)
+      if(NOT CUDAToolkit_FOUND)
         find_package (CUDAToolkit ${PBRT_CUDA_TOOL_KIT} REQUIRED)
-        
-        if(CUDAToolkit_FOUND)
-          set(CUDA_VERSION_MAJOR ${CUDAToolkit_VERSION_MAJOR} PARENT_SCOPE)
-          set(CUDA_VERSION_MINOR ${CUDAToolkit_VERSION_MINOR} PARENT_SCOPE)
-          set(CUDA_VERSION_PATCH ${CUDAToolkit_VERSION_PATCH} PARENT_SCOPE)
-          set(CUDA_FOUND 1 PARENT_SCOPE)
-        endif()
-      endif()
-      if(CUDA_FOUND)
+      endif() 
+      if(CUDAToolkit_FOUND)
+        message(STATUS "Enabling CUDA Device for OIDN")
         set(OIDN_DEVICE_CUDA ON)
-        set(OIDN_ARGS ${OIDN_ARGS}
-        -DOIDN_DEVICE_CUDA=ON
-      )
+        set(OIDN_ARGS ${OIDN_ARGS} -DOIDN_DEVICE_CUDA=ON )
+      else()
+        message(STATUS "CUDA not found; disabling Cuda device for OIDN.")
       endif()
     endif()
 
