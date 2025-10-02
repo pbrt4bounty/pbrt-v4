@@ -78,8 +78,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: pbrt-v4_${{ matrix.os }}_${{ matrix.cuda }}_${{ matrix.optix }}
-        path: "${{ github.workspace }}/build/deploy/bin/"
+        path: "${{ github.workspace }}/build/deploy/"
         retention-days: 1
+
 
 
 
