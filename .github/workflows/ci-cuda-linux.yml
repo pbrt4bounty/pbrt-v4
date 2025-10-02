@@ -31,7 +31,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: jimver/cuda-toolkit@v0.2.19
+    - uses: jimver/cuda-toolkit@v0.2.20
       id: cuda-toolkit
       with:
         cuda: ${{ matrix.cuda }}
@@ -80,3 +80,4 @@ jobs:
         name: pbrt-v4_${{ matrix.os }}_${{ matrix.cuda }}_${{ matrix.optix }}
         path: "${{ github.workspace }}/build/deploy/bin/"
         retention-days: 1
+
