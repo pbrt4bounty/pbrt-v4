@@ -46,6 +46,7 @@ jobs:
       with:
         submodules: recursive
         lfs: true
+        token: ${{ secrets.GH_PAT }}
 
     - name: Checkout rgb2spectrum tables
       uses: actions/checkout@v4
@@ -81,5 +82,6 @@ jobs:
         name: pbrt-v4_${{ matrix.os }}_${{ matrix.cuda }}_${{ matrix.optix }}
         path: "${{ github.workspace }}/build/deploy/bin/"
         retention-days: 1
+
 
 
