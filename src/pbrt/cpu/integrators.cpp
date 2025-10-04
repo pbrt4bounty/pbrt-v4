@@ -4043,12 +4043,12 @@ GuidedPathIntegrator::~GuidedPathIntegrator() {
 
 void GuidedPathIntegrator::PostProcessWave() {
     waveCounter++;
-    // std::cout << "GuidedPathIntegrator::PostProcessWave()" << std::endl;
+    LOG_VERBOSE("GuidedPathIntegrator::PostProcessWave()\n");
     if (guideTraining) {
         const size_t numValidSamples = guiding_sampleStorage->GetSizeSurface() +
                                        guiding_sampleStorage->GetSizeVolume();
-        // std::cout << "Guiding Iteration: "<< guiding_field->GetIteration() << "\t
-        // numValidSamples: " << numValidSamples << std::endl;
+        LOG_VERBOSE("Guiding Iteration: %i, numValidSamples: %i\n",
+                    guiding_field->GetIteration(), numValidSamples);
         if (numValidSamples > 128) {
             Timer guidingFiledUpdateTimer;
             guiding_field->Update(*guiding_sampleStorage);
@@ -4583,14 +4583,15 @@ GuidedVolPathIntegrator::~GuidedVolPathIntegrator() {
 
 void GuidedVolPathIntegrator::PostProcessWave() {
     waveCounter++;
-    // std::cout << "GuidedVolPathIntegrator::PostProcessWave()" << std::endl;
+    LOG_VERBOSE("GuidedVolPathIntegrator::PostProcessWave()");
     if (guideTraining) {
         const size_t numValidSamples = guiding_sampleStorage->GetSizeSurface() +
                                        guiding_sampleStorage->GetSizeVolume();
-        // std::cout << "Guiding Iteration: "<< guiding_field->GetIteration() << "\t
-        // numValidSamples: " << numValidSamples << "\t surfaceSamples: " <<
-        // guiding_sampleStorage->GetSizeSurface() << "\t volumeSamples: " <<
-        // guiding_sampleStorage->GetSizeVolume() << std::endl;
+        LOG_VERBOSE("Guiding Iteration: %i, numValidSamples: %i, surfaceSamples: %i, "
+                    "volumeSamples: %i\n",
+                    guiding_field->GetIteration(), numValidSamples,
+                    guiding_sampleStorage->GetSizeSurface(),
+                    guiding_sampleStorage->GetSizeVolume());
         if (numValidSamples > 128) {
             Timer guidingFiledUpdateTimer;
             guiding_field->Update(*guiding_sampleStorage);
@@ -4609,8 +4610,7 @@ void GuidedVolPathIntegrator::PostProcessWave() {
         Timer imageSpaceGuidingBufferTimer;
         imageSpaceGuidingBuffer->Update();
         imageSpaceGudingBufferUpdateTime += imageSpaceGuidingBufferTimer.ElapsedSeconds();
-        std::cout << "Denoiser::time = " << imageSpaceGuidingBufferTimer.ElapsedSeconds()
-                  << std::endl;
+        LOG_VERBOSE("Denoiser::time = %d \n", imageSpaceGuidingBufferTimer.ElapsedSeconds());
         imageSpaceGuidingBufferReady = true;
         imageSpaceGuidingBufferUpdateWave++;
     }
