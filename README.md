@@ -21,7 +21,7 @@ From other forks:
   - Camera shift and tilt(searching the fork link..)
 
 My small contributions..
-  - Added Progresbar for interactive mode using [ImGui](https://github.com/ocornut/imgui) ![progres bar](images/progress_bar.png)
+  - Added Progresbar for interactive mode using [ImGui](https://github.com/ocornut/imgui) ![progres bar](images/ogl_progressbar.png)
   - Added the ability to set the different EXR channels defined in the GBuffer as user defined AOVS.
 
     The way to define which AOV's we want to generate is to add an array of integers, from 0 to 9 ``` "integer aovs' [ 0 1 2 3 ...]" ```
