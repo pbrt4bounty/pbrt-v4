@@ -280,15 +280,18 @@ GuidedVolPathVSPGIntegrator::~GuidedVolPathVSPGIntegrator() {
 void GuidedVolPathVSPGIntegrator::PostProcessWave() {
     waveCounter++;
     // std::cout << "GuidedVolPathVSPGIntegrator::PostProcessWave()" << std::endl;
+    LOG_VERBOSE("GuidedVolPathVSPGIntegrator::PostProcessWave()\n");
     if (guideTraining) {
         const size_t numValidSamples = guiding_sampleStorage->GetSizeSurface() +
                                        guiding_sampleStorage->GetSizeVolume();
-        // std::cout << "Guiding Iteration: "<< guiding_field->GetIteration() << "\t
-        // numValidSamples: " << numValidSamples << "\t surfaceSamples: " <<
-        // guiding_sampleStorage->GetSizeSurface() << "\t surfaceInvalidSamples: " <<
-        // guiding_sampleStorage->GetSizeZeroValueSurface() << "\t volumeSamples: " <<
-        // guiding_sampleStorage->GetSizeVolume() << "\t volumeInvalidSamples: " <<
-        // guiding_sampleStorage->GetSizeZeroValueVolume() << std::endl;
+        LOG_VERBOSE(
+            "Guiding Iteration: %i, numValidSamples: %i, surfaceSamples: %i, "
+            "surfaceInvalidSamples: %i, volumeSamples: %i, volumeInvalidSamples: %i\n",
+            guiding_field->GetIteration(), numValidSamples,
+            guiding_sampleStorage->GetSizeSurface(),
+            guiding_sampleStorage->GetSizeZeroValueSurface(),
+            guiding_sampleStorage->GetSizeVolume(),
+            guiding_sampleStorage->GetSizeZeroValueVolume());
         if (numValidSamples > 128) {
             Timer guidingFiledUpdateTimer;
             guiding_field->Update(*guiding_sampleStorage);
