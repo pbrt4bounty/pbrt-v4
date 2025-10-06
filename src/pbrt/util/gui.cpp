@@ -256,6 +256,7 @@ GUI::GUI(std::string title, Vector2i resolution, Float movescale)
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
         LOG_FATAL("gladLoadGLLoader failed");
     // Setup Dear ImGui context -----------------------------------
+#if !defined(__APPLE__)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
@@ -267,6 +268,7 @@ GUI::GUI(std::string title, Vector2i resolution, Float movescale)
     // Setup Platform/Renderer bindings
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
+#endif
     //-------------------------------------------------------------
 
 #ifdef PBRT_BUILD_GPU_RENDERER
@@ -283,9 +285,11 @@ GUI::~GUI() {
 #endif  // PBRT_BUILD_GPU_RENDERER
     delete[] cpuFramebuffer;
     //-------------------------
+#if !defined(__APPLE__)
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+#endif
     //------------------------
     glfwDestroyWindow(window);
     glfwTerminate();
@@ -296,10 +300,15 @@ DisplayState GUI::RefreshDisplay(int sample, int pixelsamples) {
     glfwGetFramebufferSize(window, &width, &height);
     int windowWidth, windowHeight;
     glfwGetWindowSize(window, &windowWidth, &windowHeight);
+#if !defined(__APPLE__) // we need to redefine GL_CHECK for MacOS
     GL_CHECK(glViewport(0, 0, width, height));
+#else
+    glViewport(0, 0, width, height);
+#endif
     float pixelScales[2] = {(float)width / (float)windowWidth,
                             (float)height / (float)windowHeight};
     //----------------------------
+#if !defined(__APPLE__)
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -309,6 +318,7 @@ DisplayState GUI::RefreshDisplay(int sample, int pixelsamples) {
     ImGui::ProgressBar(progress, ImVec2(0.0f, 0.0f));
     ImGui::Text("Rendered %s of %s samples.", std::to_string(sample).c_str(),
                 std::to_string(pixelsamples).c_str());
+#endif
     //---------------------------
 #ifdef PBRT_BUILD_GPU_RENDERER
     if (Options->useGPU)
@@ -316,15 +326,25 @@ DisplayState GUI::RefreshDisplay(int sample, int pixelsamples) {
     else
 #endif  // PBRT_BUILD_GPU_RENDERER
     {
+#if !defined(__APPLE__)
         GL_CHECK(glEnable(GL_FRAMEBUFFER_SRGB));
         GL_CHECK(glRasterPos2f(-1, 1));
         GL_CHECK(glPixelZoom(pixelScales[0], -pixelScales[1]));
         GL_CHECK(
             glDrawPixels(resolution.x, resolution.y, GL_RGB, GL_FLOAT, cpuFramebuffer));
+#else
+        glEnable(GL_FRAMEBUFFER_SRGB);
+        glRasterPos2f(-1, 1);
+        glPixelZoom(pixelScales[0], -pixelScales[1]);
+        glDrawPixels(resolution.x, resolution.y, GL_RGB, GL_FLOAT, cpuFramebuffer);
+
+#endif
     }
     //----------------------
+#if !defined(__APPLE__)
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+#endif
     //---------------------
     glfwSwapBuffers(window);
     glfwPollEvents();
