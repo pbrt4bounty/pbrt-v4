@@ -660,7 +660,7 @@ set (PBRT_SOURCE_HEADERS
 SET (PBRT_CPU_SOURCE
   src/pbrt/cpu/aggregates.cpp
   src/pbrt/cpu/integrators.cpp
-  src/pbrt/cpu/guidedvolpathvspgintegrator.cpp # VSPG implementation
+  src/pbrt/cpu/guidingintegrators.cpp # path guiding implementation
   src/pbrt/cpu/primitive.cpp
   src/pbrt/cpu/render.cpp
 )
