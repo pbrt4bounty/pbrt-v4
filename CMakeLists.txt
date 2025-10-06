@@ -234,7 +234,6 @@ if (CMAKE_CUDA_COMPILER)
     endif()
     # fix message when find for Cuda Toolkit package
     if (CUDAToolkit_FOUND)
-      message(STATUS "Found CUDA Tool Kit: ${CUDAToolkit_VERSION}")
       set(CUDA_VERSION_MAJOR ${CUDAToolkit_VERSION_MAJOR})
       set(CUDA_VERSION_MINOR ${CUDAToolkit_VERSION_MINOR})
       set(CUDA_VERSION_PATCH ${CUDAToolkit_VERSION_PATCH})
@@ -998,9 +997,12 @@ if(PBRT_WITH_PATH_GUIDING)
 endif()
 
 if(PBRT_WITH_OIDN)
-  set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS}
-      OpenImageDenoise)
-  add_dependencies(pbrt_lib OIDN)
+  if(OIDN_FOUND)
+    set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS} ${OIDN_LIBRARIES})
+  else()
+    set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS} OpenImageDenoise)
+    add_dependencies(pbrt_lib OIDN)
+  endif()
 endif()
 
 if (PBRT_CUDA_ENABLED)
@@ -1136,17 +1138,6 @@ set_target_properties (nanovdb2pbrt PROPERTIES OUTPUT_NAME nanovdb2pbrt)
 add_sanitizers (nanovdb2pbrt)
 
 set_property (TARGET nanovdb2pbrt PROPERTY FOLDER "cmd")
-
-# Only do this if both targets actually exist
-if (TARGET Ptex_static AND TARGET zlibstatic)
-  install(
-    TARGETS zlibstatic
-    EXPORT Ptex             # Same export set name as used by Ptex
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
-  )
-endif()
 
 ######################
 # cyhair2pbrt
