@@ -143,7 +143,7 @@ find_package(OpenEXR 3.3.1)
 
 if (OPENEXR_FOUND)
   message (STATUS "Found OpenEXR version ${OPENEXR_VERSION}")
-  set (OPENEXR_INCLUDE ${OPENEXR_INCLUDES}/OpenEXR ${OPENEXR_INCLUDES}/Imath)
+  set (OPENEXR_INCLUDE ${OPENEXR_INCLUDES}/OpenEXR ${IMATH_INCLUDES}/Imath)
   
 else ()
   message (STATUS "OpenEXR not found; building it from scratch.")
@@ -936,7 +936,7 @@ target_include_directories (pbrt_lib PUBLIC
   ${STB_INCLUDE}
   ${QOI_INCLUDE}
   ${OPENEXR_INCLUDE}
-  ${ZLIB_INCLUDE_DIRS}
+  ${ZLIB_INCLUDE_DIR}
   ${LIBDEFLATE_INCLUDE_DIRS}
   ${FILESYSTEM_INCLUDE}
   ${PTEX_INCLUDE}
@@ -976,7 +976,7 @@ set (ALL_PBRT_LIBS
   ${CMAKE_THREAD_LIBS_INIT}
   OpenEXR::OpenEXR
   Ptex_static
-  ${ZLIB_LIBRARIES}
+  ${ZLIB_LIBRARY}
   ${LIBDEFLATE_LIBRARIES}
   double-conversion
   ${PBRT_CUDA_LIB}
