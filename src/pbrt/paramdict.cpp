@@ -630,8 +630,10 @@ void ParameterDictionary::ReportUnused() const {
                 seen.push_back(std::make_pair(&p->type, &p->name));
         } else if (haveSeen) {
             // It's shadowed by another parameter; that's fine.
-        } else
-            ErrorExit(&p->loc, "\"%s\": unused parameter.", p->name);
+        } else {
+            Warning(&p->loc, "\"%s\": unused parameter.", p->name);
+            continue;
+        }
     }
 }
 
