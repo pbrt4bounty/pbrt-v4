@@ -115,7 +115,7 @@ find_package(OpenEXR 3.3.1)
 
 if (OPENEXR_FOUND)
   message (STATUS "Found OpenEXR version ${OPENEXR_VERSION}")
-  set (OPENEXR_INCLUDE ${OPENEXR_INCLUDES}/OpenEXR ${OPENEXR_INCLUDES}/Imath)
+  set (OPENEXR_INCLUDE ${OPENEXR_INCLUDES}/OpenEXR ${IMATH_INCLUDES}/Imath)
   
 else ()
   message (STATUS "OpenEXR not found; building it from scratch.")
