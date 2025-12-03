@@ -1462,11 +1462,12 @@ pstd::vector<Shape> Shape::Create(
             //
             Point3f pos;
             int pIdx = 0;
+            std::vector<Point3f> curvepoints;
             // each loop is a entire curve
             for (int hairIndex = 0; hairIndex < hairCount; hairIndex++) {
                 //
                 segments = curveSegments[hairIndex] + 1;
-                std::vector<Point3f> curvepoints;
+                curvepoints.clear();
 
                 // loop for each hair step
                 for (int step = 0; step < segments; ++step, pIdx += 3) {
