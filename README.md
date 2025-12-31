@@ -32,3 +32,7 @@ My small contributions..
     
   - Added support to use the binary hair definition files from Cem Yuksel format( only for CPU..) https://github.com/cemyuksel/cyCodeBase
   - (w.i.p)
+
+### Blender integration status
+
+I'm adding documentation on the current state of the Blender implementation in the [wiki](https://github.com/pbrt4bounty/pbrt-v4/wiki) section, with some screenshots and examples.
