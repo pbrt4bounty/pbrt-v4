@@ -42,6 +42,12 @@
 #include <iostream>
 #endif
 
+#ifdef PBRT_WITH_POINTCLOUD
+#include <pbrt/textures.h>
+#include <pbrt/util/math.h>
+#include <pbrt/util/point_cloud.h>
+#endif
+
 namespace pbrt {
 
 InternCache<std::string> SceneEntity::internedStrings(Allocator{});
@@ -1740,7 +1746,47 @@ Primitive BasicScene::CreateAggregate(
                 // material...
                 if (sh.lightIndex != -1 && iter != shapeIndexToAreaLights.end())
                     area = (*iter->second)[j];
+#ifdef PBRT_WITH_POINTCLOUD
+                //  Check if this shape is a colored point cloud shape
+                // Material shapeMatl = mtl;
+                auto colorIter = coloredPointCloudShapes.find(shapes[j]);
+                if (colorIter != coloredPointCloudShapes.end()) {
+                    // Create a colored material for this shape
+                    RGB pointColor = colorIter->second;
 
+                    // Validate and clamp color values
+                    pointColor.r = Clamp(pointColor.r, 0.0f, 1.0f);
+                    pointColor.g = Clamp(pointColor.g, 0.0f, 1.0f);
+                    pointColor.b = Clamp(pointColor.b, 0.0f, 1.0f);
+
+                    // Check for NaN, invalid values, or suspiciously bright colors
+                    bool validColor = std::isfinite(pointColor.r) &&
+                                      std::isfinite(pointColor.g) &&
+                                      std::isfinite(pointColor.b);
+
+                    // Filter out overly bright colors and pure black (likely invalid
+                    // data)
+                    Float brightness =
+                        (pointColor.r + pointColor.g + pointColor.b) / 3.0f;
+
+                    // Debug output for rejected colors
+                    if (!validColor) {
+                        LOG_VERBOSE(
+                            "Point color rejected - invalid values: r=%f g=%f b=%f",
+                            pointColor.r, pointColor.g, pointColor.b);
+                    }
+                    if (validColor) {
+                        // Create spectrum and material
+                        Spectrum colorSpectrum = alloc.new_object<RGBAlbedoSpectrum>(
+                            *RGBColorSpace::sRGB, pointColor);
+                        SpectrumTexture colorTexture =
+                            alloc.new_object<SpectrumConstantTexture>(colorSpectrum);
+                        mtl = alloc.new_object<DiffuseMaterial>(colorTexture, nullptr,
+                                                                nullptr);
+                    }
+                    // If color is invalid, use the default material (mtl)
+                }
+#endif
                 if (!area && !mi.IsMediumTransition() && !alphaTex)
                     primitives.push_back(new SimplePrimitive(shapes[j], mtl));
                 else
