@@ -22,7 +22,7 @@
 #include <pbrt/util/string.h>
 #include <pbrt/wavefront/wavefront.h>
 
-#ifdef _WITH_PROCEDURAL
+#ifdef PBRT_WITH_PROCEDURAL
 #include <pbrt/util/transform.h>
 
 #include <pbrt/pcgUtil/pbrt_exporter.h>

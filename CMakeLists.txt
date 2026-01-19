@@ -109,6 +109,14 @@ if (PBRT_DBG_LOGGING)
 endif ()
 
 ###########################################################################
+# Procedural..
+option(PBRT_WITH_PROCEDURAL "Build PBRT with experimental procedural support." OFF)
+
+if(PBRT_WITH_PROCEDURAL)
+  list (APPEND PBRT_DEFINITIONS "PBRT_WITH_PROCEDURAL")
+endif()
+
+###########################################################################
 # path guiding (Open PGL)
 option(PBRT_WITH_PATH_GUIDING "Build PBRT with path guiding (Open PGL) support." ON)
 
@@ -617,7 +625,7 @@ set (PBRT_SOURCE
 
   src/pbrt/cmd/pspec_gpu.cpp
   )
-if (_WITH_PROCEDURAL)
+if (PBRT_WITH_PROCEDURAL)
   set (PBRT_SOURCE ${PBRT_SOURCE}
     src/pbrt/pcgUtil/pbrt_exporter.cpp
     src/pbrt/pcgUtil/pcg_sampling.cpp

@@ -430,7 +430,7 @@ class BasicSceneBuilder : public ParserTarget {
     void ObjectEnd(FileLoc loc);
     void ObjectInstance(const std::string &name, FileLoc loc);
 
-#ifdef _WITH_PROCEDURAL
+#ifdef PBRT_WITH_PROCEDURAL
     void ProceduralMesh(const std::string &name, ParsedParameterVector params, FileLoc loc);
 #endif
     void EndOfFiles();

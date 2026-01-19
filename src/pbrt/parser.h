@@ -90,7 +90,7 @@ class ParserTarget {
     virtual void ObjectEnd(FileLoc loc) = 0;
     virtual void ObjectInstance(const std::string &name, FileLoc loc) = 0;
 
-#ifdef _WITH_PROCEDURAL
+#ifdef PBRT_WITH_PROCEDURAL
     // 1. mesh filename
     // 2. custom density map
     // 3. nSamples
@@ -268,7 +268,7 @@ class FormattingParserTarget : public ParserTarget {
     void ObjectEnd(FileLoc loc);
     void ObjectInstance(const std::string &name, FileLoc loc);
 
-#ifdef _WITH_PROCEDURAL
+#ifdef PBRT_WITH_PROCEDURAL
     // added procedural mesh
     void ProceduralMesh(const std::string &name, ParsedParameterVector params, FileLoc loc);
 #endif

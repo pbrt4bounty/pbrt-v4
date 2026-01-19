@@ -269,7 +269,7 @@ PBRT_CPU_GPU inline Transform RotateFromTo(Vector3f from, Vector3f to) {
     return Transform(r, Transpose(r));
 }
 
-#ifdef _WITH_PROCEDURAL
+#ifdef PBRT_WITH_PROCEDURAL
 PBRT_CPU_GPU inline Transform AlignZToNormal(const Point3f &pt, const Normal3f &n) {
     Vector3f z = (Vector3f)n;
     Vector3f x, y;

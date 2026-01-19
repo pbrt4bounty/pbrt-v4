@@ -29,7 +29,7 @@
 #include <iostream>
 #include <mutex>
 
-#ifdef _WITH_PROCEDURAL
+#ifdef PBRT_WITH_PROCEDURAL
 #include <pbrt/util/transform.h>
 
 #include <pbrt/pcgUtil/pbrt_exporter.h>
@@ -413,7 +413,7 @@ void BasicSceneBuilder::ObjectInstance(const std::string &origName, FileLoc loc)
     instanceUses.push_back(InstanceSceneEntity(name, loc, renderFromInstance));
 }
 
-#ifdef _WITH_PROCEDURAL
+#ifdef PBRT_WITH_PROCEDURAL
     // makePCG(targetMeshFilename,
     //         densityMapFilename,
     //         nSamples,
@@ -681,7 +681,7 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterV
             opacityMapName,
             outputFilePath);
 }
-#endif //WITH_PROCEDURAL
+#endif //PBRT_WITH_PROCEDURAL
 
 void BasicSceneBuilder::EndOfFiles() {
     if (currentBlock != BlockState::WorldBlock)
