@@ -52,11 +52,11 @@ jobs:
         repository: mmp/rgb2spectrum
         path: build
 
-    - name: Cache OptiX headers
-      uses: actions/cache@v4
-      with:
-        path: optix
-        key: optix-7.12345
+    #- name: Cache OptiX headers
+    #  uses: actions/cache@v4
+    #  with:
+    #    path: optix
+    #    key: optix-7.12345
 
     - name: Get cmake
       uses: lukka/get-cmake@latest
@@ -67,7 +67,7 @@ jobs:
     - name: Configure (Linux)
       run: |
         cd build
-        cmake .. -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DPBRT_WITH_OIDN=False -DCMAKE_INSTALL_PREFIX=./deploy -DPBRT_OPTIX7_PATH=../src/ext/optix-dev -DPBRT_CUDA_TOOL_KIT=${{ matrix.cuda }} -DPBRT_GPU_SHADER_MODEL=sm_80 -DCMAKE_CUDA_ARCHITECTURES=80
+        cmake .. -DPBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES=True -DPBRT_WITH_OIDN=False -DCMAKE_INSTALL_PREFIX=./deploy -DPBRT_OPTIX7_PATH=../src/ext/optix-dev -DPBRT_CUDA_TOOL_KIT=${{ matrix.cuda }} -DPBRT_GPU_SHADER_MODEL=sm_80 -DCMAKE_CUDA_ARCHITECTURES=80 -DPBRT_WITH_PROCEDURAL=True
     
     - name: Build
       # We need to limit the number of jobs so that it doesn't OOM 
@@ -80,6 +80,7 @@ jobs:
         name: pbrt-v4_${{ matrix.os }}_${{ matrix.cuda }}_${{ matrix.optix }}
         path: "${{ github.workspace }}/build/deploy/"
         retention-days: 1
+
 
 
 
