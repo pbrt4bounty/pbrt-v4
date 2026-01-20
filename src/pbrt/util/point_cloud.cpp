@@ -1,8 +1,15 @@
-//pbrt4bounty
+// pbrt is Copyright(c) 1998-2020 Matt Pharr, Wenzel Jakob, and Greg Humphreys.
+// The pbrt source code is licensed under the Apache License, Version 2.0.
+// SPDX: Apache-2.0
+//
+// Copyright(c) 2025 Lucas Rocha, 'Kitsai'
+// This code is implemented in a fork created by https://github.com/Kitsai/pbrt-PC
+// and added to this fork by Pedro A., pbrt4bounty@gmail.com
+// It is assumed that it is under the same type of license as the original
+
 #include "point_cloud.h"
 
 #include <pbrt/util/mesh.h>
-
 #include <pbrt/util/buffercache.h>
 #include <pbrt/util/check.h>
 #include <pbrt/util/error.h>
