@@ -30,7 +30,6 @@
 #include <mutex>
 
 #ifdef PBRT_WITH_PROCEDURAL
-#include <pbrt/util/transform.h>
 
 #include <pbrt/pcgUtil/pbrt_exporter.h>
 #include <pbrt/pcgUtil/pcg_sampling.h>
@@ -39,7 +38,6 @@
 
 #include <string>
 #include <vector>
-#include <iostream>
 #endif
 
 namespace pbrt {
@@ -427,79 +425,72 @@ void BasicSceneBuilder::ObjectInstance(const std::string &origName, FileLoc loc)
     //         outputFilePath);
 
     // parameters
-void makePCG(const std::string &targetMeshFilename,
-                const std::string &densityMapFilename,
-                 const int &nSamples_,
-                 const std::string &meshFilename,
-                 const std::string &namedMaterial,
-                 const std::string &materialType,
-                 const std::string &textureName,
-                 const std::string &bumpMapName,
-                 const std::string &NormalMapName,
-                 const std::string &opacitymapName,
-                 const std::string &outputFilePath) {
+void makePCG(const std::string &targetMeshFilename, const std::string &densityMapFilename,
+             const int &nSamples_, const std::string &meshFilename,
+             const std::string &namedMaterial, const std::string &materialType,
+             const std::string &textureName, const std::string &bumpMapName,
+             const std::string &NormalMapName, const std::string &opacitymapName,
+             const std::string &outputFilePath) {
+    TriQuadMesh triQuad = TriQuadMesh::ReadPLY(targetMeshFilename);
+    // TriQuadMesh triQuad =
+    // TriQuadMesh::ReadPLY("../models/epic_model/models/floor_new.ply");
+    triQuad.ConvertToOnlyTriangles();
+    triQuad.ComputeNormals();
 
-           TriQuadMesh triQuad = TriQuadMesh::ReadPLY(targetMeshFilename);
-           // TriQuadMesh triQuad = TriQuadMesh::ReadPLY("../models/epic_model/models/floor_new.ply");
-        triQuad.ConvertToOnlyTriangles();
-        triQuad.ComputeNormals();
+    // std::cerr << "mesh.uv.size()=" << triQuad.uv.size()
+    // << "  triIndices.size()=" << triQuad.triIndices.size() << "\n";
 
-        // std::cerr << "mesh.uv.size()=" << triQuad.uv.size()
-        // << "  triIndices.size()=" << triQuad.triIndices.size() << "\n";
+    pbrt::PCGSampling sampler;
 
+    std::vector<Float> densityMapData;
+    int nu, nv;
 
-        pbrt::PCGSampling sampler;
+    std::tie(densityMapData, nu, nv) = sampler.loadDensityMap(densityMapFilename);
+    // std::tie(densityMapData, nu, nv) =
+    // sampler.loadDensityMap("../models/epic_model/models/vegetation/vegDM.png");
 
-        std::vector<Float> densityMapData;
-        int nu, nv;
+    // define the UV domain we want to sample over (i think this is done in
+    // sampleUVValues)
+    Bounds2f domain(Point2f(0, 0), Point2f(1, 1));
 
-        std::tie(densityMapData, nu, nv) = sampler.loadDensityMap(densityMapFilename);
-        // std::tie(densityMapData, nu, nv) = sampler.loadDensityMap("../models/epic_model/models/vegetation/vegDM.png");
+    // get nSamples samples from the sampler
+    const int nSamples = nSamples_;
+    printf("int nsamples input: %d\n", nSamples);
+    // const int nSamples = 30;
+    std::vector<Point2f> uvSamples =
+        sampler.sampleUVValues({densityMapData, nu, nv}, nSamples);
 
-        // define the UV domain we want to sample over (i think this is done in sampleUVValues)
-        Bounds2f domain(Point2f(0, 0), Point2f(1, 1));
+    // std::cout << "Got " << uvSamples.size() << " UV samples\n";
 
-        // get nSamples samples from the sampler
-        const int nSamples = nSamples_;
-        printf("int nsamples input: %d\n", nSamples);
-        // const int nSamples = 30;
-        std::vector<Point2f> uvSamples = sampler.sampleUVValues({densityMapData, nu, nv}, nSamples);
+    // for each UV, project to 3D + normal, then build a transform
+    std::vector<Transform> sampleXforms;
+    sampleXforms.reserve(uvSamples.size());
+    for (Point2f uv : uvSamples) {
+        // returns a list of hit points + the interpolated normal
 
-        // std::cout << "Got " << uvSamples.size() << " UV samples\n";
+        Point2f flippedUV = Point2f(uv.x, 1 - uv.y);
 
-        // for each UV, project to 3D + normal, then build a transform
-        std::vector<Transform> sampleXforms;
-        sampleXforms.reserve(uvSamples.size());
-        for (Point2f uv : uvSamples) {
-            // returns a list of hit points + the interpolated normal
-
-            Point2f flippedUV = Point2f(uv.x, 1 - uv.y);
-
-            std::vector<SampleOnMesh> samples = findSampleOnMesh(&triQuad, flippedUV);
-            // std::cerr << "  UV " << uv << " -> " << samples.size() << " hits\n";
-            if (samples.empty()) { continue; }
-
-
-            const SampleOnMesh &s = samples[0];
-
-            sampleXforms.push_back(AlignZToNormal(s.p, s.n));
-
-            Procedural mesh(meshFilename,
-                                namedMaterial,
-                                materialType,
-                                textureName,
-                                bumpMapName,
-                                NormalMapName,
-                                opacitymapName);
-
-            // TODO: Instance exporter
-            PBRTExporter exporter(mesh);
-
-            // TODO: Call the export method
-            // exporter.exportInstances(sampleXforms, "../models/epic_model/models/vegetation/instances.pbrt");
-            exporter.exportInstances(sampleXforms, outputFilePath);
+        std::vector<SampleOnMesh> samples = findSampleOnMesh(&triQuad, flippedUV);
+        // std::cerr << "  UV " << uv << " -> " << samples.size() << " hits\n";
+        if (samples.empty()) {
+            continue;
         }
 
+        const SampleOnMesh &s = samples[0];
+
+        sampleXforms.push_back(AlignZToNormal(s.p, s.n));
+
+        Procedural mesh(meshFilename, namedMaterial, materialType, textureName,
+                        bumpMapName, NormalMapName, opacitymapName);
+
+        // TODO: Instance exporter
+        PBRTExporter exporter(mesh);
+
+        // TODO: Call the export method
+        // exporter.exportInstances(sampleXforms,
+        // "../models/epic_model/models/vegetation/instances.pbrt");
+        exporter.exportInstances(sampleXforms, outputFilePath);
+    }
 }
 
 
@@ -517,16 +508,19 @@ void makePCG(const std::string &targetMeshFilename,
     //   - opacityMap
     // 5. outputFilePath
 
-void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterVector params, FileLoc loc) {
-
-    printf("i have successfullly called proceduralMesh from basicsceneBuilder with the name: %s\n", name.c_str());
+void BasicSceneBuilder::ProceduralMesh(const std::string &name,
+                                       ParsedParameterVector params, FileLoc loc) {
+    printf("i have successfullly called proceduralMesh from basicsceneBuilder with the "
+           "name: %s\n",
+           name.c_str());
 
     // get the mesh filename
     std::string targetMeshFilename;
     for (ParsedParameter *p : params) {
         if (p->name == "filename") {
             if (p->strings.size() != 1) {
-                ErrorExitDeferred(&loc, "%s: expected single string for filename", p->name);
+                ErrorExitDeferred(&loc, "%s: expected single string for filename",
+                                  p->name);
                 return;
             }
             targetMeshFilename = p->strings[0];
@@ -538,7 +532,8 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterV
     for (ParsedParameter *p : params) {
         if (p->name == "densitymap") {
             if (p->strings.size() != 1) {
-                ErrorExitDeferred(&loc, "%s: expected single string for densitymap", p->name);
+                ErrorExitDeferred(&loc, "%s: expected single string for densitymap",
+                                  p->name);
                 return;
             }
             densityMapFilename = p->strings[0];
@@ -550,7 +545,8 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterV
     for (ParsedParameter *p : params) {
         if (p->name == "nSamples") {
             if (p->ints.size() != 1) {
-                ErrorExitDeferred(&loc, "%s: expected single integer for nsamples", p->name);
+                ErrorExitDeferred(&loc, "%s: expected single integer for nsamples",
+                                  p->name);
                 return;
             }
             nSamples = p->ints[0];
@@ -563,7 +559,8 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterV
     for (ParsedParameter *p : params) {
         if (p->name == "meshFilename") {
             if (p->strings.size() != 1) {
-                ErrorExitDeferred(&loc, "%s: expected single string for meshstufffilename", p->name);
+                ErrorExitDeferred(
+                    &loc, "%s: expected single string for meshstufffilename", p->name);
                 return;
             }
             meshFilename = p->strings[0];
@@ -575,7 +572,8 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterV
     for (ParsedParameter *p : params) {
         if (p->name == "namedMaterial") {
             if (p->strings.size() != 1) {
-                ErrorExitDeferred(&loc, "%s: expected single string for namedmaterial", p->name);
+                ErrorExitDeferred(&loc, "%s: expected single string for namedmaterial",
+                                  p->name);
                 return;
             }
             namedMaterial = p->strings[0];
@@ -587,7 +585,8 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterV
     for (ParsedParameter *p : params) {
         if (p->name == "materialType") {
             if (p->strings.size() != 1) {
-                ErrorExitDeferred(&loc, "%s: expected single string for materialtype", p->name);
+                ErrorExitDeferred(&loc, "%s: expected single string for materialtype",
+                                  p->name);
                 return;
             }
             materialType = p->strings[0];
@@ -599,7 +598,8 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterV
     for (ParsedParameter *p : params) {
         if (p->name == "texture") {
             if (p->strings.size() != 1) {
-                ErrorExitDeferred(&loc, "%s: expected single string for texture", p->name);
+                ErrorExitDeferred(&loc, "%s: expected single string for texture",
+                                  p->name);
                 return;
             }
             textureName = p->strings[0];
@@ -611,7 +611,8 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterV
     for (ParsedParameter *p : params) {
         if (p->name == "bumpMap") {
             if (p->strings.size() != 1) {
-                ErrorExitDeferred(&loc, "%s: expected single string for bumpmap", p->name);
+                ErrorExitDeferred(&loc, "%s: expected single string for bumpmap",
+                                  p->name);
                 return;
             }
             bumpMapName = p->strings[0];
@@ -623,7 +624,8 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterV
     for (ParsedParameter *p : params) {
         if (p->name == "normalMap") {
             if (p->strings.size() != 1) {
-                ErrorExitDeferred(&loc, "%s: expected single string for normalmap", p->name);
+                ErrorExitDeferred(&loc, "%s: expected single string for normalmap",
+                                  p->name);
                 return;
             }
             normalMapName = p->strings[0];
@@ -635,7 +637,8 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterV
     for (ParsedParameter *p : params) {
         if (p->name == "opacityMap") {
             if (p->strings.size() != 1) {
-                ErrorExitDeferred(&loc, "%s: expected single string for opacitymap", p->name);
+                ErrorExitDeferred(&loc, "%s: expected single string for opacitymap",
+                                  p->name);
                 return;
             }
             opacityMapName = p->strings[0];
@@ -647,15 +650,16 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterV
     for (ParsedParameter *p : params) {
         if (p->name == "outputFilePath") {
             if (p->strings.size() != 1) {
-                ErrorExitDeferred(&loc, "%s: expected single string for outputFilePath", p->name);
+                ErrorExitDeferred(&loc, "%s: expected single string for outputFilePath",
+                                  p->name);
                 return;
             }
             outputFilePath = p->strings[0];
         }
     }
 
-
-    // debug mesh filename
+    // TO DO:bounty, move print's to the log system
+    //  debug mesh filename
     printf("loading meshfilename: %s\n", targetMeshFilename.c_str());
     // debug everything
     printf("densityMapFilename: %s\n", densityMapFilename.c_str());
@@ -669,16 +673,8 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name, ParsedParameterV
     printf("opacityMapName: %s\n", opacityMapName.c_str());
     printf("outputFilePath: %s\n", outputFilePath.c_str());
 
-    makePCG(targetMeshFilename,
-            densityMapFilename,
-            nSamples,
-            meshFilename,
-            namedMaterial,
-            materialType,
-            textureName,
-            bumpMapName,
-            normalMapName,
-            opacityMapName,
+    makePCG(targetMeshFilename, densityMapFilename, nSamples, meshFilename, namedMaterial,
+            materialType, textureName, bumpMapName, normalMapName, opacityMapName,
             outputFilePath);
 }
 #endif //PBRT_WITH_PROCEDURAL
