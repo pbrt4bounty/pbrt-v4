@@ -108,6 +108,14 @@ if (PBRT_DBG_LOGGING)
   list (APPEND PBRT_DEFINITIONS "PBRT_DBG_LOGGING")
 endif ()
 
+##########################################################################
+# experimental Point Cloud support from other fork
+option (PBRT_WITH_POINTCLOUD "Enable experimental point cloud support" OFF)
+
+if (PBRT_WITH_POINTCLOUD)
+  list (APPEND PBRT_DEFINITIONS "PBRT_WITH_POINTCLOUD")
+endif ()
+
 ###########################################################################
 # Procedural..
 option(PBRT_WITH_PROCEDURAL "Build PBRT with experimental procedural support." OFF)
@@ -749,6 +757,13 @@ SET (PBRT_UTIL_SOURCE
   src/ext/imgui/imgui_widgets.cpp
   src/ext/imgui/imgui_tables.cpp
 )
+
+if (PBRT_WITH_POINTCLOUD)
+  set (PBRT_UTIL_SOURCE 
+    ${PBRT_UTIL_SOURCE}
+    src/pbrt/util/point_cloud.cpp
+  )
+endif ()
 
 SET (PBRT_UTIL_SOURCE_HEADERS
   src/pbrt/util/args.h

@@ -27,6 +27,10 @@
 
 #include <algorithm>
 
+#ifdef PBRT_WITH_POINTCLOUD
+#include "pbrt/util/point_cloud.h"
+#endif
+
 namespace pbrt {
 
 // Sphere Method Definitions
@@ -158,7 +162,7 @@ void Triangle::Init(Allocator alloc) {
 #if defined(PBRT_BUILD_GPU_RENDERER)
     if (Options->useGPU)
         CUDA_CHECK(cudaMemcpyToSymbol((const void *)&allTriangleMeshesGPU,
-                                     (const void *)&allMeshes, sizeof(allMeshes)));
+                                      (const void *)&allMeshes, sizeof(allMeshes)));
 #endif
 }
 
@@ -744,7 +748,7 @@ PBRT_CPU_GPU Float Curve::PDF(const Interaction &) const {
 }
 
 PBRT_CPU_GPU pstd::optional<ShapeSample> Curve::Sample(const ShapeSampleContext &ctx,
-                                          Point2f u) const {
+                                                       Point2f u) const {
     LOG_FATAL("Curve::Sample not implemented.");
     return {};
 }
@@ -1550,6 +1554,25 @@ pstd::vector<Shape> Shape::Create(
             pstd::vector<Shape> quadMesh = BilinearPatch::CreatePatches(mesh, alloc);
             shapes.insert(shapes.end(), quadMesh.begin(), quadMesh.end());
         }
+#ifdef PBRT_WITH_POINTCLOUD
+    } else if (name == "plypointcloud") {
+        std::string filename = ResolveFilename(parameters.GetOneString("filename", ""));
+        PointCloud pc = PointCloud::ReadPLY(filename);
+        
+        Float pointSize = parameters.GetOneFloat("pointsize", 0.1f);
+        pc.pointSize = pointSize;
+        bool use_colors = parameters.GetOneBool("usecolors", false);
+        if (use_colors)
+            shapes = pc.get_point_as_colored_shapes(renderFromObject, objectFromRender,
+                                                    reverseOrientation, alloc);
+        else
+            shapes = pc.get_point_as_shapes(renderFromObject, objectFromRender, reverseOrientation, alloc);
+            // TO DO: manage primitive cases..
+            //pc.get_point_as_primitives(renderFromObject, objectFromRender, reverseOrientation,
+            //                        alloc);
+
+        nSpheres += shapes.size();
+#endif
     } else if (name == "loopsubdiv") {
         int nLevels = parameters.GetOneInt("levels", 3);
         std::vector<int> vertexIndices = parameters.GetIntArray("indices");
