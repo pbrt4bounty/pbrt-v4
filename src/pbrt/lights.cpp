@@ -737,7 +737,7 @@ GoniometricLight *GoniometricLight::Create(const Transform &renderFromLight,
 DiffuseAreaLight::DiffuseAreaLight(const Transform &renderFromLight,
                                    const MediumInterface &mediumInterface, Spectrum Le,
                                    Float scale, const Shape shape, FloatTexture alpha,
-                                   Image im, const RGBColorSpace *imageColorSpace,
+                                   Image *im, const RGBColorSpace *imageColorSpace,
                                    bool twoSided)
     : LightBase(
           [](FloatTexture alpha) {
@@ -768,12 +768,12 @@ DiffuseAreaLight::DiffuseAreaLight(const Transform &renderFromLight,
       twoSided(twoSided),
       Lemit(LookupSpectrum(Le)),
       scale(scale),
-      image(std::move(im)),
+      image(im),
       imageColorSpace(imageColorSpace) {
     ++numAreaLights;
 
     if (image) {
-        ImageChannelDesc desc = image.GetChannelDesc({"R", "G", "B"});
+        ImageChannelDesc desc = image->GetChannelDesc({"R", "G", "B"});
         if (!desc)
             ErrorExit("Image used for DiffuseAreaLight doesn't have R, G, B "
                       "channels.");
@@ -827,15 +827,15 @@ SampledSpectrum DiffuseAreaLight::Phi(SampledWavelengths lambda) const {
     SampledSpectrum L(0.f);
     if (image) {
         // Compute average light image emission
-        for (int y = 0; y < image.Resolution().y; ++y)
-            for (int x = 0; x < image.Resolution().x; ++x) {
+        for (int y = 0; y < image->Resolution().y; ++y)
+            for (int x = 0; x < image->Resolution().x; ++x) {
                 RGB rgb;
                 for (int c = 0; c < 3; ++c)
-                    rgb[c] = image.GetChannel({x, y}, c);
+                    rgb[c] = image->GetChannel({x, y}, c);
                 L += RGBIlluminantSpectrum(*imageColorSpace, ClampZero(rgb))
                          .Sample(lambda);
             }
-        L *= scale / (image.Resolution().x * image.Resolution().y);
+        L *= scale / (image->Resolution().x * image->Resolution().y);
 
     } else
         L = Lemit->Sample(lambda) * scale;
@@ -848,12 +848,11 @@ pstd::optional<LightBounds> DiffuseAreaLight::Bounds() const {
     if (image) {
         // Compute average _DiffuseAreaLight_ image channel value
         // Assume no distortion in the mapping, FWIW...
-        for (int y = 0; y < image.Resolution().y; ++y)
-            for (int x = 0; x < image.Resolution().x; ++x)
+        for (int y = 0; y < image->Resolution().y; ++y)
+            for (int x = 0; x < image->Resolution().x; ++x)
                 for (int c = 0; c < 3; ++c)
-                    phi += image.GetChannel({x, y}, c);
-        phi /= 3 * image.Resolution().x * image.Resolution().y;
-
+                    phi += image->GetChannel({x, y}, c);
+        phi /= 3 * image->Resolution().x * image->Resolution().y;
     } else
         phi = Lemit->MaxValue();
     phi *= scale * area * Pi;
@@ -933,33 +932,67 @@ DiffuseAreaLight *DiffuseAreaLight::Create(const Transform &renderFromLight,
     bool twoSided = parameters.GetOneBool("twosided", false);
 
     std::string filename = ResolveFilename(parameters.GetOneString("filename", ""));
-    Image image(alloc);
+
+    // Cache for images, colorspaces and k_e
+    static std::map<std::string, Image *> loadedImages;
+    static std::map<std::string, const RGBColorSpace *> loadedImageColorSpaces;
+    static std::map<std::string, Float> k_e_Cache;
+
+    Image *image = nullptr;
     const RGBColorSpace *imageColorSpace = nullptr;
+
     if (!filename.empty()) {
-        if (L)
-            ErrorExit(loc, "Both \"L\" and \"filename\" specified for DiffuseAreaLight.");
-        ImageAndMetadata im = Image::Read(filename, alloc);
+        // Check if image has already been cached
+        if (loadedImages.find(filename) == loadedImages.end()) {
+            if (L)
+                ErrorExit(loc,
+                          "Both \"L\" and \"filename\" specified for DiffuseAreaLight.");
+            ImageAndMetadata im = Image::Read(filename, alloc);
 
-        if (im.image.HasAnyInfinitePixels())
-            ErrorExit(
-                loc,
-                "%s: image has infinite pixel values and so is not suitable as a light.",
-                filename);
-        if (im.image.HasAnyNaNPixels())
-            ErrorExit(loc,
-                      "%s: image has not-a-number pixel values and so is not suitable as "
-                      "a light.",
-                      filename);
+            if (im.image.HasAnyInfinitePixels())
+                ErrorExit(loc,
+                          "%s: image has infinite pixel values and so is not suitable as "
+                          "a light.",
+                          filename);
+            if (im.image.HasAnyNaNPixels())
+                ErrorExit(
+                    loc,
+                    "%s: image has not-a-number pixel values and so is not suitable as "
+                    "a light.",
+                    filename);
 
-        ImageChannelDesc channelDesc = im.image.GetChannelDesc({"R", "G", "B"});
-        if (!channelDesc)
-            ErrorExit(loc,
-                      "%s: Image provided to \"diffuse\" area light must have "
-                      "R, G, and B channels.",
-                      filename);
-        image = im.image.SelectChannels(channelDesc, alloc);
+            ImageChannelDesc channelDesc = im.image.GetChannelDesc({"R", "G", "B"});
+            if (!channelDesc)
+                ErrorExit(loc,
+                          "%s: Image provided to \"diffuse\" area light must have "
+                          "R, G, and B channels.",
+                          filename);
 
-        imageColorSpace = im.metadata.GetColorSpace();
+            image = alloc.new_object<Image>(alloc);
+            (*image) = std::move(im.image.SelectChannels(channelDesc, alloc));
+
+            imageColorSpace = im.metadata.GetColorSpace();
+
+            // Get the appropriate luminance vector from the image colour space
+            RGB lum = imageColorSpace->LuminanceVector();
+            Float k_e = 0;
+            // Assume no distortion in the mapping, FWIW...
+            for (int y = 0; y < image->Resolution().y; ++y)
+                for (int x = 0; x < image->Resolution().x; ++x) {
+                    for (int c = 0; c < 3; ++c)
+                        k_e += image->GetChannel({x, y}, c) * lum[c];
+                }
+            k_e /= image->Resolution().x * image->Resolution().y;
+
+            // Save everything image related into our cache
+            loadedImages[filename] = image;
+            loadedImageColorSpaces[filename] = imageColorSpace;
+            k_e_Cache[filename] = k_e;
+        }
+
+        image = loadedImages[filename];
+        imageColorSpace = loadedImageColorSpaces[filename];
+
     } else if (!L)
         L = &colorSpace->illuminant;
 
@@ -973,18 +1006,8 @@ DiffuseAreaLight *DiffuseAreaLight::Create(const Transform &renderFromLight,
         // radiance such that the user-defined power will be the actual power
         // emitted by the light.
         Float k_e = 1;
-        if (image) {
-            // Get the appropriate luminance vector from the image colour space
-            RGB lum = imageColorSpace->LuminanceVector();
-            k_e = 0;
-            // Assume no distortion in the mapping, FWIW...
-            for (int y = 0; y < image.Resolution().y; ++y)
-                for (int x = 0; x < image.Resolution().x; ++x) {
-                    for (int c = 0; c < 3; ++c)
-                        k_e += image.GetChannel({x, y}, c) * lum[c];
-                }
-            k_e /= image.Resolution().x * image.Resolution().y;
-        }
+        if (image)
+            k_e = k_e_Cache[filename];
 
         k_e *= (twoSided ? 2 : 1) * shape.Area() * Pi;
 
@@ -993,8 +1016,7 @@ DiffuseAreaLight *DiffuseAreaLight::Create(const Transform &renderFromLight,
     }
 
     return alloc.new_object<DiffuseAreaLight>(renderFromLight, medium, L, scale, shape,
-                                              alphaTex, std::move(image), imageColorSpace,
-                                              twoSided);
+                                              alphaTex, image, imageColorSpace, twoSided);
 }
 
 // UniformInfiniteLight Method Definitions

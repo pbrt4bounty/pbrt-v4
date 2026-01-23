@@ -460,7 +460,7 @@ class DiffuseAreaLight : public LightBase {
     // DiffuseAreaLight Public Methods
     DiffuseAreaLight(const Transform &renderFromLight,
                      const MediumInterface &mediumInterface, Spectrum Le, Float scale,
-                     const Shape shape, FloatTexture alpha, Image image,
+                     const Shape shape, FloatTexture alpha, Image *image,
                      const RGBColorSpace *imageColorSpace, bool twoSided);
 
     static DiffuseAreaLight *Create(const Transform &renderFromLight, Medium medium,
@@ -502,7 +502,7 @@ class DiffuseAreaLight : public LightBase {
             RGB rgb;
             uv[1] = 1 - uv[1];
             for (int c = 0; c < 3; ++c)
-                rgb[c] = image.BilerpChannel(uv, c);
+                rgb[c] = image->BilerpChannel(uv, c);
             RGBIlluminantSpectrum spec(*imageColorSpace, ClampZero(rgb));
             return scale * spec.Sample(lambda);
 
@@ -530,7 +530,7 @@ class DiffuseAreaLight : public LightBase {
     const RGBIlluminantSpectrum *Lemit;
 #endif
     Float scale;
-    Image image;
+    Image *image;
     const RGBColorSpace *imageColorSpace;
 
     // DiffuseAreaLight Private Methods
