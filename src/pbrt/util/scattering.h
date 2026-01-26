@@ -194,9 +194,13 @@ class TrowbridgeReitzDistribution {
     // time after pbrt-v4 shipped: https://github.com/mmp/pbrt-v4/issues/479.
     // therefore, we will leave it as is so that the rendered results with
     // existing pbrt-v4 scenes doesn't change unexpectedly.
+#if defined PBRT_MASTER_BRANCH
+    PBRT_CPU_GPU
+    static Float RoughnessToAlpha(Float roughness) { return std::sqrt(roughness); }
+#else
     PBRT_CPU_GPU
     static Float RoughnessToAlpha(Float roughness) { return Sqr(roughness); }
-
+#endif
     PBRT_CPU_GPU
     Float MinAlpha() const { return std::min(alpha_x, alpha_y); }
 
