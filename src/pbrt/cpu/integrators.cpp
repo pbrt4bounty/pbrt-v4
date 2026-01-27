@@ -3862,11 +3862,6 @@ std::unique_ptr<Integrator> Integrator::Create(
     if (name == "path")
         integrator =
             PathIntegrator::Create(parameters, camera, sampler, aggregate, lights, loc);
-#ifdef PBRT_WITH_PATH_GUIDING
-    else if (name == "guidedpath")
-        integrator =
-            GuidedPathIntegrator::Create(parameters, colorSpace, camera, sampler, aggregate, lights, loc);
-#endif
     else if (name == "function")
         integrator = FunctionIntegrator::Create(parameters, camera, sampler, loc);
     else if (name == "simplepath")
@@ -3882,12 +3877,15 @@ std::unique_ptr<Integrator> Integrator::Create(
         integrator = VolPathIntegrator::Create(parameters, camera, sampler, aggregate,
                                                lights, loc);
 #ifdef PBRT_WITH_PATH_GUIDING
+    else if (name == "guidedpath")
+        integrator = GuidedPathIntegrator::Create(parameters, colorSpace, camera, sampler,
+                                                  aggregate, lights, loc);
     else if (name == "guidedvolpath")
-        integrator =
-            GuidedVolPathIntegrator::Create(parameters, colorSpace, camera, sampler, aggregate, lights, loc);
+        integrator = GuidedVolPathIntegrator::Create(parameters, colorSpace, camera,
+                                                     sampler, aggregate, lights, loc);
     else if (name == "guidedvolpathvspg")
-        integrator =
-            GuidedVolPathVSPGIntegrator::Create(parameters, colorSpace, camera, sampler, aggregate, lights, loc);
+        integrator = GuidedVolPathVSPGIntegrator::Create(parameters, colorSpace, camera,
+                                                         sampler, aggregate, lights, loc);
 #endif
     else if (name == "bdpt")
         integrator =
