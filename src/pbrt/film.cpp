@@ -626,9 +626,9 @@ Image RGBFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     LOG_VERBOSE("Converting image to RGB and computing final weighted pixel values");
     PixelFormat format = writeFP16 ? PixelFormat::Half : PixelFormat::Float;
     Image image(format, Point2i(pixelBounds.Diagonal()),
-                {"Combined.R", "Combined.G", "Combined.B", "Combined.A"});
+                {"Combined.R", "Combined.G", "Combined.B"});
     ImageChannelDesc rgbDesc =
-        image.GetChannelDesc({"Combined.R", "Combined.G", "Combined.B", "Combined.A"});
+        image.GetChannelDesc({"Combined.R", "Combined.G", "Combined.B"});
     
     std::atomic<int> nClamped{0};
     ParallelFor2D(pixelBounds, [&](Point2i p) {
@@ -799,13 +799,12 @@ Image GBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     pstd::vector<std::string> pass;
 
     // Beauty is always included
-    std::string main[4] = {"R", "G", "B", "A"};
+    std::string main[3] = {"R", "G", "B"};
     for (const int &p : aovPasses) {
         if (p == 0) {
             main[0] = "Combined.R";
             main[1] = "Combined.G";
             main[2] = "Combined.B";
-            main[3] = "Combined.A";
         }
         if (p == 1) {
             pass.push_back("Albedo.R");
@@ -850,7 +849,6 @@ Image GBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     pass.push_back(main[0]);
     pass.push_back(main[1]);
     pass.push_back(main[2]);
-    pass.push_back(main[3]);
 
     pstd::span<const std::string> aovs = pass;
     Image image(format, Point2i(pixelBounds.Diagonal()), {aovs});
@@ -1095,7 +1093,6 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                     "Combined.R",
                     "Combined.G",
                     "Combined.B",
-                    "Combined.A",
                     //"N.x",
                     //"N.y",
                     //"N.z",
@@ -1111,7 +1108,6 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         "Combined.R",
         "Combined.G",
         "Combined.B",
-        "Combined.A",
     });
     // ImageChannelDesc normalDesc = image.GetChannelDesc({"N.x", "N.y", "N.z"});
     // ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
