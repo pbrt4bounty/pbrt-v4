@@ -118,9 +118,9 @@ void ImageTileIntegrator::Render() {
         remainingTime = *Options->timeBudgetInSeconds;
 
     int spp = samplerPrototype.SamplesPerPixel();
-    const int64_t totalBudgetForProgress = timeBudget ? remainingTime : int64_t(spp) * pixelBounds.Area();
-    ProgressReporter progress(totalBudgetForProgress, "Rendering",
-                              Options->quiet);
+    const int64_t totalBudgetForProgress =
+        timeBudget ? remainingTime : int64_t(spp) * pixelBounds.Area();
+    ProgressReporter progress(totalBudgetForProgress, "Rendering", Options->quiet);
 
     int waveStart = 0, waveEnd = 1, nextWaveSize = 1;
     double waveStartTimeTotal, waveEndTimeTotal;
@@ -230,16 +230,15 @@ void ImageTileIntegrator::Render() {
         if (renderingDone) {
             progress.Done();
             if (timeBudget)
-                std::cout << "Total spp: " << waveStart << std::endl;
+                LOG_VERBOSE("Total spp: %d", waveStart);
         }
 
         // Update start and end wave
         waveStart = waveEnd;
         waveEnd = waveEnd + nextWaveSize;
-        // bounty: need to check..
         if (!referenceImage)
             nextWaveSize = (timeBudget ? 1 : std::min(2 * nextWaveSize, 64));
-        
+
         // Optionally write current image to disk
         if (renderingDone || Options->writePartialImages || referenceImage) {
             LOG_VERBOSE("Writing image with spp = %d", waveStart);
@@ -252,7 +251,8 @@ void ImageTileIntegrator::Render() {
                     camera.GetFilm().GetImage(&filmMetadata, 1.f / waveStart);
                 ImageChannelValues mse =
                     filmImage.MSE(filmImage.AllChannelsDesc(), *referenceImage);
-                fprintf(mseOutFile, "%d, %.9g\n", waveStart, mse.Average());
+                if (mseOutFile)
+                    fprintf(mseOutFile, "%d, %.9g\n", waveStart, mse.Average());
                 metadata.MSE = mse.Average();
                 fflush(mseOutFile);
             }
