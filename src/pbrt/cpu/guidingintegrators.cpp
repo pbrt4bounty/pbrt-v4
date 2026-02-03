@@ -341,15 +341,9 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
     const bool guideVolumeRR = guideSettings.guideVolumeRR;
 #if defined(PBRT_WITH_OIDN)
     if (guideSettings.guideRR && imageSpaceGuidingBufferReady) {
-#if defined(OPENPGL_VSP_GUIDING)
         openpgl::cpp::Vector3f pgPixelContributionEstimate =
             imageSpaceGuidingBuffer->GetContributionEstimate(
                 openpgl::cpp::Point2i(pPixel[0], pPixel[1]));
-#else
-        openpgl::cpp::Vector3f pgPixelContributionEstimate =
-            imageSpaceGuidingBuffer->GetPixelContributionEstimate(
-                openpgl::cpp::Point2i(pPixel[0], pPixel[1]));
-#endif
         pixelContributionEstimate[0] = pgPixelContributionEstimate.x;
         pixelContributionEstimate[1] = pgPixelContributionEstimate.y;
         pixelContributionEstimate[2] = pgPixelContributionEstimate.z;
@@ -1540,10 +1534,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(
     } else if (guideSettings.distributionType == EGuideDistributionDQT) {
         guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE,
                                  PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE);
-    }  /// else if (guideSettings.distributionType == EGuideDistributionPAVMMV2) {
-    //    guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE,
-    //    PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM_V2);
-    //}
+    }
 
     if (guideSettings.loadGuidingCache) {
         if (FileExists(guideSettings.guidingCacheFileName)) {
@@ -1676,15 +1667,9 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
     bool guideRR = false;
 #if defined(GUIDED_RR)
     if (guideSettings.guideRR && imageSpaceGuidingBufferReady) {
-#if defined(OPENPGL_VSP_GUIDING)
         openpgl::cpp::Vector3f pgPixelContributionEstimate =
             imageSpaceGuidingBuffer->GetContributionEstimate(
                 openpgl::cpp::Point2i(pPixel[0], pPixel[1]));
-#else
-        openpgl::cpp::Vector3f pgPixelContributionEstimate =
-            imageSpaceGuidingBuffer->GetPixelContributionEstimate(
-                openpgl::cpp::Point2i(pPixel[0], pPixel[1]));
-#endif
         pixelContributionEstimate[0] = pgPixelContributionEstimate.x;
         pixelContributionEstimate[1] = pgPixelContributionEstimate.y;
         pixelContributionEstimate[2] = pgPixelContributionEstimate.z;
@@ -2077,10 +2062,7 @@ GuidedVolPathIntegrator::GuidedVolPathIntegrator(
     } else if (guideSettings.distributionType == EGuideDistributionDQT) {
         guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE,
                                  PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE);
-    }  // else if (guideSettings.distributionType == EGuideDistributionPAVMMV2) {
-    //    guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE,
-    //    PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM_V2);
-    //}
+    }
 
     if (guideSettings.loadGuidingCache) {
         if (FileExists(guideSettings.guidingCacheFileName)) {
@@ -2227,15 +2209,9 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
     const bool guideVolumeRR = guideSettings.guideVolumeRR;
 #if defined(GUIDED_RR)
     if (guideSettings.guideRR && imageSpaceGuidingBufferReady) {
-#if defined(OPENPGL_VSP_GUIDING)
         openpgl::cpp::Vector3f pgPixelContributionEstimate =
             imageSpaceGuidingBuffer->GetContributionEstimate(
                 openpgl::cpp::Point2i(pPixel[0], pPixel[1]));
-#else
-        openpgl::cpp::Vector3f pgPixelContributionEstimate =
-            imageSpaceGuidingBuffer->GetPixelContributionEstimate(
-                openpgl::cpp::Point2i(pPixel[0], pPixel[1]));
-#endif
         pixelContributionEstimate[0] = pgPixelContributionEstimate.x;
         pixelContributionEstimate[1] = pgPixelContributionEstimate.y;
         pixelContributionEstimate[2] = pgPixelContributionEstimate.z;
