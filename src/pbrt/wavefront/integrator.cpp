@@ -770,7 +770,7 @@ void WavefrontPathIntegrator::StartDisplayThread() {
 }
 
 void WavefrontPathIntegrator::UpdateDisplayRGBFromFilm(Bounds2i pixelBounds) {
-#ifdef PBRT_BUILD_GPU_RENDERER
+#if defined(PBRT_BUILD_GPU_RENDERER) && defined(__NVCC__)
     Vector2i resolution = pixelBounds.Diagonal();
     GPUParallelFor(
         "Update Display RGB Buffer", resolution.x * resolution.y,

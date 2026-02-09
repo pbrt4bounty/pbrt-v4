@@ -18,7 +18,7 @@ list (INSERT CMAKE_MODULE_PATH 0 "${PBRT_SOURCE_CODE}/cmake")
 # Configuration options
 
 option (PBRT_FLOAT_AS_DOUBLE "Use 64-bit floats" OFF)
-option (PBRT_BUILD_NATIVE_EXECUTABLE "Build executable optimized for CPU architecture of system pbrt was built on" ON)
+option (PBRT_BUILD_NATIVE_EXECUTABLE "Build executable optimized for CPU architecture of system pbrt was built on" OFF)
 option (PBRT_DBG_LOGGING "Enable (very verbose!) debug logging" OFF)
 option (PBRT_NVTX "Insert NVTX annotations for NVIDIA Profiling and Debugging Tools" OFF)
 option (PBRT_NVML "Use NVML for GPU performance measurement" OFF)
@@ -294,6 +294,7 @@ if (CMAKE_CUDA_COMPILER)
         set (PBRT_CUDA_ENABLED ON)
 
         # FIXME
+        message(STATUS "We have CUDA includes: ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} and ${CUDAToolkit_INCLUDE_DIRS}")
         include_directories (${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})  # for regular c++ compiles
 
         # http://www.ssl.berkeley.edu/~jimm/grizzly_docs/SSL/opt/intel/cc/9.0/lib/locale/en_US/mcpcom.msg
