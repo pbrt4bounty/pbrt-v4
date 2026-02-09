@@ -39,6 +39,7 @@
 [submodule "src/ext/optix-dev"]
 	path = src/ext/optix-dev
 	url = https://github.com/NVIDIA/optix-dev.git
+	tag = v8.1.0
 [submodule "src/ext/openpgl"]
 	path = src/ext/openpgl
 	url = https://github.com/RenderKit/openpgl.git
