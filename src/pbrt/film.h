@@ -485,7 +485,7 @@ class GuidedGBufferFilm : public FilmBase {
         //Float dzdxSum = 0, dzdySum = 0;
         Normal3f nSum, nsSum;
         //Point2f uvSum;
-        //double rgbAlbedoSum[3] = {0., 0., 0.};
+        double rgbAlbedoSum[3] = {0., 0., 0.};
         //VarianceEstimator<Float> rgbVariance[3];
     };
 

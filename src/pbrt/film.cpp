@@ -1026,6 +1026,12 @@ void GuidedGBufferFilm::AddSample(Point2i pFilm, SampledSpectrum L,
         }
 
         p.guidingId = visibleSurface->guidingData.id;
+        // TO DO: We need an option to enable this process only when necessary
+        SampledSpectrum albedo =
+            visibleSurface->albedo * colorSpace->illuminant.Sample(lambda);
+        RGB albedoRGB = albedo.ToRGB(lambda, *colorSpace);
+        for (int c = 0; c < 3; ++c)
+            p.rgbAlbedoSum[c] += weight * albedoRGB[c];
     }
 
     for (int c = 0; c < 3; ++c)
@@ -1093,9 +1099,12 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                     "Combined.R",
                     "Combined.G",
                     "Combined.B",
-                    //"N.x",
-                    //"N.y",
-                    //"N.z",
+                    "Albedo.R",
+                    "Albedo.G",
+                    "Albedo.B",
+                    "N.X",
+                    "N.Y",
+                    "N.Z",
                     //"Ns.x",
                     //"Ns.y",
                     //"Ns.z",
@@ -1109,7 +1118,10 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         "Combined.G",
         "Combined.B",
     });
-    // ImageChannelDesc normalDesc = image.GetChannelDesc({"N.x", "N.y", "N.z"});
+    ImageChannelDesc albedoRgbDesc =
+        image.GetChannelDesc({"Albedo.R", "Albedo.G", "Albedo.B"});
+    ImageChannelDesc nDesc = image.GetChannelDesc({"N.X", "N.Y", "N.Z"});
+
     // ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
     ImageChannelDesc guideIdRgbDesc =
         image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B"});
@@ -1118,7 +1130,8 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     ParallelFor2D(pixelBounds, [&](Point2i p) {
         Pixel &pixel = pixels[p];
         RGB rgb(pixel.rgbSum[0], pixel.rgbSum[1], pixel.rgbSum[2]);
-
+        RGB albedoRgb(pixel.rgbAlbedoSum[0], pixel.rgbAlbedoSum[1],
+                      pixel.rgbAlbedoSum[2]);
         RGB guideIdRgb(0.0, 0.0, 0.0);
         if (pixel.guidingId != -1) {
             IndependentSampler sampler(3, pixel.guidingId * pixel.guidingId);
@@ -1130,6 +1143,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         Float weightSum = pixel.weightSum, gBufferWeightSum = pixel.gBufferWeightSum;
         if (weightSum != 0) {
             rgb /= weightSum;
+            albedoRgb /= weightSum;
         }
 
         // Add splat value at pixel
@@ -1150,11 +1164,19 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
 
         Point2i pOffset(p.x - pixelBounds.pMin.x, p.y - pixelBounds.pMin.y);
         image.SetChannels(pOffset, rgbDesc, {rgb[0], rgb[1], rgb[2]});
+
+        // Added albedo and normal channels for denoise
+        if ((int)albedoRgbDesc.size() > 0)
+            image.SetChannels(pOffset, albedoRgbDesc,
+                              {albedoRgb[0], albedoRgb[1], albedoRgb[2]});
+        Normal3f n =
+            LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);
+
+        if ((int)nDesc.size() > 0)
+            image.SetChannels(pOffset, nDesc, {n.x, n.y, n.z});
+
         image.SetChannels(pOffset, guideIdRgbDesc,
                           {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2]});
-
-        // Normal3f n =
-        //     LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);
 
         // Normal3f ns =
         //     LengthSquared(pixel.nsSum) > 0 ? Normalize(pixel.nsSum) : Normal3f(0, 0,
