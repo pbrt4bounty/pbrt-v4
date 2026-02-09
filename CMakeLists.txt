@@ -294,7 +294,6 @@ if (CMAKE_CUDA_COMPILER)
         set (PBRT_CUDA_ENABLED ON)
 
         # FIXME
-        message(STATUS "We have CUDA includes: ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} and ${CUDAToolkit_INCLUDE_DIRS}")
         include_directories (${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})  # for regular c++ compiles
 
         # http://www.ssl.berkeley.edu/~jimm/grizzly_docs/SSL/opt/intel/cc/9.0/lib/locale/en_US/mcpcom.msg
