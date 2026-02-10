@@ -276,11 +276,10 @@ endif()
 ###########################################################################
 # Open PGL
 if (PBRT_WITH_PATH_GUIDING)
-  if(LOCAL_BUILD)
-    if(MSVC)
-      set(OPENPGL_LIBRARIES ${OPENPGL_LIBRARY} PARENT_SCOPE)
-      set(OPENPGL_INCLUDE_DIR ${OPENPGL_INCLUDE} PARENT_SCOPE)
-    endif()
+  if(LOCAL_BUILD AND MSVC)
+    # for now, we use only with MSVC
+    set(OPENPGL_LIBRARIES ${OPENPGL_LIBRARY} PARENT_SCOPE)
+    set(OPENPGL_INCLUDE_DIR ${OPENPGL_INCLUDE} PARENT_SCOPE)
 
   else()
     find_package (openpgl CONFIG)
@@ -293,10 +292,6 @@ if (PBRT_WITH_PATH_GUIDING)
       set(OPENPGL_INCLUDE_DIR ${OPENPGL_INCLUDE_DIR} PARENT_SCOPE)
     else ()
       message (STATUS "OpenPGL not found; building it from scratch.")
-      set(USE_IMAGE_SPACE_GUIDING_BUFFER OFF)
-      if (PBRT_WITH_OIDN)
-        set(USE_IMAGE_SPACE_GUIDING_BUFFER ON)
-      endif()
 
       if(NOT "${TBB_ROOT}" STREQUAL "")
         set(TBB_SRC ${TBB_ROOT})
@@ -311,7 +306,7 @@ if (PBRT_WITH_PATH_GUIDING)
         -DOPENPGL_EF_RADIANCE_CACHES=ON
         -DOPENPGL_DIRECTION_COMPRESSION=ON
         -DOPENPGL_RADIANCE_COMPRESSION=ON
-        -DOPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER=${USE_IMAGE_SPACE_GUIDING_BUFFER}
+        -DOPENPGL_EF_IMAGE_SPACE_GUIDING_BUFFER=${PBRT_WITH_OIDN}
         -DOPENPGL_EF_VSP_GUIDING=ON
       )
 

@@ -618,7 +618,7 @@ class GuidedVolPathVSPGIntegrator : public RayIntegrator {
                         SampledSpectrum &adjointEstimate,
                         SampledSpectrum &pixelContributionEstimate) const;
 
-#if defined(PBRT_WITH_OIDN)
+#if defined(OPENPGL_IMAGE_SPACE_GUIDING_BUFFER)
     void SampleDistance(Point2i pPixel, RayDifferential &ray, Float tMax,
                         SampledWavelengths &lambda, Sampler &sampler, RNG &rng,
                         bool &scattered, bool &terminated, int &depth, SampledSpectrum &L,
@@ -681,7 +681,7 @@ class GuidedVolPathVSPGIntegrator : public RayIntegrator {
     TrBuffer *trBuffer{nullptr};
     bool trBufferLoad{false};
     bool calculateTrBuffer{false};
-#if defined(PBRT_WITH_OIDN)
+#if defined(OPENPGL_IMAGE_SPACE_GUIDING_BUFFER)
     openpgl::cpp::util::ImageSpaceGuidingBuffer *imageSpaceGuidingBuffer{nullptr};
 #endif
     bool imageSpaceGuidingBufferReady{false};
