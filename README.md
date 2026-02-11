@@ -7,6 +7,10 @@ That scene that was slowly drawn, line by line, on the screen of an old 386 sx,
 until it completed an image of a checkered plane, on which rested a red, bright and perfect sphere.
 Thus, this project is just an excuse to continue learning in the best possible way: by practicing.
 
+### Blender integration state
+
+I'm currently adding documentation on the current state of the Blender implementation in the [wiki](https://github.com/pbrt4bounty/pbrt-v4/wiki) section, with some screenshots and examples.
+
 ### Changes on this fork/branch
 
 This branch include some experimental additions:
@@ -34,6 +38,3 @@ My small contributions..
   - Added support to use the binary hair definition files from Cem Yuksel format( only for CPU..) https://github.com/cemyuksel/cyCodeBase
   - (w.i.p)
 
-### Blender integration status
-
-I'm adding documentation on the current state of the Blender implementation in the [wiki](https://github.com/pbrt4bounty/pbrt-v4/wiki) section, with some screenshots and examples.
