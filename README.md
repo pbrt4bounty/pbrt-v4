@@ -14,7 +14,7 @@ This branch include some experimental additions:
 From other forks:
   - Intel Open Path Guiding implementation from https://github.com/OpenPathGuidingLibrary/pbrt-v4
   - Volume Scattering Probability Guiding implementation from: https://github.com/kehanxuuu/vspg-pbrt-v4
-    - OpenPGL & VSPG current state(wip..)   
+    - [OpenPGL & VSPG current state](https://github.com/pbrt4bounty/pbrt-v4/wiki/Open-Path-Guiding)   
   - a few experimental implementations from: https://github.com/rOnInRaJ-dev/pbrt-v4.git
     - [x] Procedural Mesh [commit](https://github.com/pbrt4bounty/pbrt-v4/commit/9adac4a0300e91ace2095288e015ae6071749645)
     - [ ] God rays
