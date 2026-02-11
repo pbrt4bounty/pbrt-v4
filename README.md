@@ -9,7 +9,7 @@ Thus, this project is just an excuse to continue learning in the best possible w
 
 ### Blender integration state
 
-I'm currently adding documentation on the current state of the Blender implementation in the [wiki](https://github.com/pbrt4bounty/pbrt-v4/wiki) section, with some screenshots and examples.
+I'm adding documentation about the current state of the Blender implementation in the [wiki](https://github.com/pbrt4bounty/pbrt-v4/wiki) section, with some screenshots and examples.
 
 ### Changes on this fork/branch
 
