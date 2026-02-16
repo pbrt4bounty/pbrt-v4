@@ -869,10 +869,6 @@ class SPPMIntegrator : public Integrator {
     std::string ToString() const;
 
     void Render();
-    template <typename F>
-    void ParallelFor(const char *description, int nItems, F &&func) {
-        pbrt::ParallelFor(0, nItems, func);
-    }
 
   private:
     // SPPMIntegrator Private Methods

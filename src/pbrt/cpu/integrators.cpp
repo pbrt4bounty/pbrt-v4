@@ -2710,24 +2710,25 @@ void MLTIntegrator::Render() {
     // Set up connection to display server, if enabled
     std::atomic<int> finishedChains(0);
     if (!Options->displayServer.empty()) {
-        DisplayDynamic(
-            camera.GetFilm().GetFilename(),
-            Point2i(camera.GetFilm().PixelBounds().Diagonal()), {"Combined.R", "Combined.G", "Combined.B"},
-            [&](Bounds2i bounds, pstd::span<pstd::span<float>> displayValue) {
-                Film film = camera.GetFilm();
-                Bounds2i pixelBounds = film.PixelBounds();
-                int index = 0;
-                for (Point2i p : bounds) {
-                    Float finishedPixelMutations =
-                        Float(finishedChains.load(std::memory_order_relaxed)) /
-                        Float(nChains) * mutationsPerPixel;
-                    Float scale = b / std::max<Float>(1, finishedPixelMutations);
-                    RGB rgb = film.GetPixelRGB(pixelBounds.pMin + p, scale);
-                    for (int c = 0; c < 3; ++c)
-                        displayValue[c][index] = rgb[c];
-                    ++index;
-                }
-            });
+        DisplayDynamic(camera.GetFilm().GetFilename(),
+                       Point2i(camera.GetFilm().PixelBounds().Diagonal()),
+                       {"Combined.R", "Combined.G", "Combined.B"},
+                       [&](Bounds2i bounds, pstd::span<pstd::span<float>> displayValue) {
+                           Film film = camera.GetFilm();
+                           Bounds2i pixelBounds = film.PixelBounds();
+                           int index = 0;
+                           for (Point2i p : bounds) {
+                               Float finishedPixelMutations =
+                                   Float(finishedChains.load(std::memory_order_relaxed)) /
+                                   Float(nChains) * mutationsPerPixel;
+                               Float scale =
+                                   b / std::max<Float>(1, finishedPixelMutations);
+                               RGB rgb = film.GetPixelRGB(pixelBounds.pMin + p, scale);
+                               for (int c = 0; c < 3; ++c)
+                                   displayValue[c][index] = rgb[c];
+                               ++index;
+                           }
+                       });
     }
 
     // Follow _nChains_ Markov chains to render image
@@ -2944,12 +2945,13 @@ void SPPMIntegrator::Render() {
     for (int iter = 0; iter < nIterations; ++iter) {
         // Connect to display server for SPPM if requested
         if (iter == 0 && !Options->displayServer.empty()) {
-            DisplayDynamic(
-                film.GetFilename(), Point2i(pixelBounds.Diagonal()), {"Combined.R", "Combined.G", "Combined.B"},
-                [&](Bounds2i b, pstd::span<pstd::span<float>> displayValue) {
-                    int index = 0;
-                    uint64_t np = (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
-                    for (Point2i pPixel : b) {
+            DisplayDynamic(film.GetFilename(), Point2i(pixelBounds.Diagonal()),
+                           {"Combined.R", "Combined.G", "Combined.B"},
+                           [&](Bounds2i b, pstd::span<pstd::span<float>> displayValue) {
+                               int index = 0;
+                               uint64_t np =
+                                   (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
+                               for (Point2i pPixel : b) {
                                    const SPPMPixel &pixel = pixels[pPixel];
                                    RGB rgb = pixel.Ld / (iter + 1) +
                                              pixel.tau / (np * Pi * Sqr(pixel.radius));
@@ -2964,12 +2966,12 @@ void SPPMIntegrator::Render() {
             Vector2i resolution = pixelBounds.Diagonal();
             RGB *rgb = gui->MapFramebuffer();
             // UpdateFramebufferFromFilm(pixelBounds, gui->exposure, rgb);
-            ParallelFor("SPPM", resolution.x * resolution.y, [&](int idx) {
+            ParallelFor(0, resolution.x * resolution.y, [&](int idx) {
                 Point2i pPixel(idx % resolution.x, idx / resolution.x);
                 uint64_t np = (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
                 const SPPMPixel &pixel = pixels[pPixel];
-                rgb[idx] =
-                    pixel.Ld / (iter + 1) + pixel.tau / (np * Pi * Sqr(pixel.radius));
+                rgb[idx] = gui->exposure * pixel.Ld / (iter + 1) +
+                           pixel.tau / (np * Pi * Sqr(pixel.radius));
             });
             gui->UnmapFramebuffer();
 
@@ -2977,6 +2979,15 @@ void SPPMIntegrator::Render() {
             DisplayState state = gui->RefreshDisplay(percentage, nIterations);
             if (state == DisplayState::EXIT)
                 break;
+            // new attempt..
+            else if (state == DisplayState::RESET) {
+                //sampleIndex = firstSampleIndex - 1;
+                iter = 1; // dirty trick that don't work as expected
+                ParallelFor(0, resolution.x * resolution.y, [&](int i) {
+                    Point2i pPixel(i % resolution.x, i / resolution.x);
+                    film.ResetPixel(pixelBounds.pMin + pPixel);
+                });
+            }
         }
         // Generate SPPM visible points
         // Sample wavelengths for SPPM pass
@@ -3355,7 +3366,7 @@ void SPPMIntegrator::Render() {
             metadata.fullResolution = camera.GetFilm().FullResolution();
             metadata.colorSpace = colorSpace;
             camera.InitMetadata(&metadata);
-            // Bilateral filtyer...
+            // Bilateral filter...
             if (applyBilateral) {
                 SPPMIntegrator::ApplyBilateralFilter(rgbImage);
             }
