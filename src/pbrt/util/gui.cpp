@@ -11,10 +11,11 @@
 #include <pbrt/util/error.h>
 #include <pbrt/util/image.h>
 #include <pbrt/util/parallel.h>
-#include "../../ext/imgui/imgui.h"
-#include "../../ext/imgui/imgui_impl_glfw.h"
-#include "../../ext/imgui/imgui_impl_opengl3.h"
-
+#if !defined(__APPLE__)
+#include <ext/imgui/imgui.h>
+#include <ext/imgui/imgui_impl_glfw.h>
+#include <ext/imgui/imgui_impl_opengl3.h>
+#endif
 #define GL_CHECK(call)                                                   \
     do {                                                                 \
         call;                                                            \
