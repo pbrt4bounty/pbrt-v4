@@ -625,10 +625,15 @@ Image RGBFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     // Convert image to RGB and compute final pixel values
     LOG_VERBOSE("Converting image to RGB and computing final weighted pixel values");
     PixelFormat format = writeFP16 ? PixelFormat::Half : PixelFormat::Float;
+    std::string rgbMain[3] = {"R", "G", "B"};
+    if (getenv("PBRT4BLENDER")) {
+        rgbMain[0] = "Combined.R";
+        rgbMain[1] = "Combined.G";
+        rgbMain[2] = "Combined.B";
+    }
     Image image(format, Point2i(pixelBounds.Diagonal()),
-                {"Combined.R", "Combined.G", "Combined.B"});
-    ImageChannelDesc rgbDesc =
-        image.GetChannelDesc({"Combined.R", "Combined.G", "Combined.B"});
+                {rgbMain[0], rgbMain[1], rgbMain[2]});
+    ImageChannelDesc rgbDesc = image.GetChannelDesc({rgbMain});
     
     std::atomic<int> nClamped{0};
     ParallelFor2D(pixelBounds, [&](Point2i p) {
@@ -799,12 +804,12 @@ Image GBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     pstd::vector<std::string> pass;
 
     // Beauty is always included
-    std::string main[3] = {"R", "G", "B"};
+    std::string rgbMain[3] = {"R", "G", "B"};
     for (const int &p : aovPasses) {
-        if (p == 0) {
-            main[0] = "Combined.R";
-            main[1] = "Combined.G";
-            main[2] = "Combined.B";
+        if (p == 0 && getenv("PBRT4BLENDER")) {
+            rgbMain[0] = "Combined.R";
+            rgbMain[1] = "Combined.G";
+            rgbMain[2] = "Combined.B";
         }
         if (p == 1) {
             pass.push_back("Albedo.R");
@@ -846,14 +851,14 @@ Image GBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
             pass.push_back("RelativeVariance.B");
         }
     }
-    pass.push_back(main[0]);
-    pass.push_back(main[1]);
-    pass.push_back(main[2]);
+    pass.push_back(rgbMain[0]);
+    pass.push_back(rgbMain[1]);
+    pass.push_back(rgbMain[2]);
 
     pstd::span<const std::string> aovs = pass;
     Image image(format, Point2i(pixelBounds.Diagonal()), {aovs});
 
-    ImageChannelDesc rgbDesc = image.GetChannelDesc({main});
+    ImageChannelDesc rgbDesc = image.GetChannelDesc({rgbMain});
     ImageChannelDesc pDesc = image.GetChannelDesc({"P.X", "P.Y", "P.Z"});
     ImageChannelDesc dzDesc = image.GetChannelDesc({"dzd.X", "dzd.Y", "dzd.Z"});
     ImageChannelDesc nDesc = image.GetChannelDesc({"N.X", "N.Y", "N.Z"});
@@ -1094,11 +1099,17 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     // Convert image to RGB and compute final pixel values
     LOG_VERBOSE("Converting image to RGB and computing final weighted pixel values");
     PixelFormat format = writeFP16 ? PixelFormat::Half : PixelFormat::Float;
+    std::string rgbMain[3] = {"R", "G", "B"};
+    if (getenv("PBRT4BLENDER")) {
+        rgbMain[0] = "Combined.R";
+        rgbMain[1] = "Combined.G";
+        rgbMain[2] = "Combined.B";
+    }
     Image image(format, Point2i(pixelBounds.Diagonal()),
                 {
-                    "Combined.R",
-                    "Combined.G",
-                    "Combined.B",
+                    rgbMain[0],
+                    rgbMain[1],
+                    rgbMain[2],
                     "Albedo.R",
                     "Albedo.G",
                     "Albedo.B",
@@ -1113,11 +1124,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                     "GuideId.B",
                 });
 
-    ImageChannelDesc rgbDesc = image.GetChannelDesc({
-        "Combined.R",
-        "Combined.G",
-        "Combined.B",
-    });
+    ImageChannelDesc rgbDesc = image.GetChannelDesc({rgbMain});
     ImageChannelDesc albedoRgbDesc =
         image.GetChannelDesc({"Albedo.R", "Albedo.G", "Albedo.B"});
     ImageChannelDesc nDesc = image.GetChannelDesc({"N.X", "N.Y", "N.Z"});

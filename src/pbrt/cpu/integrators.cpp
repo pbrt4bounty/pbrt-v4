@@ -161,9 +161,15 @@ void ImageTileIntegrator::Render() {
 
     // Connect to display server if needed
     if (!Options->displayServer.empty()) {
+        std::string rgbMain[3] = {"R", "G", "B"};
+        if (getenv("PBRT4BLENDER")) {
+            rgbMain[0] = "Combined.R";
+            rgbMain[1] = "Combined.G";
+            rgbMain[2] = "Combined.B";
+        }
         Film film = camera.GetFilm();
         DisplayDynamic(film.GetFilename(), Point2i(pixelBounds.Diagonal()),
-                       {"Combined.R", "Combined.G", "Combined.B"},
+                       {rgbMain[0], rgbMain[1], rgbMain[2]},
                        [&](Bounds2i b, pstd::span<pstd::span<float>> displayValue) {
                            int index = 0;
                            for (Point2i p : b) {
@@ -2709,10 +2715,16 @@ void MLTIntegrator::Render() {
 
     // Set up connection to display server, if enabled
     std::atomic<int> finishedChains(0);
+    std::string main[3] = {"R", "G", "B"};
+    if (getenv("PBRT4BLENDER")) {
+        main[0] = "Combined.R";
+        main[1] = "Combined.G";
+        main[2] = "Combined.B";
+    }
     if (!Options->displayServer.empty()) {
         DisplayDynamic(camera.GetFilm().GetFilename(),
                        Point2i(camera.GetFilm().PixelBounds().Diagonal()),
-                       {"Combined.R", "Combined.G", "Combined.B"},
+                       {main[0], main[1], main[2]},
                        [&](Bounds2i bounds, pstd::span<pstd::span<float>> displayValue) {
                            Film film = camera.GetFilm();
                            Bounds2i pixelBounds = film.PixelBounds();
@@ -2941,12 +2953,18 @@ void SPPMIntegrator::Render() {
         [this]() { return samplerPrototype.Clone(Allocator()); });
     pstd::vector<DigitPermutation> *digitPermutations(
         ComputeRadicalInversePermutations(digitPermutationsSeed));
-
+    // manage Blender specific main channel name
+    std::string rgbMain[3] = {"R", "G", "B"};
+    if (getenv("PBRT4BLENDER")) {
+        rgbMain[0] = "Combined.R";
+        rgbMain[1] = "Combined.G";
+        rgbMain[2] = "Combined.B";
+    }
     for (int iter = 0; iter < nIterations; ++iter) {
         // Connect to display server for SPPM if requested
         if (iter == 0 && !Options->displayServer.empty()) {
             DisplayDynamic(film.GetFilename(), Point2i(pixelBounds.Diagonal()),
-                           {"Combined.R", "Combined.G", "Combined.B"},
+                           {rgbMain[0], rgbMain[1], rgbMain[2]},
                            [&](Bounds2i b, pstd::span<pstd::span<float>> displayValue) {
                                int index = 0;
                                uint64_t np =
@@ -2981,8 +2999,8 @@ void SPPMIntegrator::Render() {
                 break;
             // new attempt..
             else if (state == DisplayState::RESET) {
-                //sampleIndex = firstSampleIndex - 1;
-                iter = 1; // dirty trick that don't work as expected
+                // sampleIndex = firstSampleIndex - 1;
+                iter = 1;  // dirty trick that don't work as expected
                 ParallelFor(0, resolution.x * resolution.y, [&](int i) {
                     Point2i pPixel(i % resolution.x, i / resolution.x);
                     film.ResetPixel(pixelBounds.pMin + pPixel);
@@ -3348,7 +3366,7 @@ void SPPMIntegrator::Render() {
             ((iter + 1) % 64 == 0)) {
             uint64_t np = (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
             Image rgbImage(PixelFormat::Float, Point2i(pixelBounds.Diagonal()),
-                           {"Combined.R", "Combined.G", "Combined.B"});
+                           {rgbMain[0], rgbMain[1], rgbMain[2]});
 
             ParallelFor2D(pixelBounds, [&](Point2i pPixel) {
                 // Compute radiance _L_ for SPPM pixel _pPixel_
