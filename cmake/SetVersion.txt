@@ -1,0 +1,2 @@
+# WARNING: This file is only used with CMake in the build time
+configure_file(cmake/version.h.cmake ${CMAKE_SOURCE_DIR}/src/pbrt/version.h)

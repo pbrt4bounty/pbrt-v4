@@ -7,6 +7,9 @@
 
 #include <stdint.h>
 #include <cstddef>
+// test
+//#include "config.h"
+//#define VERSION PBRT4_VERSION
 
 #ifdef PBRT_IS_WINDOWS
 #ifndef UNICODE

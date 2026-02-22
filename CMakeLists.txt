@@ -15,6 +15,9 @@ endif ()
 # For sanitizers
 list (INSERT CMAKE_MODULE_PATH 0 "${PBRT_SOURCE_CODE}/cmake")
 
+# set pbrt build version
+#include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SetVersion.txt)
+
 # Configuration options
 
 option (PBRT_FLOAT_AS_DOUBLE "Use 64-bit floats" OFF)
@@ -718,6 +721,7 @@ SET (PBRT_UTIL_SOURCE
   src/pbrt/util/colorspace.cpp
   src/pbrt/denoiser.cpp
   src/pbrt/util/display.cpp
+  #src/pbrt/util/display_blender.cpp
   src/pbrt/util/error.cpp
   src/pbrt/util/file.cpp
   src/pbrt/util/float.cpp
