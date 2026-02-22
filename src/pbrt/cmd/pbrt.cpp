@@ -273,9 +273,9 @@ int main(int argc, char *argv[]) {
         options.wavefront = false;
     }
 
-    //if (options.interactive && !(options.useGPU || options.wavefront))
-    //    ErrorExit("The --interactive option is only supported with the --gpu "
-    //              "and --wavefront integrators.");
+    if (options.interactive && !(options.useGPU || options.wavefront))
+        Warning("Natively, the --interactive option is only supported with the --gpu "
+                "and --wavefront integrators.");
 
     if (options.fullscreen && !options.interactive) {
         ErrorExit("The --fullscreen option is only supported in interactive mode");
