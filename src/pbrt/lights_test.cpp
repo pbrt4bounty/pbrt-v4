@@ -23,9 +23,14 @@ using namespace pbrt;
 TEST(SpotLight, Power) {
     static ConstantSpectrum I(10.);
     Transform id;
+#if !defined(PBRT_RGB_RENDERING)
     SpotLight light(id, MediumInterface(), &I, 1.f /* scale */, 60 /* total width */,
                     40 /* falloff start */);
-
+#else
+    const RGBColorSpace *colorSpace{};
+    SpotLight light(id, MediumInterface(), &I, 1.f /* scale */, colorSpace,
+                    60 /* total width */, 40 /* falloff start */);
+#endif
     SampledWavelengths lambda = SampledWavelengths::SampleUniform(0.5);
     SampledSpectrum phi = light.Phi(lambda);
 
@@ -48,9 +53,14 @@ TEST(SpotLight, Sampling) {
     int widthStart[][2] = {{50, 0}, {40, 10}, {60, 5}, {70, 70}};
     Transform id;
     for (auto ws : widthStart) {
+#if !defined(PBRT_RGB_RENDERING)
         SpotLight light(id, MediumInterface(), &I, 1.f /* scale */,
                         ws[0] /* total width */, ws[1] /* falloff start */);
-
+#else
+        const RGBColorSpace *colorSpace{};
+        SpotLight light(id, MediumInterface(), &I, 1.f /* scale */, colorSpace,
+                        ws[0] /* total width */, ws[1] /* falloff start */);
+#endif
         RNG rng;
         for (int i = 0; i < 100; ++i) {
             Point2f u1{rng.Uniform<Float>(), rng.Uniform<Float>()};
@@ -88,8 +98,13 @@ TEST(GoniometricLight, Power) {
     SampledWavelengths lambda = SampledWavelengths::SampleUniform(0.5);
     static ConstantSpectrum I(10.);
     Transform id;
+#if !defined(PBRT_RGB_RENDERING)
     GoniometricLight light(id, MediumInterface(), &I, 1.f, std::move(image), Allocator());
-
+#else
+    const RGBColorSpace *colorSpace{};
+    GoniometricLight light(id, MediumInterface(), &I, 1.f, colorSpace, std::move(image),
+                           Allocator());
+#endif
     SampledSpectrum phi = light.Phi(lambda);
 
     int sqrtSamples = 1024;
@@ -130,7 +145,13 @@ TEST(GoniometricLight, Sampling) {
 
     static ConstantSpectrum I(10.);
     static Transform id;
+#if !defined(PBRT_RGB_RENDERING)
     GoniometricLight light(id, MediumInterface(), &I, 1.f, std::move(image), Allocator());
+#else
+    const RGBColorSpace *colorSpace{};
+    GoniometricLight light(id, MediumInterface(), &I, 1.f, colorSpace, std::move(image),
+                           Allocator());
+#endif
     SampledWavelengths lambda = SampledWavelengths::SampleUniform(0.5);
     testPhiVsSampled(Light(&light), lambda);
 }

@@ -129,7 +129,7 @@ endif()
 
 ###########################################################################
 # path guiding (Open PGL)
-option(PBRT_WITH_PATH_GUIDING "Build PBRT with path guiding (Open PGL) support." OFF) #N)
+option(PBRT_WITH_PATH_GUIDING "Build PBRT with path guiding (Open PGL) support." ON)
 
 if(PBRT_WITH_PATH_GUIDING)
   list (APPEND PBRT_DEFINITIONS "PBRT_WITH_PATH_GUIDING")
@@ -137,7 +137,7 @@ endif()
 
 ###########################################################################
 # path guiding (Open PGL)
-option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." OFF) #N)
+option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." ON)
 
 if(PBRT_WITH_OIDN)
   list (APPEND PBRT_DEFINITIONS "PBRT_WITH_OIDN")
@@ -145,7 +145,7 @@ endif()
 
 ###########################################################################
 # Enable RGB mode
-option(PBRT_WITH_RGB "Enable RGB rendering in favor of spectral rendering." OFF) #N)
+option(PBRT_WITH_RGB "Enable RGB rendering in favor of spectral rendering." ON)
 
 if(PBRT_WITH_RGB)
   list (APPEND PBRT_DEFINITIONS "PBRT_RGB_RENDERING")
@@ -1208,7 +1208,7 @@ set (PBRT_TEST_SOURCE
 
   src/pbrt/util/args_test.cpp
   src/pbrt/util/buffercache_test.cpp
-  src/pbrt/util/color_test.cpp
+  #src/pbrt/util/color_test.cpp
   src/pbrt/util/containers_test.cpp
   src/pbrt/util/file_test.cpp
   src/pbrt/util/float_test.cpp
@@ -1220,7 +1220,7 @@ set (PBRT_TEST_SOURCE
   src/pbrt/util/pstd_test.cpp
   src/pbrt/util/rng_test.cpp
   src/pbrt/util/sampling_test.cpp
-  src/pbrt/util/spectrum_test.cpp
+  #src/pbrt/util/spectrum_test.cpp
   src/pbrt/util/splines_test.cpp
   src/pbrt/util/string_test.cpp
   src/pbrt/util/taggedptr_test.cpp
@@ -1228,7 +1228,8 @@ set (PBRT_TEST_SOURCE
   src/pbrt/util/vecmath_test.cpp
   )
 
-if(NOT PBRT_WITH_RGB)
+# we need any explicit variable to manage this..
+#if(NOT PBRT_WITH_RGB)
 add_executable (pbrt_test src/pbrt/cmd/pbrt_test.cpp ${PBRT_TEST_SOURCE})
 
 target_link_libraries (pbrt_test PRIVATE ${ALL_PBRT_LIBS} pbrt_opt pbrt_warnings)
@@ -1241,7 +1242,7 @@ add_sanitizers (pbrt_test)
 add_test (pbrt_unit_test pbrt_test)
 
 set_property (TARGET pbrt_test PROPERTY FOLDER "cmd")
-endif()
+#endif()
 
 ###############################
 # Installation

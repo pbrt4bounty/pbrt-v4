@@ -25,8 +25,15 @@ TEST(BVHLightSampling, OneSpot) {
     Transform id;
     std::vector<Light> lights;
     ConstantSpectrum one(1.f);
+#if !defined(PBRT_RGB_RENDERING)
     lights.push_back(new SpotLight(id, MediumInterface(), &one, 1.f /* scale */,
                                    45.f /* total width */, 44.f /* falloff start */));
+#else
+    const RGBColorSpace *colorSpace{};
+    lights.push_back(new SpotLight(id, MediumInterface(), &one, 1.f /* scale */,
+                                   colorSpace, 45.f /* total width */,
+                                   44.f /* falloff start */));
+#endif
     BVHLightSampler distrib(lights, Allocator());
 
     RNG rng;
@@ -73,7 +80,13 @@ TEST(BVHLightSampling, Point) {
         // Random point in [-5, 5]
         Vector3f p{Lerp(rng.Uniform<Float>(), -5, 5), Lerp(rng.Uniform<Float>(), -5, 5),
                    Lerp(rng.Uniform<Float>(), -5, 5)};
+#if !defined(PBRT_RGB_RENDERING)
         lights.push_back(new PointLight(Translate(p), MediumInterface(), &one, 1.f));
+#else
+        const RGBColorSpace *colorSpace{};
+        lights.push_back(
+            new PointLight(Translate(p), MediumInterface(), &one, 1.f, colorSpace));
+#endif
         lightToIndex[lights.back()] = i;
     }
     BVHLightSampler distrib(lights, Allocator());
@@ -122,8 +135,13 @@ TEST(BVHLightSampling, PointVaryPower) {
         lightPower.push_back(rng.Uniform<Float>());
         lightSpectra.push_back(std::make_unique<ConstantSpectrum>(lightPower.back()));
         sumPower += lightPower.back();
+#if !defined(PBRT_RGB_RENDERING)
         lights.push_back(new PointLight(Translate(p), MediumInterface(),
                                         lightSpectra.back().get(), 1.f));
+#else
+        const RGBColorSpace *colorSpace{};
+        lights.push_back(new PointLight(Translate(p), MediumInterface(), lightSpectra.back().get(), 1.f, colorSpace));
+#endif
         lightToIndex[lights.back()] = i;
     }
     BVHLightSampler distrib(lights, Allocator());
@@ -265,9 +283,16 @@ static std::tuple<std::vector<Light>, std::vector<Shape>> randomLights(int n,
             Vector3f p{Lerp(rng.Uniform<Float>(), -5, 5),
                        Lerp(rng.Uniform<Float>(), -5, 5),
                        Lerp(rng.Uniform<Float>(), -5, 5)};
+#if !defined(PBRT_RGB_RENDERING)
             lights.push_back(new PointLight(Translate(p), MediumInterface(),
                                             alloc.new_object<ConstantSpectrum>(r()),
                                             1.f));
+#else
+            const RGBColorSpace *colorSpace{};
+            lights.push_back(new PointLight(Translate(p), MediumInterface(),
+                                            alloc.new_object<ConstantSpectrum>(r()), 1.f,
+                                            colorSpace));
+#endif
         }
     }
 
