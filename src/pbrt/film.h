@@ -245,11 +245,11 @@ class RGBFilm : public FilmBase {
   public:
     // RGBFilm Public Methods
     PBRT_CPU_GPU
-    bool UsesVisibleSurface() const { return false; }
+    bool UsesVisibleSurface() const { return true; }
 
     PBRT_CPU_GPU
     void AddSample(Point2i pFilm, SampledSpectrum L, const SampledWavelengths &lambda,
-                   const VisibleSurface *, Float weight) {
+                   const VisibleSurface *visibleSurface, Float weight) {
         // Convert sample radiance to _PixelSensor_ RGB
         RGB rgb = sensor->ToSensorRGB(L, lambda);
 
@@ -261,6 +261,19 @@ class RGBFilm : public FilmBase {
         DCHECK(InsideExclusive(pFilm, pixelBounds));
         // Update pixel values with filtered sample contribution
         Pixel &pixel = pixels[pFilm];
+        //>
+        if (visibleSurface && *visibleSurface) {
+            SampledSpectrum albedo =
+                visibleSurface->albedo * colorSpace->illuminant.Sample(lambda);
+            RGB albedoRGB = albedo.ToRGB(lambda, *colorSpace);
+            for (int c = 0; c < 3; ++c)
+                pixel.rgbAlbedoSum[c] += weight * albedoRGB[c];
+            // we assume that coordinateSystem == "world" and applyInverse == false;
+            // enough for denoising.. ? need to compare rgb vs gbuffer results!
+            pixel.nSum += weight * outputFromRender(visibleSurface->n, visibleSurface->time);
+            
+        }
+        //>
         for (int c = 0; c < 3; ++c)
             pixel.rgbSum[c] += weight * rgb[c];
         pixel.weightSum += weight;
@@ -316,7 +329,9 @@ class RGBFilm : public FilmBase {
     struct Pixel {
         Pixel() = default;
         double rgbSum[3] = {0., 0., 0.};
+        double rgbAlbedoSum[3] = {0., 0., 0.};
         double weightSum = 0.;
+        Normal3f nSum;
         AtomicDouble rgbSplat[3];
     };
 
@@ -331,6 +346,10 @@ class RGBFilm : public FilmBase {
     bool applyBilateral;
     Float bilateralSigmaSpatial;
     Float bilateralSigmaRange;
+
+    // bounty: denoise
+    AnimatedTransform outputFromRender;
+    bool applyInverse;
 };
 
 // GBufferFilm Definition

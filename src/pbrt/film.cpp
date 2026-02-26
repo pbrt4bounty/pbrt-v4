@@ -631,13 +631,35 @@ Image RGBFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         rgbMain[1] = "Combined.G";
         rgbMain[2] = "Combined.B";
     }
+    // povmaniac: Add albedo and normal channels for denoising
+    // TO DO: make this optional
     Image image(format, Point2i(pixelBounds.Diagonal()),
-                {rgbMain[0], rgbMain[1], rgbMain[2]});
+                {
+                    rgbMain[0],
+                    rgbMain[1],
+                    rgbMain[2],
+                    "Albedo.R",
+                    "Albedo.G",
+                    "Albedo.B",
+                    "N.X",
+                    "N.Y",
+                    "N.Z",
+                });
     ImageChannelDesc rgbDesc = image.GetChannelDesc({rgbMain});
-    
+    ImageChannelDesc albedoRgbDesc =
+        image.GetChannelDesc({"Albedo.R", "Albedo.G", "Albedo.B"});
+    ImageChannelDesc nDesc = image.GetChannelDesc({"N.X", "N.Y", "N.Z"});
+
     std::atomic<int> nClamped{0};
     ParallelFor2D(pixelBounds, [&](Point2i p) {
         RGB rgb = GetPixelRGB(p, splatScale);
+
+        Pixel &pixel = pixels[p];
+        RGB albedoRgb(pixel.rgbAlbedoSum[0], pixel.rgbAlbedoSum[1],
+                      pixel.rgbAlbedoSum[2]);
+        Float weightSum = pixel.weightSum;
+        if (weightSum != 0)
+            albedoRgb /= weightSum;
 
         if (writeFP16 && std::max({rgb.r, rgb.g, rgb.b}) > 65504) {
             if (rgb.r > 65504)
@@ -651,6 +673,14 @@ Image RGBFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
 
         Point2i pOffset(p.x - pixelBounds.pMin.x, p.y - pixelBounds.pMin.y);
         image.SetChannels(pOffset, rgbDesc, {rgb[0], rgb[1], rgb[2]});
+
+        if ((int)albedoRgbDesc.size() > 0)
+            image.SetChannels(pOffset, albedoRgbDesc,
+                              {albedoRgb[0], albedoRgb[1], albedoRgb[2]});
+        Normal3f n =
+            LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);
+        if ((int)nDesc.size() > 0)
+            image.SetChannels(pOffset, nDesc, {n.x, n.y, n.z});
     });
 
     if (nClamped.load() > 0)
@@ -1022,12 +1052,8 @@ void GuidedGBufferFilm::AddSample(Point2i pFilm, SampledSpectrum L,
         if (applyInverse) {
             p.nSum += weight * outputFromRender.ApplyInverse(visibleSurface->n,
                                                              visibleSurface->time);
-            p.nsSum += weight * outputFromRender.ApplyInverse(visibleSurface->ns,
-                                                              visibleSurface->time);
         } else {
             p.nSum += weight * outputFromRender(visibleSurface->n, visibleSurface->time);
-            p.nsSum +=
-                weight * outputFromRender(visibleSurface->ns, visibleSurface->time);
         }
 
         p.guidingId = visibleSurface->guidingData.id;
