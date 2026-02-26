@@ -35,6 +35,7 @@ My small contributions..
     we changed the name of the AOV 'main' to 'Combined' and defined with RGBA channels, to avoid a Blender warning, when the image is loaded into the internal buffer.
     This is the implementation into Blender ![render passes interface](/images/AOVS.png)
     
-  - Added support to use the binary hair definition files from Cem Yuksel format( only for CPU..) https://github.com/cemyuksel/cyCodeBase
+  - Added support to use the binary hair definition files from Cem Yuksel format( only for CPU..) https://github.com/cemyuksel/cyCodeBase.
+  - Extended the previously added support for AOV's to [GuidedBufferFilm](https://github.com/pbrt4bounty/pbrt-v4/commit/b067593d49f473020c7152361bc789b2d18c447a) to [RGBFilm](https://github.com/pbrt4bounty/pbrt-v4/commit/0a33de4b337fdb71f49a776e6e6ebbc31180139c), intended to improve the denoising results.
   - (w.i.p)
 
