@@ -27,6 +27,7 @@ From other forks:
 
 My small contributions..
   - Added Progresbar for interactive mode using [ImGui](https://github.com/ocornut/imgui) ![progres bar](images/ogl_progressbar.png)
+
   - Added the ability to set the different EXR channels defined in the GBuffer as user defined AOVS.
 
     The way to define which AOV's we want to generate is to add an array of integers, from 0 to 9 ``` "integer aovs' [ 0 1 2 3 ...]" ```
@@ -36,6 +37,14 @@ My small contributions..
     This is the implementation into Blender ![render passes interface](/images/AOVS.png)
     
   - Added support to use the binary hair definition files from Cem Yuksel format( only for CPU..) https://github.com/cemyuksel/cyCodeBase.
+
   - Extended the previously added support for AOV's to [GuidedBufferFilm](https://github.com/pbrt4bounty/pbrt-v4/commit/b067593d49f473020c7152361bc789b2d18c447a) to [RGBFilm](https://github.com/pbrt4bounty/pbrt-v4/commit/0a33de4b337fdb71f49a776e6e6ebbc31180139c), intended to improve the denoising results.
+
+    | Only 'Beauty'                            | With 'Albedo' and 'Normal'                       |
+    | ---------------------------------------- | ------------------------------------------------ |
+    | ![Beauty only](./images/only_beauty.png) | ![Albedo&normal](./images/albedo_and_normal.png) |
+
+    
+
   - (w.i.p)
 
