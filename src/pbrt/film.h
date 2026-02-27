@@ -446,9 +446,9 @@ class GuidedGBufferFilm : public FilmBase {
   public:
     // GuidedGBufferFilm Public Methods
     GuidedGBufferFilm(FilmBaseParameters p, const AnimatedTransform &outputFromRender,
-                bool applyInverse, const RGBColorSpace *colorSpace,
-                Float maxComponentValue = Infinity, bool writeFP16 = true,
-                Allocator alloc = {});
+                      bool applyInverse, const RGBColorSpace *colorSpace,
+                      std::vector<int> aovPasses = {}, Float maxComponentValue = Infinity,
+                      bool writeFP16 = true, Allocator alloc = {});
 
     static GuidedGBufferFilm *Create(const ParameterDictionary &parameters, Float exposureTime,
                                const CameraTransform &cameraTransform, Filter filter,
@@ -523,6 +523,7 @@ class GuidedGBufferFilm : public FilmBase {
     bool writeFP16;
     Float filterIntegral;
     SquareMatrix<3> outputRGBFromSensorRGB;
+    std::vector<int> aovPasses;
 };
 
 

@@ -1101,13 +1101,14 @@ void GuidedGBufferFilm::AddSample(Point2i pFilm, SampledSpectrum L,
 GuidedGBufferFilm::GuidedGBufferFilm(FilmBaseParameters p,
                                      const AnimatedTransform &outputFromRender,
                                      bool applyInverse, const RGBColorSpace *colorSpace,
-                                     Float maxComponentValue, bool writeFP16,
-                                     Allocator alloc)
+                                     std::vector<int> aovPasses, Float maxComponentValue,
+                                     bool writeFP16, Allocator alloc)
     : FilmBase(p),
       outputFromRender(outputFromRender),
       applyInverse(applyInverse),
       pixels(pixelBounds, alloc),
       colorSpace(colorSpace),
+      aovPasses(aovPasses),
       maxComponentValue(maxComponentValue),
       writeFP16(writeFP16),
       filterIntegral(filter.Integral()) {
@@ -1153,37 +1154,42 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     // Convert image to RGB and compute final pixel values
     LOG_VERBOSE("Converting image to RGB and computing final weighted pixel values");
     PixelFormat format = writeFP16 ? PixelFormat::Half : PixelFormat::Float;
+    pstd::vector<std::string> pass;
+
     std::string rgbMain[3] = {"R", "G", "B"};
-    if (getenv("PBRT4BLENDER")) {
-        rgbMain[0] = "Combined.R";
-        rgbMain[1] = "Combined.G";
-        rgbMain[2] = "Combined.B";
+    for (const int &p : aovPasses) {
+        if (p == 0 && getenv("PBRT4BLENDER")) {
+            rgbMain[0] = "Combined.R";
+            rgbMain[1] = "Combined.G";
+            rgbMain[2] = "Combined.B";
+        }
+        if (p == 1) {
+            pass.push_back("Albedo.R");
+            pass.push_back("Albedo.G");
+            pass.push_back("Albedo.B");
+        }
+        if (p == 4) {
+            pass.push_back("N.X");
+            pass.push_back("N.Y");
+            pass.push_back("N.Z");
+        }
+        if (p == 9) {
+            pass.push_back("GuideId.R");
+            pass.push_back("GuideId.G");
+            pass.push_back("GuideId.B");
+        }
     }
-    Image image(format, Point2i(pixelBounds.Diagonal()),
-                {
-                    rgbMain[0],
-                    rgbMain[1],
-                    rgbMain[2],
-                    "Albedo.R",
-                    "Albedo.G",
-                    "Albedo.B",
-                    "N.X",
-                    "N.Y",
-                    "N.Z",
-                    //"Ns.x",
-                    //"Ns.y",
-                    //"Ns.z",
-                    "GuideId.R",
-                    "GuideId.G",
-                    "GuideId.B",
-                });
+    pass.push_back(rgbMain[0]);
+    pass.push_back(rgbMain[1]);
+    pass.push_back(rgbMain[2]);
+
+    pstd::span<const std::string> aovs{pass};
+    Image image(format, Point2i(pixelBounds.Diagonal()), {aovs});
 
     ImageChannelDesc rgbDesc = image.GetChannelDesc({rgbMain});
     ImageChannelDesc albedoRgbDesc =
         image.GetChannelDesc({"Albedo.R", "Albedo.G", "Albedo.B"});
     ImageChannelDesc nDesc = image.GetChannelDesc({"N.X", "N.Y", "N.Z"});
-
-    // ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
     ImageChannelDesc guideIdRgbDesc =
         image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B"});
 
@@ -1230,21 +1236,16 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         if ((int)albedoRgbDesc.size() > 0)
             image.SetChannels(pOffset, albedoRgbDesc,
                               {albedoRgb[0], albedoRgb[1], albedoRgb[2]});
-        Normal3f n =
-            LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);
 
-        if ((int)nDesc.size() > 0)
+        if ((int)nDesc.size() > 0) {
+            Normal3f n =
+                LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);
             image.SetChannels(pOffset, nDesc, {n.x, n.y, n.z});
+        }
 
-        image.SetChannels(pOffset, guideIdRgbDesc,
-                          {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2]});
-
-        // Normal3f ns =
-        //     LengthSquared(pixel.nsSum) > 0 ? Normalize(pixel.nsSum) : Normal3f(0, 0,
-        //     0);
-        // image.SetChannels(pOffset, normalDesc, {(n.x+1.0f) * 0.5f, (n.y+1.0f) * 0.5f,
-        // (n.z+1.0f) * 0.5f}); image.SetChannels(pOffset, normalShadeDesc, {(ns.x+1.0f) *
-        // 0.5f, (ns.y+1.0f) * 0.5f, (ns.z+1.0f) * 0.5f});
+        if ((int)guideIdRgbDesc.size() > 0)
+            image.SetChannels(pOffset, guideIdRgbDesc,
+                              {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2]});
     });
 
     if (nClamped.load() > 0)
@@ -1282,6 +1283,7 @@ GuidedGBufferFilm *GuidedGBufferFilm::Create(const ParameterDictionary &paramete
         ErrorExit(loc, "%s: EXR is the only format supported by the GuidedGBufferFilm.",
                   filmBaseParameters.filename);
 
+    std::vector<int> aovPasses = parameters.GetIntArray("aovs");
     std::string coordinateSystem = parameters.GetOneString("coordinatesystem", "camera");
     AnimatedTransform outputFromRender;
     bool applyInverse = false;
@@ -1298,7 +1300,7 @@ GuidedGBufferFilm *GuidedGBufferFilm::Create(const ParameterDictionary &paramete
             coordinateSystem);
 
     return alloc.new_object<GuidedGBufferFilm>(filmBaseParameters, outputFromRender,
-                                               applyInverse, colorSpace,
+                                               applyInverse, colorSpace, aovPasses,
                                                maxComponentValue, writeFP16, alloc);
 }
 
