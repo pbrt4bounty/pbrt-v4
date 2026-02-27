@@ -261,19 +261,22 @@ class RGBFilm : public FilmBase {
         DCHECK(InsideExclusive(pFilm, pixelBounds));
         // Update pixel values with filtered sample contribution
         Pixel &pixel = pixels[pFilm];
-        //>
+
         if (visibleSurface && *visibleSurface) {
             SampledSpectrum albedo =
                 visibleSurface->albedo * colorSpace->illuminant.Sample(lambda);
             RGB albedoRGB = albedo.ToRGB(lambda, *colorSpace);
             for (int c = 0; c < 3; ++c)
                 pixel.rgbAlbedoSum[c] += weight * albedoRGB[c];
-            // we assume that coordinateSystem == "world" and applyInverse == false;
-            // enough for denoising.. ? need to compare rgb vs gbuffer results!
-            pixel.nSum += weight * outputFromRender(visibleSurface->n, visibleSurface->time);
-            
+
+            if (applyInverse)
+                pixel.nSum += weight * outputFromRender.ApplyInverse(
+                                           visibleSurface->n, visibleSurface->time);
+            else
+                pixel.nSum +=
+                    weight * outputFromRender(visibleSurface->n, visibleSurface->time);
         }
-        //>
+
         for (int c = 0; c < 3; ++c)
             pixel.rgbSum[c] += weight * rgb[c];
         pixel.weightSum += weight;
@@ -298,13 +301,15 @@ class RGBFilm : public FilmBase {
         return rgb;
     }
 
-    RGBFilm(FilmBaseParameters p, const RGBColorSpace *colorSpace,
+    RGBFilm(FilmBaseParameters p, const AnimatedTransform &outputFromRender,
+            bool applyInverse, const RGBColorSpace *colorSpace,
             Float maxComponentValue = Infinity, bool writeFP16 = true,
             std::vector<int> aovPasses = {}, bool applyBilateralFilter = false,
             Float sigmaSpatial = 2.0, Float sigmaRange = 0.1, Allocator alloc = {});
 
     static RGBFilm *Create(const ParameterDictionary &parameters, Float exposureTime,
-                           Filter filter, const RGBColorSpace *colorSpace,
+                           const CameraTransform &cameraTransform, Filter filter,
+                           const RGBColorSpace *colorSpace,
                            const FileLoc *loc, Allocator alloc);
 
     PBRT_CPU_GPU

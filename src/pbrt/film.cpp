@@ -481,11 +481,14 @@ Spectrum PixelSensor::swatchReflectances[nSwatchReflectances]{
 STAT_MEMORY_COUNTER("Memory/Film pixels", filmPixelMemory);
 
 // RGBFilm Method Definitions
-RGBFilm::RGBFilm(FilmBaseParameters p, const RGBColorSpace *colorSpace,
+RGBFilm::RGBFilm(FilmBaseParameters p, const AnimatedTransform &outputFromRender,
+                 bool applyInverse, const RGBColorSpace *colorSpace,
                  Float maxComponentValue, bool writeFP16, std::vector<int> aov_passes,
                  bool useBilateralFilter, Float sigmaSpatial, Float sigmaRange,
                  Allocator alloc)
     : FilmBase(p),
+      outputFromRender(outputFromRender),
+      applyInverse(applyInverse),
       pixels(p.pixelBounds, alloc),
       colorSpace(colorSpace),
       maxComponentValue(maxComponentValue),
@@ -711,15 +714,28 @@ std::string RGBFilm::ToString() const {
 }
 
 RGBFilm *RGBFilm::Create(const ParameterDictionary &parameters, Float exposureTime,
-                         Filter filter, const RGBColorSpace *colorSpace,
-                         const FileLoc *loc, Allocator alloc) {
-
+                         const CameraTransform &cameraTransform, Filter filter,
+                         const RGBColorSpace *colorSpace, const FileLoc *loc,
+                         Allocator alloc) {
     // Bilateral Filter Parameters
     bool useBilateralFilter = parameters.GetOneBool("bilateral", false);
     Float sigma_spatial = parameters.GetOneFloat("bilateral_sigma_spatial", 2.0);
     Float sigma_range = parameters.GetOneFloat("bilateral_sigma_range", 0.1);
 
     std::vector<int> aovPasses = parameters.GetIntArray("aovs");
+    std::string coordinateSystem = parameters.GetOneString("coordinatesystem", "camera");
+    AnimatedTransform outputFromRender;
+    bool applyInverse = false;
+    if (coordinateSystem == "camera") {
+        outputFromRender = cameraTransform.RenderFromCamera();
+        applyInverse = true;
+    } else if (coordinateSystem == "world")
+        outputFromRender = AnimatedTransform(cameraTransform.WorldFromRender());
+    else
+        ErrorExit(loc,
+                  "%s: unknown coordinate system for RGBFilm. (Expecting \"camera\" "
+                  "or \"world\".)",
+                  coordinateSystem);
 
     Float maxComponentValue = parameters.GetOneFloat("maxcomponentvalue", Infinity);
     bool writeFP16 = parameters.GetOneBool("savefp16", true);
@@ -728,9 +744,9 @@ RGBFilm *RGBFilm::Create(const ParameterDictionary &parameters, Float exposureTi
         PixelSensor::Create(parameters, colorSpace, exposureTime, loc, alloc);
     FilmBaseParameters filmBaseParameters(parameters, filter, sensor, loc);
 
-    return alloc.new_object<RGBFilm>(filmBaseParameters, colorSpace, maxComponentValue,
-                                     writeFP16, aovPasses, useBilateralFilter,
-                                     sigma_spatial, sigma_range, alloc);
+    return alloc.new_object<RGBFilm>(
+        filmBaseParameters, outputFromRender, applyInverse, colorSpace, maxComponentValue,
+        writeFP16, aovPasses, useBilateralFilter, sigma_spatial, sigma_range, alloc);
 }
 
 // GBufferFilm Method Definitions
@@ -1029,7 +1045,6 @@ GBufferFilm *GBufferFilm::Create(const ParameterDictionary &parameters,
 
     std::string coordinateSystem = parameters.GetOneString("coordinatesystem", "camera");
     std::vector<int> aovPasses = parameters.GetIntArray("aovs");
-    std::string mainChannel = parameters.GetOneString("main", "");
 
     AnimatedTransform outputFromRender;
     bool applyInverse = false;
@@ -1515,8 +1530,8 @@ Film Film::Create(const std::string &name, const ParameterDictionary &parameters
                   Filter filter, const FileLoc *loc, Allocator alloc) {
     Film film;
     if (name == "rgb")
-        film = RGBFilm::Create(parameters, exposureTime, filter, parameters.ColorSpace(),
-                               loc, alloc);
+        film = RGBFilm::Create(parameters, exposureTime, cameraTransform, filter,
+                               parameters.ColorSpace(), loc, alloc);
     else if (name == "gbuffer")
         film = GBufferFilm::Create(parameters, exposureTime, cameraTransform, filter,
                                    parameters.ColorSpace(), loc, alloc);

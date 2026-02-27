@@ -2333,7 +2333,8 @@ void BDPTIntegrator::Render() {
                     new BoxFilter,  // FIXME: leaks
                     camera.GetFilm().Diagonal() * 1000, PixelSensor::CreateDefault(),
                     filename);
-                weightFilms[BufferIndex(s, t)] = new RGBFilm(p, RGBColorSpace::sRGB);
+                weightFilms[BufferIndex(s, t)] =
+                    new RGBFilm(p, AnimatedTransform(), false, RGBColorSpace::sRGB);
             }
         }
     }
