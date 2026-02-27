@@ -300,8 +300,8 @@ class RGBFilm : public FilmBase {
 
     RGBFilm(FilmBaseParameters p, const RGBColorSpace *colorSpace,
             Float maxComponentValue = Infinity, bool writeFP16 = true,
-            Allocator alloc = {},
-            bool applyBilateralFilter = false, Float sigmaSpatial = 2.0, Float sigmaRange = 0.1);
+            std::vector<int> aovPasses = {}, bool applyBilateralFilter = false,
+            Float sigmaSpatial = 2.0, Float sigmaRange = 0.1, Allocator alloc = {});
 
     static RGBFilm *Create(const ParameterDictionary &parameters, Float exposureTime,
                            Filter filter, const RGBColorSpace *colorSpace,
@@ -347,7 +347,8 @@ class RGBFilm : public FilmBase {
     Float bilateralSigmaSpatial;
     Float bilateralSigmaRange;
 
-    // bounty: denoise
+    // aov's 
+    std::vector<int> aovPasses;
     AnimatedTransform outputFromRender;
     bool applyInverse;
 };

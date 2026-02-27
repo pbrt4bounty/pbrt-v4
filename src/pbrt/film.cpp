@@ -482,16 +482,18 @@ STAT_MEMORY_COUNTER("Memory/Film pixels", filmPixelMemory);
 
 // RGBFilm Method Definitions
 RGBFilm::RGBFilm(FilmBaseParameters p, const RGBColorSpace *colorSpace,
-                 Float maxComponentValue, bool writeFP16, Allocator alloc,
-                 bool useBilateralFilter, Float sigmaSpatial, Float sigmaRange)
+                 Float maxComponentValue, bool writeFP16, std::vector<int> aov_passes,
+                 bool useBilateralFilter, Float sigmaSpatial, Float sigmaRange,
+                 Allocator alloc)
     : FilmBase(p),
       pixels(p.pixelBounds, alloc),
       colorSpace(colorSpace),
       maxComponentValue(maxComponentValue),
       writeFP16(writeFP16),
+      aovPasses(aov_passes),
       applyBilateral(useBilateralFilter),
       bilateralSigmaSpatial(sigmaSpatial),
-      bilateralSigmaRange(sigmaRange){
+      bilateralSigmaRange(sigmaRange) {
     filterIntegral = filter.Integral();
     CHECK(!pixelBounds.IsEmpty());
     CHECK(colorSpace);
@@ -500,7 +502,7 @@ RGBFilm::RGBFilm(FilmBaseParameters p, const RGBColorSpace *colorSpace,
 #if !defined(PBRT_RGB_RENDERING)
     outputRGBFromSensorRGB = colorSpace->RGBFromXYZ * sensor->XYZFromSensorRGB;
 #else
-    outputRGBFromSensorRGB = SquareMatrix<3>::Diag(1.f,1.f,1.f);
+    outputRGBFromSensorRGB = SquareMatrix<3>::Diag(1.f, 1.f, 1.f);
 #endif
 }
 
@@ -557,7 +559,7 @@ void RGBFilm::ApplyBilateralFilter(Image &image, Float sigmaSpatial, Float sigma
         return image.GetChannels(Point2i(x,y));
     };
 
-    // Helper Functoin2: Get the distance between two pixels squared
+    // Helper Function2: Get the distance between two pixels squared
     auto dist2 = [&](int x, int y, int x2, int y2) {
         return (x - x2) * (x - x2) + (y - y2) * (y - y2);
     };
@@ -625,26 +627,33 @@ Image RGBFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     // Convert image to RGB and compute final pixel values
     LOG_VERBOSE("Converting image to RGB and computing final weighted pixel values");
     PixelFormat format = writeFP16 ? PixelFormat::Half : PixelFormat::Float;
+    pstd::vector<std::string> pass;
+
     std::string rgbMain[3] = {"R", "G", "B"};
-    if (getenv("PBRT4BLENDER")) {
-        rgbMain[0] = "Combined.R";
-        rgbMain[1] = "Combined.G";
-        rgbMain[2] = "Combined.B";
+    for (const int &p : aovPasses) {
+        if (p == 0 && getenv("PBRT4BLENDER")) {
+            rgbMain[0] = "Combined.R";
+            rgbMain[1] = "Combined.G";
+            rgbMain[2] = "Combined.B";
+        }
+        if (p == 1) {
+            pass.push_back("Albedo.R");
+            pass.push_back("Albedo.G");
+            pass.push_back("Albedo.B");
+        }
+        if (p == 4) {
+            pass.push_back("N.X");
+            pass.push_back("N.Y");
+            pass.push_back("N.Z");
+        }
     }
-    // povmaniac: Add albedo and normal channels for denoising
-    // TO DO: make this optional
-    Image image(format, Point2i(pixelBounds.Diagonal()),
-                {
-                    rgbMain[0],
-                    rgbMain[1],
-                    rgbMain[2],
-                    "Albedo.R",
-                    "Albedo.G",
-                    "Albedo.B",
-                    "N.X",
-                    "N.Y",
-                    "N.Z",
-                });
+    pass.push_back(rgbMain[0]);
+    pass.push_back(rgbMain[1]);
+    pass.push_back(rgbMain[2]);
+
+    pstd::span<const std::string> aovs{pass};
+    Image image(format, Point2i(pixelBounds.Diagonal()), {aovs});
+
     ImageChannelDesc rgbDesc = image.GetChannelDesc({rgbMain});
     ImageChannelDesc albedoRgbDesc =
         image.GetChannelDesc({"Albedo.R", "Albedo.G", "Albedo.B"});
@@ -677,10 +686,12 @@ Image RGBFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         if ((int)albedoRgbDesc.size() > 0)
             image.SetChannels(pOffset, albedoRgbDesc,
                               {albedoRgb[0], albedoRgb[1], albedoRgb[2]});
-        Normal3f n =
-            LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);
-        if ((int)nDesc.size() > 0)
+
+        if ((int)nDesc.size() > 0) {
+            Normal3f n =
+                LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);
             image.SetChannels(pOffset, nDesc, {n.x, n.y, n.z});
+        }
     });
 
     if (nClamped.load() > 0)
@@ -708,6 +719,7 @@ RGBFilm *RGBFilm::Create(const ParameterDictionary &parameters, Float exposureTi
     Float sigma_spatial = parameters.GetOneFloat("bilateral_sigma_spatial", 2.0);
     Float sigma_range = parameters.GetOneFloat("bilateral_sigma_range", 0.1);
 
+    std::vector<int> aovPasses = parameters.GetIntArray("aovs");
 
     Float maxComponentValue = parameters.GetOneFloat("maxcomponentvalue", Infinity);
     bool writeFP16 = parameters.GetOneBool("savefp16", true);
@@ -717,7 +729,8 @@ RGBFilm *RGBFilm::Create(const ParameterDictionary &parameters, Float exposureTi
     FilmBaseParameters filmBaseParameters(parameters, filter, sensor, loc);
 
     return alloc.new_object<RGBFilm>(filmBaseParameters, colorSpace, maxComponentValue,
-                                     writeFP16, alloc, useBilateralFilter, sigma_spatial, sigma_range);
+                                     writeFP16, aovPasses, useBilateralFilter,
+                                     sigma_spatial, sigma_range, alloc);
 }
 
 // GBufferFilm Method Definitions
