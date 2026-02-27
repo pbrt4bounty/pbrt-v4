@@ -1425,8 +1425,15 @@ Image SpectralFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     // Convert image to RGB and compute final pixel values
     LOG_VERBOSE("Computing final weighted pixel values");
     PixelFormat format = writeFP16 ? PixelFormat::Half : PixelFormat::Float;
+    // something to load into Blender buffers :)
+    std::string rgbMain[3] = {"R", "G", "B"};
+    if (getenv("PBRT4BLENDER")) {
+        rgbMain[0] = "Combined.R";
+        rgbMain[1] = "Combined.G";
+        rgbMain[2] = "Combined.B";
+    }
 
-    std::vector<std::string> imageChannels{{"R", "G", "B"}};
+    std::vector<std::string> imageChannels = {{rgbMain[0], rgbMain[1], rgbMain[2]}};
     for (int i = 0; i < nBuckets; ++i) {
         // The OpenEXR spectral layout takes the bucket center (and then
         // determines bucket widths based on the neighbor wavelengths).
