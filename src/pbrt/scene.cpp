@@ -250,11 +250,11 @@ void BasicSceneBuilder::WorldBegin(FileLoc loc) {
     scene->SetOptions(filter, film, camera, sampler, integrator, accelerator);
 }
 
-void BasicSceneBuilder::WorldEnd(FileLoc loc) {
+/*void BasicSceneBuilder::WorldEnd(FileLoc loc) {
         // Reset graphics state for _WorldBegin_
     currentBlock = BlockState::WorldBlock;
-    scene->CreateCamera(camera);
-}
+    scene->AddCameraMedium(camera);
+}*/
 
 void BasicSceneBuilder::MakeNamedMedium(const std::string &origName,
                                         ParsedParameterVector params, FileLoc loc) {
@@ -703,6 +703,9 @@ void BasicSceneBuilder::EndOfFiles() {
     if (!instanceUses.empty())
         scene->AddInstanceUses(instanceUses);
 
+    // TO DO: add some checks about defined medium's..?
+    scene->AddCameraMedium(camera);
+
     scene->Done();
 }
 
@@ -1067,6 +1070,8 @@ void BasicScene::SetOptions(SceneEntity filter, SceneEntity film,
     cameraJob = RunAsync([camera, this]() {
         LOG_VERBOSE("Starting to create camera");
         Allocator alloc = threadAllocators.Get();
+        // bounty: some explanation about the origin of this change
+        // https://github.com/mmp/pbrt-v4/issues/415
         //Medium cameraMedium = GetMedium(camera.medium, &camera.loc);
         Medium cameraMedium = nullptr;
         Camera c = Camera::Create(camera.name, camera.parameters, cameraMedium,
@@ -1078,26 +1083,12 @@ void BasicScene::SetOptions(SceneEntity filter, SceneEntity film,
 }
 
 // BasicScene Method Definitions
-void BasicScene::CreateCamera(CameraSceneEntity camera) {
-    
+void BasicScene::AddCameraMedium(CameraSceneEntity camera) {
     Medium cameraMedium = GetMedium(camera.medium, &camera.loc);
-    if(cameraMedium) {
-        std::cout << "SetMedium" << std::endl;
+    if (cameraMedium) {
+        std::cout << "SetMedium" << std::endl; // TO DO: move to Log Verbose ?
         this->camera.SetMedium(cameraMedium);
     }
-    // Enqueue asynchronous job to create camera
-    /*
-    cameraJob = RunAsync([camera, this]() {
-        LOG_VERBOSE("Starting to create camera");
-        Allocator alloc = threadAllocators.Get();
-        Medium cameraMedium = GetMedium(camera.medium, &camera.loc);
-
-        Camera c = Camera::Create(camera.name, camera.parameters, cameraMedium,
-                                  camera.cameraTransform, this->film, &camera.loc, alloc);
-        LOG_VERBOSE("Finished creating camera");
-        return c;
-    });
-    */
 }
 
 void BasicScene::AddMedium(MediumSceneEntity medium) {
