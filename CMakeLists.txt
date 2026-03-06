@@ -97,6 +97,7 @@ find_package(OpenGL REQUIRED)
 set_property (GLOBAL PROPERTY USE_FOLDERS ON)
 
 if (MSVC)
+  set ( CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /nodefaultlib:libcmt.lib")
   list (APPEND PBRT_DEFINITIONS "PBRT_IS_MSVC" "_CRT_SECURE_NO_WARNINGS")
   list (APPEND PBRT_DEFINITIONS "PBRT_IS_MSVC" "_ENABLE_EXTENDED_ALIGNED_STORAGE")
 else()
@@ -129,7 +130,7 @@ endif()
 
 ###########################################################################
 # path guiding (Open PGL)
-option(PBRT_WITH_PATH_GUIDING "Build PBRT with path guiding (Open PGL) support." ON)
+option(PBRT_WITH_PATH_GUIDING "Build PBRT with path guiding (Open PGL) support." OFF)
 
 if(PBRT_WITH_PATH_GUIDING)
   list (APPEND PBRT_DEFINITIONS "PBRT_WITH_PATH_GUIDING")
@@ -137,7 +138,7 @@ endif()
 
 ###########################################################################
 # path guiding (Open PGL)
-option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." ON)
+option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." OFF)
 
 if(PBRT_WITH_OIDN)
   list (APPEND PBRT_DEFINITIONS "PBRT_WITH_OIDN")
@@ -145,7 +146,7 @@ endif()
 
 ###########################################################################
 # Enable RGB mode
-option(PBRT_WITH_RGB "Enable RGB rendering in favor of spectral rendering." ON)
+option(PBRT_WITH_RGB "Enable RGB rendering in favor of spectral rendering." OFF)
 
 if(PBRT_WITH_RGB)
   list (APPEND PBRT_DEFINITIONS "PBRT_RGB_RENDERING")
