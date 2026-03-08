@@ -564,13 +564,6 @@ NanoVDBMedium::NanoVDBMedium(const Transform &renderFromMedium, Spectrum sigma_a
                              const RGBColorSpace *cs, Allocator alloc)
 #endif
     : renderFromMedium(renderFromMedium),
-#if !defined(PBRT_RGB_RENDERING)
-      sigma_a_spec(sigma_a, alloc),
-      sigma_s_spec(sigma_s, alloc),
-#else
-      sigma_a_spec(*cs, sigma_a.ToRGBUnbounded(*cs).GetRGB()),
-      sigma_s_spec(*cs, sigma_s.ToRGBUnbounded(*cs).GetRGB()),
-#endif
       phase(g),
       majorantGrid(Bounds3f(), {64, 64, 64}, alloc),
       densityGrid(std::move(dg)),
@@ -578,8 +571,19 @@ NanoVDBMedium::NanoVDBMedium(const Transform &renderFromMedium, Spectrum sigma_a
       LeScale(LeScale),
       temperatureOffset(temperatureOffset),
       temperatureScale(temperatureScale),
+
+#if !defined(PBRT_RGB_RENDERING)
+      sigma_a_spec(sigma_a, alloc),
+      sigma_s_spec(sigma_s, alloc),
+      majorantScale(1.0),
+      densityOffset(0.0)
+#else
+      sigma_a_spec(*cs, sigma_a.ToRGBUnbounded(*cs).GetRGB()),
+      sigma_s_spec(*cs, sigma_s.ToRGBUnbounded(*cs).GetRGB()),
       majorantScale(majorantScale),
-      densityOffset(densityOffset) {
+      densityOffset(densityOffset)
+#endif
+{
     densityFloatGrid = densityGrid.grid<float>();
 
     sigma_a_spec.Scale(sigmaScale);

@@ -137,7 +137,7 @@ if(PBRT_WITH_PATH_GUIDING)
 endif()
 
 ###########################################################################
-# path guiding (Open PGL)
+# Enable OIDN (for Open Path Guiding only..?)
 option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." OFF)
 
 if(PBRT_WITH_OIDN)
