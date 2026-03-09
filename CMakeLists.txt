@@ -16,7 +16,7 @@ endif ()
 list (INSERT CMAKE_MODULE_PATH 0 "${PBRT_SOURCE_CODE}/cmake")
 
 # set pbrt build version
-#include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SetVersion.txt)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/SetVersion.txt)
 
 # Configuration options
 

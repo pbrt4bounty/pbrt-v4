@@ -21,6 +21,8 @@
 #include <pbrt/util/spectrum.h>
 #include <pbrt/util/string.h>
 #include <pbrt/wavefront/wavefront.h>
+// test
+#include <pbrt/version.h>
 
 #ifdef PBRT_WITH_PROCEDURAL
 #include <pbrt/util/transform.h>
@@ -114,9 +116,14 @@ Experimental options:
                                 This ignore the 'spp' value, both from the scene file or command line.
   --volMajScale                 Majorant scaling factor of the volumes in the scene.
                                 Used for rendering experiments on the server.
+  --version                     Print the compiled version in string format.
 )",
             NSpectrumSamples);
     exit(msg.empty() ? 0 : 1);
+}
+
+static void printVersion() {
+    printf("Pbrt4Bounty compiled version: %s\n", PBRT4_STR_VER);
 }
 
 // main program
@@ -227,7 +234,11 @@ int main(int argc, char *argv[]) {
         } else if (*iter == "--help" || *iter == "-help" || *iter == "-h") {
             usage();
             return 0;
-        } else {
+        } else if (*iter == "--version" || *iter == "-version" || *iter == "-v") {
+            printVersion();
+            return 0;
+        }
+        else {
             usage(StringPrintf("argument \"%s\" unknown", *iter));
             return 1;
         }
@@ -244,6 +255,8 @@ int main(int argc, char *argv[]) {
         printf("The source code to pbrt (but *not* the book contents) is covered "
                "by the Apache 2.0 License.\n");
         printf("See the file LICENSE.txt for the conditions of the license.\n");
+        printf("Pbrt4Bounty version %s, Copyright (c)2022-2026 Pedro A. 'povmaniac'.\n",
+               PBRT4_STR_VER);
         fflush(stdout);
     }
 
