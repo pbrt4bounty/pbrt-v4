@@ -52,12 +52,6 @@ jobs:
         repository: mmp/rgb2spectrum
         path: build
 
-    #- name: Cache OptiX headers
-    #  uses: actions/cache@v4
-    #  with:
-    #    path: optix
-    #    key: optix-7.12345
-
     - name: Get cmake
       uses: lukka/get-cmake@latest
 
@@ -80,6 +74,7 @@ jobs:
         name: pbrt-v4_${{ matrix.os }}_${{ matrix.cuda }}_${{ matrix.optix }}
         path: "${{ github.workspace }}/build/deploy/"
         retention-days: 1
+
 
 
 
