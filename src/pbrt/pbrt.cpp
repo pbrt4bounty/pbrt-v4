@@ -27,6 +27,9 @@
 #include <stdlib.h>
 
 #ifdef PBRT_IS_WINDOWS
+#ifdef APIENTRY
+#undef APIENTRY
+#endif
 #include <Windows.h>
 #endif  // PBRT_IS_WINDOWS
 
