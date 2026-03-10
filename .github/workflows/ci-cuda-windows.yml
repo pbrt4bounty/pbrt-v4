@@ -36,7 +36,7 @@ jobs:
       id: cuda-toolkit
       with:
         cuda: ${{ matrix.cuda }}
-        method: 'network'
+        method: 'local' #'network'
         sub-packages: '[ "nvcc", "cudart", "visual_studio_integration" ]'
 
     - name: Check NVCC
