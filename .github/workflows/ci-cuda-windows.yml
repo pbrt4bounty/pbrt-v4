@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         optix: [ optix-8.0.0 ] # optix-7.5.0, optix-7.7.0, optix-8.0.0 ]
-        cuda: [ '13.1.0' ] # '12.8.1' ] # '12.4.0', '11.7.0', '12.1.0', '12.2.2', '12.3.2' ]
+        cuda: [ '12.8.1' ] # '12.4.0', '11.7.0', '12.1.0', '12.2.2', '12.3.2' ]
         os: [ windows-latest ]
         config: [ '-DPBRT_WITH_OIDN=False' ]
 
@@ -36,7 +36,7 @@ jobs:
       id: cuda-toolkit
       with:
         cuda: ${{ matrix.cuda }}
-        method: 'local' #'network'
+        method: 'network'
         sub-packages: '[ "nvcc", "cudart", "visual_studio_integration" ]'
 
     - name: Check NVCC
