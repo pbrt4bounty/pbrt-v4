@@ -886,7 +886,7 @@ class EarthMedium {
         uv[1] *= Inv2Pi;
         uv[1] = uv[1] - std::floor(uv[1]);
 
-        std::swap(uv[0], uv[1]);
+        pstd::swap(uv[0], uv[1]);
         return uv;
     }
 
