@@ -46,6 +46,7 @@ void GPUInit() {
     int clockRateKHz = 0;
     for (int i = 0; i < nDevices; ++i) {
         cudaDeviceProp deviceProperties;
+        CUDA_CHECK(cudaGetDeviceProperties(&deviceProperties, i));
 #if CUDART_VERSION >= 13000
         CUdevice cdevice;
         cuDeviceGet(&cdevice, i);
@@ -53,7 +54,6 @@ void GPUInit() {
 #else
         clockRateKHz = deviceProperties.clockRate;
 #endif
-        CUDA_CHECK(cudaGetDeviceProperties(&deviceProperties, i));
         CHECK(deviceProperties.canMapHostMemory);
 
         std::string deviceString = StringPrintf(
