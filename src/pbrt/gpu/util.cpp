@@ -43,16 +43,24 @@ void GPUInit() {
     int nDevices;
     CUDA_CHECK(cudaGetDeviceCount(&nDevices));
     std::string devices;
+    int clockRateKHz = 0;
     for (int i = 0; i < nDevices; ++i) {
         cudaDeviceProp deviceProperties;
         CUDA_CHECK(cudaGetDeviceProperties(&deviceProperties, i));
+#if CUDART_VERSION >= 13000
+        CUdevice cdevice;
+        cuDeviceGet(&cdevice, i);
+        cuDeviceGetAttribute(&clockRateKHz, CU_DEVICE_ATTRIBUTE_CLOCK_RATE, cdevice);
+#else
+        clockRateKHz = deviceProperties.clockRate;
+#endif
         CHECK(deviceProperties.canMapHostMemory);
 
         std::string deviceString = StringPrintf(
             "CUDA device %d (%s) with %f MiB, %d SMs running at %f MHz "
             "with shader model %d.%d",
             i, deviceProperties.name, deviceProperties.totalGlobalMem / (1024. * 1024.),
-            deviceProperties.multiProcessorCount, deviceProperties.clockRate / 1000.,
+            deviceProperties.multiProcessorCount, clockRateKHz / 1000.,
             deviceProperties.major, deviceProperties.minor);
         LOG_VERBOSE("%s", deviceString);
         devices += deviceString + "\n";
