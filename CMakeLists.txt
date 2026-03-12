@@ -65,7 +65,7 @@ function (CHECK_EXT NAME DIR HASH)
   endif (GIT_FOUND)
 endfunction ()
 
-check_ext ("OpenEXR" "openexr/src" 54dd6d7ee8b0ef90a0e4d064b644eddb61efb644)
+check_ext ("OpenEXR" "openexr/src" 6661cb40c6fa8d332f142e660e25ac96675c15bd)
 check_ext ("OpenVDB" "openvdb/nanovdb" 414bed84c2fc22e188eac7b611aa85c7edd7a5a9)
 check_ext ("Ptex" "ptex/src" 054047d02b9e06e690420b407114d2872435b953)
 check_ext ("double-conversion" "double-conversion/cmake" cc1f75a114aca8d2af69f73a5a959aecbab0e87a)
@@ -122,9 +122,6 @@ else ()
   set (BUILD_TESTING OFF CACHE BOOL " " FORCE)
   set (OPENEXR_BUILD_TOOLS OFF CACHE BOOL " " FORCE)
   set (OPENEXR_BUILD_EXAMPLES OFF CACHE BOOL " " FORCE)
-  if(libdeflate_FOUND)
-    set (OPENEXR_FORCE_INTERNAL_DEFLATE OFF CACHE BOOL " " FORCE)
-  endif()
   
   add_subdirectory (src/ext/openexr)
   set_property (TARGET IlmThread Iex OpenEXR
