@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        optix: [ optix-8.0.0 ] # optix-9.0.0 ]
+        optix: [ optix-9.0.0 ] # optix-8.0.0 ]
         cuda: [ '13.1.0' ] #, '12.8.1', '12.4.0' ]
         os: [ windows-latest ]
         config: [ '-DPBRT_WITH_OIDN=False' ]
