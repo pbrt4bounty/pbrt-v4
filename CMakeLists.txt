@@ -113,6 +113,14 @@ if (PBRT_DBG_LOGGING)
 endif ()
 
 ##########################################################################
+# Use original PBRT implementations for 'Regularize' and 'RoughnessToAlpha'
+option (PBRT_MASTER_BRANCH "Enable a few original implementations" OFF)
+
+if (PBRT_MASTER_BRANCH)
+  list (APPEND PBRT_DEFINITIONS "PBRT_MASTER_BRANCH")
+endif ()
+
+##########################################################################
 # experimental Point Cloud support from other fork
 option (PBRT_WITH_POINTCLOUD "Enable experimental point cloud support" OFF)
 

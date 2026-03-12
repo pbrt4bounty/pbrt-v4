@@ -575,7 +575,6 @@ class BlackbodySpectrum {
     Float operator()(Float lambda) const {
 #if defined(PBRT_RGB_RENDERING) && !defined(PBRT_IS_GPU_CODE)
         //LOG_VERBOSE("BlackbodySpectrum: operator()(Float lambda) should not be called in RGB rendering mode");
-        return lambda; // TODO: bounty, we need to review..
 #else
         return Blackbody(lambda, T) * normalizationFactor;
 #endif
