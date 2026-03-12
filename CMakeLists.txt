@@ -122,6 +122,9 @@ else ()
   set (BUILD_TESTING OFF CACHE BOOL " " FORCE)
   set (OPENEXR_BUILD_TOOLS OFF CACHE BOOL " " FORCE)
   set (OPENEXR_BUILD_EXAMPLES OFF CACHE BOOL " " FORCE)
+  if(libdeflate_FOUND)
+    set (OPENEXR_FORCE_INTERNAL_DEFLATE OFF CACHE BOOL " " FORCE)
+  endif()
   
   add_subdirectory (src/ext/openexr)
   set_property (TARGET IlmThread Iex OpenEXR
