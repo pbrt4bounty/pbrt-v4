@@ -24,6 +24,17 @@
 #include <numeric>
 #include <string>
 
+#if defined(PBRT_WITH_OPENPBR)
+#ifndef _OPEN_PBR_
+#define _OPEN_PBR_
+
+#define OPENPBR_LANGUAGE_TARGET_CPP 1
+#include <ext/glm/glm.hpp>
+#include <ext/openpbr/openpbr.h>
+
+#endif // _OPEN_PBR_
+#endif
+
 namespace pbrt {
 
 std::string MaterialEvalContext::ToString() const {
@@ -204,6 +215,88 @@ DiffuseMaterial *DiffuseMaterial::Create(const TextureParameterDictionary &param
 
     return alloc.new_object<DiffuseMaterial>(reflectance, displacement, normalMap);
 }
+
+#if defined(PBRT_WITH_OPENPBR)
+//----------[ Open PBR test ]------------------------------
+static float lcg_float(std::uint32_t& state)
+{
+    state = state * 1664525u + 1013904223u;
+
+    // Use the upper 24 bits and scale by 2^-24 to map into [0, 1).
+    return static_cast<float>(state >> 8u) * 0x1.0p-24f;
+}
+// DiffuseMaterialPBR Method Definitions
+std::string DiffuseMaterialPBR::ToString() const {
+    return StringPrintf(
+        "[ DiffuseMaterialPBR displacement: %s normapMap: %s reflectance: %s ]",
+        displacement, normalMap ? normalMap->ToString() : std::string("(nullptr)"),
+        reflectance);
+}
+
+DiffuseMaterialPBR *DiffuseMaterialPBR::Create(
+    const TextureParameterDictionary &parameters, Image *normalMap, const FileLoc *loc,
+    Allocator alloc) {
+    SpectrumTexture reflectance = parameters.GetSpectrumTexture(
+        "reflectance", nullptr, SpectrumType::Albedo, alloc);
+    if (!reflectance)
+        reflectance = alloc.new_object<SpectrumConstantTexture>(
+            alloc.new_object<ConstantSpectrum>(0.5f));
+    FloatTexture displacement = parameters.GetFloatTextureOrNull("displacement", alloc);
+    // TEST
+    // Set up a simple material.
+    OpenPBR_ResolvedInputs inputs = openpbr_make_default_resolved_inputs();
+    inputs.base_color = vec3(0.8f, 0.3f, 0.1f);  // terracotta
+    inputs.specular_roughness = 0.4f;
+
+    // The local frame at the surface hit point is stored in inputs.shading_basis,
+    // which is not part of the official OpenPBR spec.
+    // It defaults to a Z-up frame: tangent = X, bitangent = Y, normal = Z.
+    // In a real renderer, replace it with world-space vectors from the geometry,
+    // and keep view_direction and light_direction in that same space.
+
+    // Prepare the BSDF. view_direction points away from the surface toward the camera
+    // and must be in the same space as shading_basis. Here it is 45 degrees from the
+    // surface normal.
+    const vec3 view_direction = normalize(vec3(1.0f, 0.0f, 1.0f));
+
+    const OpenPBR_PreparedBsdf prepared = openpbr_prepare_bsdf_and_volume(
+        inputs,
+        vec3(1.0f),                     // path throughput
+        OpenPBR_BaseRgbWavelengths_nm,  // fixed RGB wavelengths for this example
+        OpenPBR_VacuumIor,              // IOR of the medium above the surface
+        view_direction);
+
+    // Importance-sample the BSDF.
+    // Each xi is computed on its own line here: C++ does not guarantee argument
+    // evaluation order, so vec3(f(), f(), f()) could consume RNG values in an unspecified
+    // order.
+    constexpr std::uint32_t RngSeed = 12345u;  // fixed seed for reproducibility
+    std::uint32_t rng_state = RngSeed;
+    const float xi0 = lcg_float(rng_state);
+    const float xi1 = lcg_float(rng_state);
+    const float xi2 = lcg_float(rng_state);
+    vec3 light_direction;
+    OpenPBR_DiffuseSpecular weight;
+    float pdf;
+    OpenPBR_BsdfLobeType lobe_type;
+
+    openpbr_sample(prepared, vec3(xi0, xi1, xi2), light_direction, weight, pdf,
+                   lobe_type);
+    if (pdf > 0.0f) {
+        const vec3 weight_sum = openpbr_get_sum_of_diffuse_specular(weight);
+        std::cout << "Sampled direction : (" << light_direction.x << ", "
+                  << light_direction.y << ", " << light_direction.z << ")\n";
+        std::cout << "Throughput weight : (" << weight_sum.x << ", " << weight_sum.y
+                  << ", " << weight_sum.z << ")\n";
+        std::cout << "Sampling PDF      : " << pdf << "\n";
+    }
+
+    // END
+
+    return alloc.new_object<DiffuseMaterialPBR>(reflectance, displacement, normalMap);
+}
+#endif
+//---------------------------------------------------------
 
 // ConductorMaterial Method Definitions
 std::string ConductorMaterial::ToString() const {
@@ -737,6 +830,10 @@ Material Material::Create(const std::string &name,
         return nullptr;
     else if (name == "diffuse")
         material = DiffuseMaterial::Create(parameters, normalMap, loc, alloc);
+#if defined(PBRT_WITH_OPENPBR)
+    else if (name == "diffusePBR")
+        material = DiffuseMaterialPBR::Create(parameters, normalMap, loc, alloc);
+#endif
     else if (name == "coateddiffuse")
         material = CoatedDiffuseMaterial::Create(parameters, normalMap, loc, alloc);
     else if (name == "cooktorrance")

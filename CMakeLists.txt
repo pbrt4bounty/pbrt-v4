@@ -113,6 +113,15 @@ if (PBRT_DBG_LOGGING)
 endif ()
 
 ##########################################################################
+# Use experimental OpenPBR implementation from Adobe-bsdf
+option (PBRT_WITH_OPENPBR "Enable experimental OpenPBR implementation" OFF)
+
+if (PBRT_WITH_OPENPBR)
+  list (APPEND PBRT_DEFINITIONS "PBRT_WITH_OPENPBR")
+  #set (OPENPBR_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/openpbr ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/vc22/glm)
+endif ()
+
+##########################################################################
 # Use original PBRT implementations for 'Regularize' and 'RoughnessToAlpha'
 option (PBRT_MASTER_BRANCH "Enable a few original implementations" OFF)
 
@@ -972,6 +981,7 @@ target_include_directories (pbrt_lib PUBLIC
   ${STB_INCLUDE}
   ${QOI_INCLUDE}
   ${OPENEXR_INCLUDE}
+  #${OPENPBR_INCLUDE}
   ${ZLIB_INCLUDE_DIR}
   ${LIBDEFLATE_INCLUDE_DIRS}
   ${FILESYSTEM_INCLUDE}
@@ -1238,7 +1248,7 @@ set (PBRT_TEST_SOURCE
   )
 
 # we need any explicit variable to manage this..
-#if(NOT PBRT_WITH_RGB)
+if(PBRT_WITH_TEST)
 add_executable (pbrt_test src/pbrt/cmd/pbrt_test.cpp ${PBRT_TEST_SOURCE})
 
 target_link_libraries (pbrt_test PRIVATE ${ALL_PBRT_LIBS} pbrt_opt pbrt_warnings)
@@ -1251,7 +1261,7 @@ add_sanitizers (pbrt_test)
 add_test (pbrt_unit_test pbrt_test)
 
 set_property (TARGET pbrt_test PROPERTY FOLDER "cmd")
-#endif()
+endif()
 
 ###############################
 # Installation

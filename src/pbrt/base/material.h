@@ -32,6 +32,9 @@ class MeasuredMaterial;
 class SubsurfaceMaterial;
 class ThinDielectricMaterial;
 class MixMaterial;
+#if defined(PBRT_WITH_OPENPBR)
+class DiffuseMaterialPBR;
+#endif
 
 // Material Definition
 class Material : public TaggedPointer<  // Material Types
@@ -39,7 +42,10 @@ class Material : public TaggedPointer<  // Material Types
                      CookTorranceMaterial, DielectricMaterial, DiffuseMaterial,
                      DiffuseTransmissionMaterial, HairMaterial, MeasuredMaterial,
                      SubsurfaceMaterial, ThinDielectricMaterial, MixMaterial
-
+#if defined(PBRT_WITH_OPENPBR)
+                     ,
+                     DiffuseMaterialPBR
+#endif
                      > {
   public:
     // Material Interface
