@@ -79,9 +79,11 @@ class Integrator {
         LOG_VERBOSE("Scene bounds %s", sceneBounds);
         for (auto &light : lights) {
             light.Preprocess(sceneBounds);
-            // pov: STAY AWAY FOR POSSIBLE ERRORS!!!! WE ADDED DELTADIRECCTION!!!
-            if (light.Type() == LightType::Infinite ||
-                light.Type() == LightType::DeltaDirection)
+            // VSPG add here 'LightType::DeltaDirection' but this cause a hiper lighted
+            // render when both 'distant' and 'infinite' light types are added to scene.
+            // We need to check if this addition is necessary for VSPG or we can removed.
+            // ||   light.Type() == LightType::DeltaDirection)
+            if (light.Type() == LightType::Infinite) 
                 infiniteLights.push_back(light);
         }
     }
@@ -603,21 +605,6 @@ class GuidedVolPathVSPGIntegrator : public RayIntegrator {
 
   private:
     // GuidedVolPathVSPGIntegrator Private Methods
-    void SampleDistance(Point2i pPixel, RayDifferential &ray, Float tMax,
-                        SampledWavelengths &lambda, Sampler &sampler, RNG &rng,
-                        bool &scattered, bool &terminated, int &depth, SampledSpectrum &L,
-                        SampledSpectrum &beta, SampledSpectrum &r_u, SampledSpectrum &r_l,
-                        bool &specularBounce, bool &anyNonSpecularBounces,
-                        LightSampleContext &prevIntrContext, bool &lastVertexVolume,
-                        openpgl::cpp::PathSegmentStorage *pathSegmentStorage,
-                        openpgl::cpp::PathSegment **pathSegmentDataPointer,
-                        const GuidedBSDF &gbsdf, GuidedPhaseFunction &gphase,
-                        GuidedInscatteredRadiance ginscatteredradiance,
-                        float rr_correction, SampledSpectrum &transmittanceWeight,
-                        bool guideRR, bool guideVolumeRR,
-                        SampledSpectrum &adjointEstimate,
-                        SampledSpectrum &pixelContributionEstimate) const;
-
 #if defined(OPENPGL_IMAGE_SPACE_GUIDING_BUFFER)
     void SampleDistance(Point2i pPixel, RayDifferential &ray, Float tMax,
                         SampledWavelengths &lambda, Sampler &sampler, RNG &rng,
@@ -631,6 +618,21 @@ class GuidedVolPathVSPGIntegrator : public RayIntegrator {
                         GuidedInscatteredRadiance ginscatteredradiance,
                         float rr_correction, SampledSpectrum &transmittanceWeight,
                         openpgl::cpp::util::ImageSpaceGuidingBuffer::Sample &isgbSample,
+                        bool guideRR, bool guideVolumeRR,
+                        SampledSpectrum &adjointEstimate,
+                        SampledSpectrum &pixelContributionEstimate) const;
+#else
+    void SampleDistance(Point2i pPixel, RayDifferential &ray, Float tMax,
+                        SampledWavelengths &lambda, Sampler &sampler, RNG &rng,
+                        bool &scattered, bool &terminated, int &depth, SampledSpectrum &L,
+                        SampledSpectrum &beta, SampledSpectrum &r_u, SampledSpectrum &r_l,
+                        bool &specularBounce, bool &anyNonSpecularBounces,
+                        LightSampleContext &prevIntrContext, bool &lastVertexVolume,
+                        openpgl::cpp::PathSegmentStorage *pathSegmentStorage,
+                        openpgl::cpp::PathSegment **pathSegmentDataPointer,
+                        const GuidedBSDF &gbsdf, GuidedPhaseFunction &gphase,
+                        GuidedInscatteredRadiance ginscatteredradiance,
+                        float rr_correction, SampledSpectrum &transmittanceWeight,
                         bool guideRR, bool guideVolumeRR,
                         SampledSpectrum &adjointEstimate,
                         SampledSpectrum &pixelContributionEstimate) const;
