@@ -1271,7 +1271,7 @@ endif()
 
 install (TARGETS pbrt_lib DESTINATION lib )
 
-if (APPLE)
+if (APPLE AND PBRT_WITH_PATH_GUIDING)
   install(FILES
     ${CMAKE_INSTALL_PREFIX}/lib/libtbb.12.dylib
     ${CMAKE_INSTALL_PREFIX}/lib/libtbb.12.17.dylib
