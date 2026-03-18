@@ -118,7 +118,6 @@ option (PBRT_WITH_OPENPBR "Enable experimental OpenPBR implementation" OFF)
 
 if (PBRT_WITH_OPENPBR)
   list (APPEND PBRT_DEFINITIONS "PBRT_WITH_OPENPBR")
-  #set (OPENPBR_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/openpbr ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/vc22/glm)
 endif ()
 
 ##########################################################################
@@ -981,7 +980,6 @@ target_include_directories (pbrt_lib PUBLIC
   ${STB_INCLUDE}
   ${QOI_INCLUDE}
   ${OPENEXR_INCLUDE}
-  #${OPENPBR_INCLUDE}
   ${ZLIB_INCLUDE_DIR}
   ${LIBDEFLATE_INCLUDE_DIRS}
   ${FILESYSTEM_INCLUDE}
@@ -1001,6 +999,10 @@ if (PBRT_WITH_OIDN)
   target_include_directories (pbrt_lib SYSTEM PUBLIC ${OIDN_INCLUDE_DIR})
 endif()
 
+if (PBRT_WITH_OPENPBR)
+  target_include_directories (pbrt_lib SYSTEM PUBLIC ${GLM_INCLUDE_DIR})
+  target_include_directories (pbrt_lib SYSTEM PUBLIC ${OPENPBR_INCLUDE_DIR})
+endif()
 
 if (PBRT_CUDA_ENABLED AND PBRT_OPTIX7_PATH)
     target_include_directories (pbrt_lib SYSTEM PUBLIC ${PBRT_OPTIX7_PATH}/include)

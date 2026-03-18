@@ -25,6 +25,11 @@
 
 #include <unordered_map>
 
+#if defined(PBRT_WITH_OPENPBR)
+#include <glm/glm.hpp>
+#include <openpbr.h>
+#endif
+
 namespace pbrt {
 
 std::string ToString(BxDFReflTransFlags flags) {
@@ -99,7 +104,7 @@ pstd::optional<BSDFSample> CookTorranceBxDF::Sample_f(
         pdf += CosineHemispherePDF(AbsCosTheta(wi)) * (pt / (pr + pt));
         DCHECK(!IsNaN(pdf));
         SampledSpectrum f(mfDistrib.D(wm) * mfDistrib.G(wo, wi) * R /
-                          (4 * CosTheta(wi) * CosTheta(wo)));
+                            (4 * CosTheta(wi) * CosTheta(wo)));
         f += (this->R * InvPi) * T;
         return BSDFSample(f, wi, pdf,
                           BxDFFlags::GlossyReflection | BxDFFlags::DiffuseReflection,
@@ -118,7 +123,7 @@ pstd::optional<BSDFSample> CookTorranceBxDF::Sample_f(
         pdf += mfDistrib.PDF(wo, wm) / (4 * AbsDot(wo, wm)) * pr / (pr + pt);
 
         SampledSpectrum f(mfDistrib.D(wm) * mfDistrib.G(wo, wi) * R /
-                          (4 * CosTheta(wi) * CosTheta(wo)));
+                            (4 * CosTheta(wi) * CosTheta(wo)));
         f += (this->R * InvPi) * T;
         return BSDFSample(f, wi, pdf,
                           BxDFFlags::GlossyReflection | BxDFFlags::DiffuseReflection,
@@ -151,7 +156,7 @@ SampledSpectrum CookTorranceBxDF::f(Vector3f wo, Vector3f wi, TransportMode mode
 }
 
 Float CookTorranceBxDF::PDF(Vector3f wo, Vector3f wi, TransportMode mode,
-                            BxDFReflTransFlags sampleFlags) const {
+                          BxDFReflTransFlags sampleFlags) const {
     if (!(sampleFlags & BxDFReflTransFlags::Reflection) || !SameHemisphere(wo, wi))
         return 0.f;
 
@@ -178,7 +183,7 @@ Float CookTorranceBxDF::PDF(Vector3f wo, Vector3f wi, TransportMode mode,
     Float pt = 1 - pr;
 
     // Return PDF for rough dielectric
-    Float pdf = mfDistrib.PDF(wo, wm) / (4 * AbsDot(wo, wm)) * pr / (pr + pt);
+    Float pdf =  mfDistrib.PDF(wo, wm) / (4 * AbsDot(wo, wm)) * pr / (pr + pt);
     pdf += CosineHemispherePDF(AbsCosTheta(wi)) * pt / (pr + pt);
 
     return pdf;
@@ -189,6 +194,148 @@ std::string CookTorranceBxDF::ToString() const {
                         mfDistrib.ToString());
 }
 
+#if defined(PBRT_WITH_OPENPBR)
+// OpenPBRBxDF Method Definitions
+pstd::optional<BSDFSample> OpenPBRBxDF::Sample_f(Vector3f wo, Float uc, Point2f u,
+                                                 TransportMode mode,
+                                                 BxDFReflTransFlags sampleFlags) const {
+    OpenPBR_ResolvedInputs inputs = openpbr_make_default_resolved_inputs();
+    inputs.base_weight = base_weight;
+    inputs.base_color = vec3(base_color[0], base_color[1], base_color[2]);  // terracotta
+    inputs.base_metalness = base_metalness;
+    inputs.base_diffuse_roughness = base_diffuse_roughness;
+
+    inputs.specular_weight = specular_weight;
+    inputs.specular_color = vec3(specular_color[0], specular_color[1], specular_color[2]);
+    inputs.specular_roughness = specular_roughness;
+    inputs.specular_roughness_anisotropy = specular_roughness_anisotropy;
+    inputs.specular_ior = specular_ior;
+
+    inputs.coat_weight = coat_weight;
+    inputs.coat_color = vec3(coat_color[0], coat_color[1], coat_color[2]);
+    inputs.coat_roughness = coat_roughness;
+    inputs.coat_roughness_anisotropy = coat_roughness_anisotropy;
+    inputs.coat_ior = coat_ior;
+    inputs.coat_darkening = coat_darkening;
+
+    inputs.fuzz_weight = fuzz_weight;
+    inputs.fuzz_color = vec3(fuzz_color[0], fuzz_color[1], fuzz_color[2]);
+    inputs.fuzz_roughness = fuzz_roughness;
+
+    const vec3 view_direction = vec3(wo[0], wo[1], wo[2]);
+    const OpenPBR_PreparedBsdf prepared = openpbr_prepare_bsdf_and_volume(
+        inputs,
+        vec3(1.0f),                     // path throughput (for importance sampling)
+        OpenPBR_BaseRgbWavelengths_nm,  // RGB wavelengths in nanometers
+        OpenPBR_VacuumIor,              // exterior IOR
+        view_direction);                // incident direction (pointing away from surface)
+    vec3 sample(uc, u[0], u[1]);
+    vec3 light_direction;
+    OpenPBR_DiffuseSpecular weight;
+    float pdf;
+    OpenPBR_BsdfLobeType lobe_type;
+    openpbr_sample(prepared, sample, light_direction, weight, pdf, lobe_type);
+    Vector3f wi = Vector3f(light_direction.x, light_direction.y, light_direction.z);
+    Float cosineTheta = std::abs(wi[2]);
+    if (pdf > 0.0f) {
+        const vec3 weight_sum = openpbr_get_sum_of_diffuse_specular(weight);
+        SampledSpectrum f;
+        f[0] = weight_sum.x;
+        f[1] = weight_sum.y;
+        f[2] = weight_sum.z;
+        return BSDFSample((f * pdf) / cosineTheta, wi, pdf,
+                          BxDFFlags::GlossyReflection | BxDFFlags::DiffuseReflection,
+                          0.5f);
+    }
+    return {};
+}
+
+SampledSpectrum OpenPBRBxDF::f(Vector3f wo, Vector3f wi, TransportMode mode) const {
+    Float cosineTheta = std::abs(wi[2]);
+    OpenPBR_ResolvedInputs inputs = openpbr_make_default_resolved_inputs();
+    inputs.base_weight = base_weight;
+    inputs.base_color = vec3(base_color[0], base_color[1], base_color[2]);  // terracotta
+    inputs.base_metalness = base_metalness;
+    inputs.base_diffuse_roughness = base_diffuse_roughness;
+
+    inputs.specular_weight = specular_weight;
+    inputs.specular_color = vec3(specular_color[0], specular_color[1], specular_color[2]);
+    inputs.specular_roughness = specular_roughness;
+    inputs.specular_roughness_anisotropy = specular_roughness_anisotropy;
+    inputs.specular_ior = specular_ior;
+
+    inputs.coat_weight = coat_weight;
+    inputs.coat_color = vec3(coat_color[0], coat_color[1], coat_color[2]);
+    inputs.coat_roughness = coat_roughness;
+    inputs.coat_roughness_anisotropy = coat_roughness_anisotropy;
+    inputs.coat_ior = coat_ior;
+    inputs.coat_darkening = coat_darkening;
+
+    inputs.fuzz_weight = fuzz_weight;
+    inputs.fuzz_color = vec3(fuzz_color[0], fuzz_color[1], fuzz_color[2]);
+    inputs.fuzz_roughness = fuzz_roughness;
+
+    const vec3 view_direction = vec3(wo[0], wo[1], wo[2]);
+    const vec3 light_direction = vec3(wi[0], wi[1], wi[2]);
+    const OpenPBR_PreparedBsdf prepared = openpbr_prepare_bsdf_and_volume(
+        inputs,
+        vec3(1.0f),                     // path throughput (for importance sampling)
+        OpenPBR_BaseRgbWavelengths_nm,  // RGB wavelengths in nanometers
+        OpenPBR_VacuumIor,              // exterior IOR
+        view_direction);
+    OpenPBR_DiffuseSpecular eval = openpbr_eval(prepared, light_direction);
+    const vec3 eval_sum = openpbr_get_sum_of_diffuse_specular(eval);
+    SampledSpectrum f;
+    f[0] = eval_sum.x;
+    f[1] = eval_sum.y;
+    f[2] = eval_sum.z;
+    return f / cosineTheta;
+}
+
+Float OpenPBRBxDF::PDF(Vector3f wo, Vector3f wi, TransportMode mode,
+                       BxDFReflTransFlags sampleFlags) const {
+    if (!(sampleFlags & BxDFReflTransFlags::Reflection) || !SameHemisphere(wo, wi))
+        return 0.f;
+
+    OpenPBR_ResolvedInputs inputs = openpbr_make_default_resolved_inputs();
+    inputs.base_weight = base_weight;
+    inputs.base_color = vec3(base_color[0], base_color[1], base_color[2]);  // terracotta
+    inputs.base_metalness = base_metalness;
+    inputs.base_diffuse_roughness = base_diffuse_roughness;
+
+    inputs.specular_weight = specular_weight;
+    inputs.specular_color = vec3(specular_color[0], specular_color[1], specular_color[2]);
+    inputs.specular_roughness = specular_roughness;
+    inputs.specular_roughness_anisotropy = specular_roughness_anisotropy;
+    inputs.specular_ior = specular_ior;
+
+    inputs.coat_weight = coat_weight;
+    inputs.coat_color = vec3(coat_color[0], coat_color[1], coat_color[2]);
+    inputs.coat_roughness = coat_roughness;
+    inputs.coat_roughness_anisotropy = coat_roughness_anisotropy;
+    inputs.coat_ior = coat_ior;
+    inputs.coat_darkening = coat_darkening;
+
+    inputs.fuzz_weight = fuzz_weight;
+    inputs.fuzz_color = vec3(fuzz_color[0], fuzz_color[1], fuzz_color[2]);
+    inputs.fuzz_roughness = fuzz_roughness;
+
+    const vec3 view_direction = vec3(wo[0], wo[1], wo[2]);
+    const vec3 light_direction = vec3(wi[0], wi[1], wi[2]);
+    const OpenPBR_PreparedBsdf prepared = openpbr_prepare_bsdf_and_volume(
+        inputs,
+        vec3(1.0f),                     // path throughput (for importance sampling)
+        OpenPBR_BaseRgbWavelengths_nm,  // RGB wavelengths in nanometers
+        OpenPBR_VacuumIor,              // exterior IOR
+        view_direction);
+
+    return openpbr_pdf(prepared, light_direction);
+}
+
+std::string OpenPBRBxDF::ToString() const {
+    return StringPrintf("[ OpenPBRBxDF ior: %f ]", specular_ior);
+}
+#endif
 
 // DielectricBxDF Method Definitions
 PBRT_CPU_GPU pstd::optional<BSDFSample> DielectricBxDF::Sample_f(

@@ -227,6 +227,108 @@ class CookTorranceBxDF {
     TrowbridgeReitzDistribution mfDistrib;
 };
 
+#if defined(PBRT_WITH_OPENPBR)
+// OpenPBRBxDF Definition
+class OpenPBRBxDF {
+  public:
+    // OpenPBRBxDF Public Methods
+    OpenPBRBxDF() = default;
+    PBRT_CPU_GPU
+    OpenPBRBxDF(Float base_weight,
+    SampledSpectrum base_color,
+    Float base_metalness,
+    Float base_diffuse_roughness,
+    Float specular_weight,
+    SampledSpectrum specular_color,
+    Float specular_roughness,
+    Float specular_roughness_anisotropy,
+    Float specular_ior,
+    Float coat_weight,
+    SampledSpectrum coat_color,
+    Float coat_roughness,
+    Float coat_roughness_anisotropy,
+    Float coat_ior,
+    Float coat_darkening,
+    Float fuzz_weight,
+    SampledSpectrum fuzz_color,
+    Float fuzz_roughness)
+        : base_weight(base_weight),
+        base_color(base_color),
+        base_metalness(base_metalness),
+        base_diffuse_roughness(base_diffuse_roughness),
+        specular_weight(specular_weight),
+        specular_color(specular_color),
+        specular_roughness(specular_roughness),
+        specular_roughness_anisotropy(specular_roughness_anisotropy),
+        specular_ior(specular_ior),
+        coat_weight(coat_weight),
+        coat_roughness(coat_roughness),
+        coat_roughness_anisotropy(coat_roughness_anisotropy),
+        coat_ior(coat_ior),
+        coat_darkening(coat_darkening),
+        fuzz_weight(fuzz_weight),
+        fuzz_color(fuzz_color),
+        fuzz_roughness(fuzz_roughness)
+         {}
+
+    PBRT_CPU_GPU
+    BxDFFlags Flags() const {
+        BxDFFlags flags = (specular_ior == 1) ? BxDFFlags::DiffuseReflection
+                                     : (BxDFFlags::Reflection | BxDFFlags::DiffuseReflection);
+        return flags;
+        //return flags |
+        //       (mfDistrib.EffectivelySmooth() ? BxDFFlags::Specular : BxDFFlags::Glossy);
+    }
+
+    PBRT_CPU_GPU
+    pstd::optional<BSDFSample> Sample_f(
+        Vector3f wo, Float uc, Point2f u, TransportMode mode,
+        BxDFReflTransFlags sampleFlags = BxDFReflTransFlags::All) const;
+
+    PBRT_CPU_GPU
+    SampledSpectrum f(Vector3f wo, Vector3f wi, TransportMode mode) const;
+    PBRT_CPU_GPU
+    Float PDF(Vector3f wo, Vector3f wi, TransportMode mode,
+              BxDFReflTransFlags sampleFlags = BxDFReflTransFlags::All) const;
+
+    PBRT_CPU_GPU
+    static constexpr const char *Name() { return "OpenPBRBxDF"; }
+
+    std::string ToString() const;
+
+    PBRT_CPU_GPU
+    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) { }//TODO: regularize the roughness values }
+
+    PBRT_CPU_GPU
+    float GetEta() const { return specular_ior; }
+
+    PBRT_CPU_GPU 
+    float GetRoughness() const {return specular_roughness; }
+
+  private:
+    Float base_weight;
+    SampledSpectrum base_color;
+    Float base_metalness;
+    Float base_diffuse_roughness;
+
+    Float specular_weight;
+    SampledSpectrum specular_color;
+    Float specular_roughness;
+    Float specular_roughness_anisotropy;
+    Float specular_ior;
+
+    Float coat_weight;
+    SampledSpectrum coat_color;
+    Float coat_roughness;
+    Float coat_roughness_anisotropy;
+    Float coat_ior;
+    Float coat_darkening;
+
+    Float fuzz_weight;
+    SampledSpectrum fuzz_color;
+    Float fuzz_roughness;
+};
+#endif
 
 // DielectricBxDF Definition
 class DielectricBxDF {

@@ -24,17 +24,6 @@
 #include <numeric>
 #include <string>
 
-#if defined(PBRT_WITH_OPENPBR)
-#ifndef _OPEN_PBR_
-#define _OPEN_PBR_
-
-#define OPENPBR_LANGUAGE_TARGET_CPP 1
-#include <ext/glm/glm.hpp>
-#include <ext/openpbr/openpbr.h>
-
-#endif // _OPEN_PBR_
-#endif
-
 namespace pbrt {
 
 std::string MaterialEvalContext::ToString() const {
@@ -216,88 +205,6 @@ DiffuseMaterial *DiffuseMaterial::Create(const TextureParameterDictionary &param
     return alloc.new_object<DiffuseMaterial>(reflectance, displacement, normalMap);
 }
 
-#if defined(PBRT_WITH_OPENPBR)
-//----------[ Open PBR test ]------------------------------
-static float lcg_float(std::uint32_t& state)
-{
-    state = state * 1664525u + 1013904223u;
-
-    // Use the upper 24 bits and scale by 2^-24 to map into [0, 1).
-    return static_cast<float>(state >> 8u) * 0x1.0p-24f;
-}
-// DiffuseMaterialPBR Method Definitions
-std::string DiffuseMaterialPBR::ToString() const {
-    return StringPrintf(
-        "[ DiffuseMaterialPBR displacement: %s normapMap: %s reflectance: %s ]",
-        displacement, normalMap ? normalMap->ToString() : std::string("(nullptr)"),
-        reflectance);
-}
-
-DiffuseMaterialPBR *DiffuseMaterialPBR::Create(
-    const TextureParameterDictionary &parameters, Image *normalMap, const FileLoc *loc,
-    Allocator alloc) {
-    SpectrumTexture reflectance = parameters.GetSpectrumTexture(
-        "reflectance", nullptr, SpectrumType::Albedo, alloc);
-    if (!reflectance)
-        reflectance = alloc.new_object<SpectrumConstantTexture>(
-            alloc.new_object<ConstantSpectrum>(0.5f));
-    FloatTexture displacement = parameters.GetFloatTextureOrNull("displacement", alloc);
-    // TEST
-    // Set up a simple material.
-    OpenPBR_ResolvedInputs inputs = openpbr_make_default_resolved_inputs();
-    inputs.base_color = vec3(0.8f, 0.3f, 0.1f);  // terracotta
-    inputs.specular_roughness = 0.4f;
-
-    // The local frame at the surface hit point is stored in inputs.shading_basis,
-    // which is not part of the official OpenPBR spec.
-    // It defaults to a Z-up frame: tangent = X, bitangent = Y, normal = Z.
-    // In a real renderer, replace it with world-space vectors from the geometry,
-    // and keep view_direction and light_direction in that same space.
-
-    // Prepare the BSDF. view_direction points away from the surface toward the camera
-    // and must be in the same space as shading_basis. Here it is 45 degrees from the
-    // surface normal.
-    const vec3 view_direction = normalize(vec3(1.0f, 0.0f, 1.0f));
-
-    const OpenPBR_PreparedBsdf prepared = openpbr_prepare_bsdf_and_volume(
-        inputs,
-        vec3(1.0f),                     // path throughput
-        OpenPBR_BaseRgbWavelengths_nm,  // fixed RGB wavelengths for this example
-        OpenPBR_VacuumIor,              // IOR of the medium above the surface
-        view_direction);
-
-    // Importance-sample the BSDF.
-    // Each xi is computed on its own line here: C++ does not guarantee argument
-    // evaluation order, so vec3(f(), f(), f()) could consume RNG values in an unspecified
-    // order.
-    constexpr std::uint32_t RngSeed = 12345u;  // fixed seed for reproducibility
-    std::uint32_t rng_state = RngSeed;
-    const float xi0 = lcg_float(rng_state);
-    const float xi1 = lcg_float(rng_state);
-    const float xi2 = lcg_float(rng_state);
-    vec3 light_direction;
-    OpenPBR_DiffuseSpecular weight;
-    float pdf;
-    OpenPBR_BsdfLobeType lobe_type;
-
-    openpbr_sample(prepared, vec3(xi0, xi1, xi2), light_direction, weight, pdf,
-                   lobe_type);
-    if (pdf > 0.0f) {
-        const vec3 weight_sum = openpbr_get_sum_of_diffuse_specular(weight);
-        std::cout << "Sampled direction : (" << light_direction.x << ", "
-                  << light_direction.y << ", " << light_direction.z << ")\n";
-        std::cout << "Throughput weight : (" << weight_sum.x << ", " << weight_sum.y
-                  << ", " << weight_sum.z << ")\n";
-        std::cout << "Sampling PDF      : " << pdf << "\n";
-    }
-
-    // END
-
-    return alloc.new_object<DiffuseMaterialPBR>(reflectance, displacement, normalMap);
-}
-#endif
-//---------------------------------------------------------
-
 // ConductorMaterial Method Definitions
 std::string ConductorMaterial::ToString() const {
     return StringPrintf("[ ConductorMaterial displacement: %s normalMap: %s eta: %s "
@@ -344,11 +251,175 @@ ConductorMaterial *ConductorMaterial::Create(const TextureParameterDictionary &p
                                                remapRoughness);
 }
 
+#if defined(PBRT_WITH_OPENPBR)
+// OpenPBRMaterial Method Definitions
+template <typename TextureEvaluator>
+OpenPBRBxDF OpenPBRMaterial::GetBxDF(TextureEvaluator texEval,
+                                     const MaterialEvalContext &ctx,
+                                     SampledWavelengths &lambda) const {
+    // Initialize base component
+    Float base_weight_ = texEval(base_weight, ctx);
+    SampledSpectrum base_color_ = Clamp(texEval(base_color, ctx, lambda), 0, 1);
+    Float base_metalness_ = texEval(base_metalness, ctx);
+    Float base_diffuse_roughness_ = texEval(base_diffuse_roughness, ctx);
+
+    // Initialize specular component
+    Float specular_weight_ = texEval(specular_weight, ctx);
+    SampledSpectrum specular_color_ = Clamp(texEval(specular_color, ctx, lambda), 0, 1);
+    Float specular_roughness_ = texEval(specular_roughness, ctx);
+    if (remapRoughness) {
+        specular_roughness_ =
+            TrowbridgeReitzDistribution::RoughnessToAlpha(specular_roughness_);
+    }
+    specular_roughness_ = std::max(0.001f, specular_roughness_);
+    Float specular_roughness_anisotropy_ = texEval(specular_roughness_anisotropy, ctx);
+    Float specular_ior_ = texEval(specular_ior, ctx);
+
+    Float coat_weight_ = texEval(coat_weight, ctx);
+    SampledSpectrum coat_color_ = Clamp(texEval(coat_color, ctx, lambda), 0, 1);
+    Float coat_roughness_ = texEval(coat_roughness, ctx);
+    if (remapRoughness) {
+        coat_roughness_ = TrowbridgeReitzDistribution::RoughnessToAlpha(coat_roughness_);
+    }
+    coat_roughness_ = std::max(0.001f, coat_roughness_);
+    Float coat_roughness_anisotropy_ = texEval(coat_roughness_anisotropy, ctx);
+    Float coat_ior_ = texEval(coat_ior, ctx);
+    Float coat_darkening_ = texEval(coat_darkening, ctx);
+
+    Float fuzz_weight_ = texEval(fuzz_weight, ctx);
+    SampledSpectrum fuzz_color_ = Clamp(texEval(fuzz_color, ctx, lambda), 0, 1);
+    Float fuzz_roughness_ = texEval(fuzz_roughness, ctx);
+    if (remapRoughness) {
+        fuzz_roughness_ = TrowbridgeReitzDistribution::RoughnessToAlpha(fuzz_roughness_);
+    }
+    return OpenPBRBxDF(base_weight_, base_color_, base_metalness_,
+                       base_diffuse_roughness_, specular_weight_, specular_color_,
+                       specular_roughness_, specular_roughness_anisotropy_, specular_ior_,
+                       coat_weight_, coat_color_, coat_roughness_,
+                       coat_roughness_anisotropy_, coat_ior_, coat_darkening_,
+                       fuzz_weight_, fuzz_color_, fuzz_roughness_);
+}
+
+// Explicit template instantiation
+template OpenPBRBxDF OpenPBRMaterial::GetBxDF(BasicTextureEvaluator,
+                                              const MaterialEvalContext &ctx,
+                                              SampledWavelengths &lambda) const;
+template OpenPBRBxDF OpenPBRMaterial::GetBxDF(UniversalTextureEvaluator,
+                                              const MaterialEvalContext &ctx,
+                                              SampledWavelengths &lambda) const;
+
+std::string OpenPBRMaterial::ToString() const {
+    return StringPrintf("[ OpenPBRMaterial displacement: %s normalMap: %s base_color: %s "
+                        "specular_roughness: %s specular_roughness_anisotropy: %s "
+                        "specular_ior: %s remapRoughness: %s ]",
+                        displacement,
+                        normalMap ? normalMap->ToString() : std::string("(nullptr)"),
+                        base_color, specular_roughness, specular_roughness_anisotropy,
+                        specular_ior, remapRoughness);
+}
+
+OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &parameters,
+                                         Image *normalMap, const FileLoc *loc,
+                                         Allocator alloc) {
+    FloatTexture base_weight = parameters.GetFloatTextureOrNull("base_weight", alloc);
+    if (!base_weight)
+        base_weight = parameters.GetFloatTexture("base_weight", 1.f, alloc);
+
+    SpectrumTexture base_color =
+        parameters.GetSpectrumTexture("base_color", nullptr, SpectrumType::Albedo, alloc);
+    if (!base_color)
+        base_color = alloc.new_object<SpectrumConstantTexture>(
+            alloc.new_object<ConstantSpectrum>(0.8f));
+
+    FloatTexture base_metalness =
+        parameters.GetFloatTextureOrNull("base_metalness", alloc);
+    if (!base_metalness)
+        base_metalness = parameters.GetFloatTexture("base_metalness", 1.f, alloc);
+
+    FloatTexture base_diffuse_roughness =
+        parameters.GetFloatTextureOrNull("base_diffuse_roughness", alloc);
+    if (!base_diffuse_roughness)
+        base_diffuse_roughness =
+            parameters.GetFloatTexture("base_diffuse_roughness", 1.f, alloc);
+
+    FloatTexture specular_weight =
+        parameters.GetFloatTextureOrNull("specular_weight", alloc);
+    if (!specular_weight)
+        specular_weight = parameters.GetFloatTexture("specular_weight", 1.f, alloc);
+    SpectrumTexture specular_color = parameters.GetSpectrumTexture(
+        "specular_color", nullptr, SpectrumType::Albedo, alloc);
+    if (!specular_color)
+        specular_color = alloc.new_object<SpectrumConstantTexture>(
+            alloc.new_object<ConstantSpectrum>(1.0f));
+    FloatTexture specular_roughness =
+        parameters.GetFloatTextureOrNull("specular_roughness", alloc);
+    if (!specular_roughness)
+        specular_roughness =
+            parameters.GetFloatTexture("specular_roughness", 0.3f, alloc);
+    FloatTexture specular_roughness_anisotropy =
+        parameters.GetFloatTextureOrNull("specular_roughness_anisotropy", alloc);
+    if (!specular_roughness_anisotropy)
+        specular_roughness_anisotropy =
+            parameters.GetFloatTexture("specular_roughness_anisotropy", 0.f, alloc);
+    FloatTexture specular_ior = parameters.GetFloatTextureOrNull("specular_ior", alloc);
+    if (!specular_ior)
+        specular_ior = parameters.GetFloatTexture("specular_ior", 1.5f, alloc);
+
+    FloatTexture coat_weight = parameters.GetFloatTextureOrNull("coat_weight", alloc);
+    if (!coat_weight)
+        coat_weight = parameters.GetFloatTexture("coat_weight", 0.f, alloc);
+    SpectrumTexture coat_color =
+        parameters.GetSpectrumTexture("coat_color", nullptr, SpectrumType::Albedo, alloc);
+    if (!coat_color)
+        coat_color = alloc.new_object<SpectrumConstantTexture>(
+            alloc.new_object<ConstantSpectrum>(1.0f));
+    FloatTexture coat_roughness =
+        parameters.GetFloatTextureOrNull("coat_roughness", alloc);
+    if (!coat_roughness)
+        coat_roughness = parameters.GetFloatTexture("coat_roughness", 0.0f, alloc);
+    FloatTexture coat_roughness_anisotropy =
+        parameters.GetFloatTextureOrNull("coat_roughness_anisotropy", alloc);
+    if (!coat_roughness_anisotropy)
+        coat_roughness_anisotropy =
+            parameters.GetFloatTexture("coat_roughness_anisotropy", 0.f, alloc);
+    FloatTexture coat_ior = parameters.GetFloatTextureOrNull("coat_ior", alloc);
+    if (!coat_ior)
+        coat_ior = parameters.GetFloatTexture("coat_ior", 1.6f, alloc);
+    FloatTexture coat_darkening =
+        parameters.GetFloatTextureOrNull("coat_darkening", alloc);
+    if (!coat_darkening)
+        coat_darkening = parameters.GetFloatTexture("coat_darkening", 1.0f, alloc);
+
+    FloatTexture fuzz_weight = parameters.GetFloatTextureOrNull("fuzz_weight", alloc);
+    if (!fuzz_weight)
+        fuzz_weight = parameters.GetFloatTexture("fuzz_weight", 0.f, alloc);
+    SpectrumTexture fuzz_color =
+        parameters.GetSpectrumTexture("fuzz_color", nullptr, SpectrumType::Albedo, alloc);
+    if (!fuzz_color)
+        fuzz_color = alloc.new_object<SpectrumConstantTexture>(
+            alloc.new_object<ConstantSpectrum>(1.0f));
+    FloatTexture fuzz_roughness =
+        parameters.GetFloatTextureOrNull("fuzz_roughness", alloc);
+    if (!fuzz_roughness)
+        fuzz_roughness = parameters.GetFloatTexture("fuzz_roughness", 0.0f, alloc);
+
+    FloatTexture displacement = parameters.GetFloatTextureOrNull("displacement", alloc);
+    bool remapRoughness = parameters.GetOneBool("remaproughness", false);
+
+    return alloc.new_object<OpenPBRMaterial>(
+        base_weight, base_color, base_metalness, base_diffuse_roughness, specular_weight,
+        specular_color, specular_roughness, specular_roughness_anisotropy, specular_ior,
+        coat_weight, coat_color, coat_roughness, coat_roughness_anisotropy, coat_ior,
+        coat_darkening, fuzz_weight, fuzz_color, fuzz_roughness, displacement, normalMap,
+        remapRoughness);
+}
+#endif
+
 // CookTorranceMaterial Method Definitions
 template <typename TextureEvaluator>
 CookTorranceBxDF CookTorranceMaterial::GetBxDF(TextureEvaluator texEval,
-                                               const MaterialEvalContext &ctx,
-                                               SampledWavelengths &lambda) const {
+                                                 const MaterialEvalContext &ctx,
+                                                 SampledWavelengths &lambda) const {
     // Initialize diffuse component of plastic material
     SampledSpectrum r = Clamp(texEval(reflectance, ctx, lambda), 0, 1);
 
@@ -359,8 +430,8 @@ CookTorranceBxDF CookTorranceMaterial::GetBxDF(TextureEvaluator texEval,
         urough = TrowbridgeReitzDistribution::RoughnessToAlpha(urough);
         vrough = TrowbridgeReitzDistribution::RoughnessToAlpha(vrough);
     }
-    urough = std::max(Float(0.001), urough);
-    vrough = std::max(Float(0.001), vrough);
+    urough = std::max(0.001f, urough);
+    vrough = std::max(0.001f, vrough);
     TrowbridgeReitzDistribution distrib(urough, vrough);
 
     // Float thick = texEval(thickness, ctx);
@@ -830,14 +901,14 @@ Material Material::Create(const std::string &name,
         return nullptr;
     else if (name == "diffuse")
         material = DiffuseMaterial::Create(parameters, normalMap, loc, alloc);
-#if defined(PBRT_WITH_OPENPBR)
-    else if (name == "diffusePBR")
-        material = DiffuseMaterialPBR::Create(parameters, normalMap, loc, alloc);
-#endif
     else if (name == "coateddiffuse")
         material = CoatedDiffuseMaterial::Create(parameters, normalMap, loc, alloc);
     else if (name == "cooktorrance")
         material = CookTorranceMaterial::Create(parameters, normalMap, loc, alloc);
+#if defined(PBRT_WITH_OPENPBR)
+    else if (name == "openpbr")
+        material = OpenPBRMaterial::Create(parameters, normalMap, loc, alloc);
+#endif
     else if (name == "coatedconductor")
         material = CoatedConductorMaterial::Create(parameters, normalMap, loc, alloc);
     else if (name == "diffusetransmission")

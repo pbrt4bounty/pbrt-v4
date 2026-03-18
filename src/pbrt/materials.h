@@ -476,58 +476,6 @@ class DiffuseMaterial {
     SpectrumTexture reflectance;
 };
 
-#if defined (PBRT_WITH_OPENPBR)
-// DiffuseMaterialPBR Definition
-class DiffuseMaterialPBR {
-  public:
-    // DiffuseMaterial Type Definitions
-    using BxDF = DiffuseBxDF;
-    using BSSRDF = void;
-
-    // DiffuseMaterialPBR Public Methods
-    static const char *Name() { return "DiffuseMaterialPBR"; }
-
-    PBRT_CPU_GPU
-    FloatTexture GetDisplacement() const { return displacement; }
-    PBRT_CPU_GPU
-    const Image *GetNormalMap() const { return normalMap; }
-
-    static DiffuseMaterialPBR *Create(const TextureParameterDictionary &parameters,
-                                   Image *normalMap, const FileLoc *loc, Allocator alloc);
-
-    template <typename TextureEvaluator>
-    PBRT_CPU_GPU void GetBSSRDF(TextureEvaluator texEval, MaterialEvalContext ctx,
-                                SampledWavelengths &lambda, void *) const {}
-
-    PBRT_CPU_GPU static constexpr bool HasSubsurfaceScattering() { return false; }
-
-    std::string ToString() const;
-
-    DiffuseMaterialPBR(SpectrumTexture reflectance, FloatTexture displacement,
-                    Image *normalMap)
-        : normalMap(normalMap), displacement(displacement), reflectance(reflectance) {}
-
-    template <typename TextureEvaluator>
-    PBRT_CPU_GPU bool CanEvaluateTextures(TextureEvaluator texEval) const {
-        return texEval.CanEvaluate({}, {reflectance});
-    }
-
-    template <typename TextureEvaluator>
-    PBRT_CPU_GPU DiffuseBxDF GetBxDF(TextureEvaluator texEval, MaterialEvalContext ctx,
-                                     SampledWavelengths &lambda) const {
-        SampledSpectrum r = Clamp(texEval(reflectance, ctx, lambda), 0, 1);
-        return DiffuseBxDF(r);
-    }
-
-  private:
-    // DiffuseMaterial Private Members
-    Image *normalMap;
-    FloatTexture displacement;
-    SpectrumTexture reflectance;
-};
-#endif
-
-
 // ConductorMaterial Definition
 class ConductorMaterial {
   public:
@@ -602,6 +550,121 @@ class ConductorMaterial {
     FloatTexture uRoughness, vRoughness;
     bool remapRoughness;
 };
+
+#if defined(PBRT_WITH_OPENPBR)
+// OpenPBRMaterial Definition
+class OpenPBRMaterial {
+  public:
+    using BxDF = OpenPBRBxDF;
+    using BSSRDF = void;
+    // OpenPBRMaterial Public Methods
+    OpenPBRMaterial(FloatTexture base_weight, SpectrumTexture base_color,
+                    FloatTexture base_metalness, FloatTexture base_diffuse_roughness,
+                    FloatTexture specular_weight, SpectrumTexture specular_color,
+                    FloatTexture specular_roughness,
+                    FloatTexture specular_roughness_anisotropy, FloatTexture specular_ior,
+                    FloatTexture coat_weight, SpectrumTexture coat_color,
+                    FloatTexture coat_roughness, FloatTexture coat_roughness_anisotropy,
+                    FloatTexture coat_ior, FloatTexture coat_darkening,
+                    FloatTexture fuzz_weight, SpectrumTexture fuzz_color,
+                    FloatTexture fuzz_roughness, FloatTexture displacement,
+                    Image *normalMap, bool remapRoughness)
+        : displacement(displacement),
+          normalMap(normalMap),
+          base_weight(base_weight),
+          base_color(base_color),
+          base_metalness(base_metalness),
+          base_diffuse_roughness(base_diffuse_roughness),
+          specular_weight(specular_weight),
+          specular_color(specular_color),
+          specular_roughness(specular_roughness),
+          specular_roughness_anisotropy(specular_roughness_anisotropy),
+          specular_ior(specular_ior),
+          coat_weight(coat_weight),
+          coat_color(coat_color),
+          coat_roughness(coat_roughness),
+          coat_roughness_anisotropy(coat_roughness_anisotropy),
+          coat_ior(coat_ior),
+          coat_darkening(coat_darkening),
+          fuzz_weight(fuzz_weight),
+          fuzz_color(fuzz_color),
+          fuzz_roughness(fuzz_roughness),
+          remapRoughness(remapRoughness) {}
+
+    static const char *Name() { return "OpenPBRMaterial"; }
+
+    template <typename TextureEvaluator>
+    PBRT_CPU_GPU bool CanEvaluateTextures(TextureEvaluator texEval) const {
+        return texEval.CanEvaluate(
+            {
+                base_weight,
+                base_metalness,
+                base_diffuse_roughness,
+                specular_weight,
+                specular_roughness,
+                specular_roughness_anisotropy,
+                specular_ior,
+                coat_weight,
+                coat_roughness,
+                coat_roughness_anisotropy,
+                coat_ior,
+                coat_darkening,
+                fuzz_weight,
+                fuzz_roughness,
+            },
+            {base_color, specular_color, coat_color, fuzz_color});
+    }
+
+    template <typename TextureEvaluator>
+    PBRT_CPU_GPU OpenPBRBxDF GetBxDF(TextureEvaluator texEval,
+                                     const MaterialEvalContext &ctx,
+                                     SampledWavelengths &lambda) const;
+
+    PBRT_CPU_GPU
+    FloatTexture GetDisplacement() const { return displacement; }
+    PBRT_CPU_GPU
+    const Image *GetNormalMap() const { return normalMap; }
+
+    static OpenPBRMaterial *Create(const TextureParameterDictionary &parameters,
+                                   Image *normalMap, const FileLoc *loc, Allocator alloc);
+
+    template <typename TextureEvaluator>
+    PBRT_CPU_GPU void GetBSSRDF(TextureEvaluator texEval, const MaterialEvalContext &ctx,
+                                SampledWavelengths &lambda) const {}
+
+    PBRT_CPU_GPU static constexpr bool HasSubsurfaceScattering() { return false; }
+
+    std::string ToString() const;
+
+  private:
+    // OpenPBRMaterial Private Members
+    FloatTexture displacement;
+    Image *normalMap;
+    bool remapRoughness;
+
+    FloatTexture base_weight;
+    SpectrumTexture base_color;
+    FloatTexture base_metalness;
+    FloatTexture base_diffuse_roughness;
+
+    FloatTexture specular_weight;
+    SpectrumTexture specular_color;
+    FloatTexture specular_roughness;
+    FloatTexture specular_roughness_anisotropy;
+    FloatTexture specular_ior;
+
+    FloatTexture coat_weight;
+    SpectrumTexture coat_color;
+    FloatTexture coat_roughness;
+    FloatTexture coat_roughness_anisotropy;
+    FloatTexture coat_ior;
+    FloatTexture coat_darkening;
+
+    FloatTexture fuzz_weight;
+    SpectrumTexture fuzz_color;
+    FloatTexture fuzz_roughness;
+};
+#endif
 
 // CookTorranceMaterial Definition
 class CookTorranceMaterial {
