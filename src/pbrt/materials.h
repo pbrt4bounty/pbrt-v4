@@ -673,9 +673,8 @@ class CookTorranceMaterial {
     using BSSRDF = void;
     // CookTorranceMaterial Public Methods
     CookTorranceMaterial(SpectrumTexture reflectance, FloatTexture uRoughness,
-                          FloatTexture vRoughness, SpectrumTexture albedo, 
-                          Spectrum eta, FloatTexture displacement, Image *normalMap,
-                          bool remapRoughness)
+                         FloatTexture vRoughness, SpectrumTexture albedo, Spectrum eta,
+                         FloatTexture displacement, Image *normalMap, bool remapRoughness)
         : displacement(displacement),
           normalMap(normalMap),
           reflectance(reflectance),
@@ -689,14 +688,13 @@ class CookTorranceMaterial {
 
     template <typename TextureEvaluator>
     PBRT_CPU_GPU bool CanEvaluateTextures(TextureEvaluator texEval) const {
-        return texEval.CanEvaluate({uRoughness, vRoughness},
-                                   {reflectance, albedo});
+        return texEval.CanEvaluate({uRoughness, vRoughness}, {reflectance, albedo});
     }
 
     template <typename TextureEvaluator>
     PBRT_CPU_GPU CookTorranceBxDF GetBxDF(TextureEvaluator texEval,
-                                           const MaterialEvalContext &ctx,
-                                           SampledWavelengths &lambda) const;
+                                          const MaterialEvalContext &ctx,
+                                          SampledWavelengths &lambda) const;
 
     PBRT_CPU_GPU
     FloatTexture GetDisplacement() const { return displacement; }
@@ -704,8 +702,8 @@ class CookTorranceMaterial {
     const Image *GetNormalMap() const { return normalMap; }
 
     static CookTorranceMaterial *Create(const TextureParameterDictionary &parameters,
-                                         Image *normalMap, const FileLoc *loc,
-                                         Allocator alloc);
+                                        Image *normalMap, const FileLoc *loc,
+                                        Allocator alloc);
 
     template <typename TextureEvaluator>
     PBRT_CPU_GPU void GetBSSRDF(TextureEvaluator texEval, const MaterialEvalContext &ctx,

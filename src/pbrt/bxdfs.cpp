@@ -26,6 +26,7 @@
 #include <unordered_map>
 
 #if defined(PBRT_WITH_OPENPBR)
+#define OPENPBR_LANGUAGE_TARGET_CPP 1
 #include <glm/glm.hpp>
 #include <openpbr.h>
 #endif
@@ -196,9 +197,9 @@ std::string CookTorranceBxDF::ToString() const {
 
 #if defined(PBRT_WITH_OPENPBR)
 // OpenPBRBxDF Method Definitions
-pstd::optional<BSDFSample> OpenPBRBxDF::Sample_f(Vector3f wo, Float uc, Point2f u,
-                                                 TransportMode mode,
-                                                 BxDFReflTransFlags sampleFlags) const {
+PBRT_CPU_GPU pstd::optional<BSDFSample> OpenPBRBxDF::Sample_f(
+    Vector3f wo, Float uc, Point2f u, TransportMode mode,
+    BxDFReflTransFlags sampleFlags) const {
     OpenPBR_ResolvedInputs inputs = openpbr_make_default_resolved_inputs();
     inputs.base_weight = base_weight;
     inputs.base_color = vec3(base_color[0], base_color[1], base_color[2]);  // terracotta
@@ -250,7 +251,8 @@ pstd::optional<BSDFSample> OpenPBRBxDF::Sample_f(Vector3f wo, Float uc, Point2f 
     return {};
 }
 
-SampledSpectrum OpenPBRBxDF::f(Vector3f wo, Vector3f wi, TransportMode mode) const {
+PBRT_CPU_GPU SampledSpectrum OpenPBRBxDF::f(Vector3f wo, Vector3f wi,
+                                           TransportMode mode) const {
     Float cosineTheta = std::abs(wi[2]);
     OpenPBR_ResolvedInputs inputs = openpbr_make_default_resolved_inputs();
     inputs.base_weight = base_weight;
@@ -292,8 +294,8 @@ SampledSpectrum OpenPBRBxDF::f(Vector3f wo, Vector3f wi, TransportMode mode) con
     return f / cosineTheta;
 }
 
-Float OpenPBRBxDF::PDF(Vector3f wo, Vector3f wi, TransportMode mode,
-                       BxDFReflTransFlags sampleFlags) const {
+PBRT_CPU_GPU Float OpenPBRBxDF::PDF(Vector3f wo, Vector3f wi, TransportMode mode,
+                                    BxDFReflTransFlags sampleFlags) const {
     if (!(sampleFlags & BxDFReflTransFlags::Reflection) || !SameHemisphere(wo, wi))
         return 0.f;
 

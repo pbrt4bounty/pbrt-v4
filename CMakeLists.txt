@@ -328,6 +328,7 @@ if (CMAKE_CUDA_COMPILER)
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=186>" # pointless comparison of unsigned integer with zero
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=550>" # variable was set but never used
                 # WAR invalid warnings about this with "if constexpr"
+                "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=20012>" # lot of warnings on 'openpbr' branch
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=20011>" # calling a __host__ function is not allowed
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=20014>" # calling a __host__ function from a __host__ __device__ function is not allowed
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=implicit_return_from_non_void_function>"

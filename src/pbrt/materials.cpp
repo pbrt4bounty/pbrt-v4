@@ -254,9 +254,9 @@ ConductorMaterial *ConductorMaterial::Create(const TextureParameterDictionary &p
 #if defined(PBRT_WITH_OPENPBR)
 // OpenPBRMaterial Method Definitions
 template <typename TextureEvaluator>
-OpenPBRBxDF OpenPBRMaterial::GetBxDF(TextureEvaluator texEval,
-                                     const MaterialEvalContext &ctx,
-                                     SampledWavelengths &lambda) const {
+PBRT_CPU_GPU OpenPBRBxDF OpenPBRMaterial::GetBxDF(TextureEvaluator texEval,
+                                                  const MaterialEvalContext &ctx,
+                                                  SampledWavelengths &lambda) const {
     // Initialize base component
     Float base_weight_ = texEval(base_weight, ctx);
     SampledSpectrum base_color_ = Clamp(texEval(base_color, ctx, lambda), 0, 1);
@@ -301,12 +301,12 @@ OpenPBRBxDF OpenPBRMaterial::GetBxDF(TextureEvaluator texEval,
 }
 
 // Explicit template instantiation
-template OpenPBRBxDF OpenPBRMaterial::GetBxDF(BasicTextureEvaluator,
-                                              const MaterialEvalContext &ctx,
-                                              SampledWavelengths &lambda) const;
-template OpenPBRBxDF OpenPBRMaterial::GetBxDF(UniversalTextureEvaluator,
-                                              const MaterialEvalContext &ctx,
-                                              SampledWavelengths &lambda) const;
+template PBRT_CPU_GPU OpenPBRBxDF
+OpenPBRMaterial::GetBxDF(BasicTextureEvaluator, const MaterialEvalContext &ctx,
+                         SampledWavelengths &lambda) const;
+template PBRT_CPU_GPU OpenPBRBxDF
+OpenPBRMaterial::GetBxDF(UniversalTextureEvaluator, const MaterialEvalContext &ctx,
+                         SampledWavelengths &lambda) const;
 
 std::string OpenPBRMaterial::ToString() const {
     return StringPrintf("[ OpenPBRMaterial displacement: %s normalMap: %s base_color: %s "
@@ -340,7 +340,7 @@ OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &param
         parameters.GetFloatTextureOrNull("base_diffuse_roughness", alloc);
     if (!base_diffuse_roughness)
         base_diffuse_roughness =
-            parameters.GetFloatTexture("base_diffuse_roughness", 1.f, alloc);
+            parameters.GetFloatTexture("base_diffuse_roughness", 0.f, alloc);
 
     FloatTexture specular_weight =
         parameters.GetFloatTextureOrNull("specular_weight", alloc);
@@ -418,8 +418,8 @@ OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &param
 // CookTorranceMaterial Method Definitions
 template <typename TextureEvaluator>
 CookTorranceBxDF CookTorranceMaterial::GetBxDF(TextureEvaluator texEval,
-                                                 const MaterialEvalContext &ctx,
-                                                 SampledWavelengths &lambda) const {
+                                               const MaterialEvalContext &ctx,
+                                               SampledWavelengths &lambda) const {
     // Initialize diffuse component of plastic material
     SampledSpectrum r = Clamp(texEval(reflectance, ctx, lambda), 0, 1);
 
