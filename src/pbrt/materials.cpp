@@ -309,13 +309,18 @@ OpenPBRMaterial::GetBxDF(UniversalTextureEvaluator, const MaterialEvalContext &c
                          SampledWavelengths &lambda) const;
 
 std::string OpenPBRMaterial::ToString() const {
-    return StringPrintf("[ OpenPBRMaterial displacement: %s normalMap: %s base_color: %s "
-                        "specular_roughness: %s specular_roughness_anisotropy: %s "
-                        "specular_ior: %s remapRoughness: %s ]",
-                        displacement,
-                        normalMap ? normalMap->ToString() : std::string("(nullptr)"),
-                        base_color, specular_roughness, specular_roughness_anisotropy,
-                        specular_ior, remapRoughness);
+    return StringPrintf(
+        "[ OpenPBRMaterial displacement: %s normalMap: %s base_color: %s base_weight: %s "
+        "base_metalness: %s base_diffuse_roughness: %s specular_weight: %s "
+        "specular_color: %s specular_roughness: %s specular_roughness_anisotropy: %s "
+        "specular_ior: %s coat_weight: %s coat_roughness: %s coat_roughness_anisotropy: "
+        "%s coat_ior: %s coat_darkening: %s fuzz_weight: %s fuzz_roughness: %s "
+        "coat_color: %s fuzz_color: %s remapRoughness: %s ]",
+        displacement, normalMap ? normalMap->ToString() : std::string("(nullptr)"),
+        base_color, base_weight, base_metalness, base_diffuse_roughness, specular_weight,
+        specular_color, specular_roughness, specular_roughness_anisotropy, specular_ior,
+        coat_weight, coat_roughness, coat_roughness_anisotropy, coat_ior, coat_darkening,
+        fuzz_weight, fuzz_roughness, coat_color, fuzz_color, remapRoughness);
 }
 
 OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &parameters,
