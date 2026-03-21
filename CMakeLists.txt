@@ -1285,12 +1285,14 @@ endif()
 install (TARGETS pbrt_lib DESTINATION lib )
 
 if (APPLE)
-  install(FILES
-    ${CMAKE_INSTALL_PREFIX}/lib/libtbb.12.dylib
-    ${CMAKE_INSTALL_PREFIX}/lib/libtbb.12.17.dylib
-    ${CMAKE_INSTALL_PREFIX}/lib/libopenpgl.0.dylib
-    ${CMAKE_INSTALL_PREFIX}/lib/libopenpgl.0.8.0.dylib
-    DESTINATION bin)
+  if(PBRT_WITH_PATH_GUIDING)
+    install(FILES
+      ${CMAKE_INSTALL_PREFIX}/lib/libtbb.12.dylib
+      ${CMAKE_INSTALL_PREFIX}/lib/libtbb.12.17.dylib
+      ${CMAKE_INSTALL_PREFIX}/lib/libopenpgl.0.dylib
+      ${CMAKE_INSTALL_PREFIX}/lib/libopenpgl.0.8.0.dylib
+      DESTINATION bin)
+  endif()
 
   if(PBRT_WITH_OIDN)
     install(FILES
