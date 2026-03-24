@@ -326,9 +326,7 @@ std::string OpenPBRMaterial::ToString() const {
 OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &parameters,
                                          Image *normalMap, const FileLoc *loc,
                                          Allocator alloc) {
-    FloatTexture base_weight = parameters.GetFloatTextureOrNull("base_weight", alloc);
-    if (!base_weight)
-        base_weight = parameters.GetFloatTexture("base_weight", 1.f, alloc);
+    FloatTexture base_weight = parameters.GetFloatTexture("base_weight", 1.f, alloc);
 
     SpectrumTexture base_color =
         parameters.GetSpectrumTexture("base_color", nullptr, SpectrumType::Albedo, alloc);
@@ -337,76 +335,56 @@ OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &param
             alloc.new_object<ConstantSpectrum>(0.8f));
 
     FloatTexture base_metalness =
-        parameters.GetFloatTextureOrNull("base_metalness", alloc);
-    if (!base_metalness)
-        base_metalness = parameters.GetFloatTexture("base_metalness", 1.f, alloc);
+        parameters.GetFloatTexture("base_metalness", 1.f, alloc);
 
     FloatTexture base_diffuse_roughness =
-        parameters.GetFloatTextureOrNull("base_diffuse_roughness", alloc);
-    if (!base_diffuse_roughness)
-        base_diffuse_roughness =
             parameters.GetFloatTexture("base_diffuse_roughness", 0.f, alloc);
 
     FloatTexture specular_weight =
-        parameters.GetFloatTextureOrNull("specular_weight", alloc);
-    if (!specular_weight)
-        specular_weight = parameters.GetFloatTexture("specular_weight", 1.f, alloc);
+        parameters.GetFloatTexture("specular_weight", 1.f, alloc);
+
     SpectrumTexture specular_color = parameters.GetSpectrumTexture(
         "specular_color", nullptr, SpectrumType::Albedo, alloc);
     if (!specular_color)
         specular_color = alloc.new_object<SpectrumConstantTexture>(
             alloc.new_object<ConstantSpectrum>(1.0f));
-    FloatTexture specular_roughness =
-        parameters.GetFloatTextureOrNull("specular_roughness", alloc);
-    if (!specular_roughness)
-        specular_roughness =
-            parameters.GetFloatTexture("specular_roughness", 0.3f, alloc);
-    FloatTexture specular_roughness_anisotropy =
-        parameters.GetFloatTextureOrNull("specular_roughness_anisotropy", alloc);
-    if (!specular_roughness_anisotropy)
-        specular_roughness_anisotropy =
-            parameters.GetFloatTexture("specular_roughness_anisotropy", 0.f, alloc);
-    FloatTexture specular_ior = parameters.GetFloatTextureOrNull("specular_ior", alloc);
-    if (!specular_ior)
-        specular_ior = parameters.GetFloatTexture("specular_ior", 1.5f, alloc);
 
-    FloatTexture coat_weight = parameters.GetFloatTextureOrNull("coat_weight", alloc);
-    if (!coat_weight)
-        coat_weight = parameters.GetFloatTexture("coat_weight", 0.f, alloc);
+    FloatTexture specular_roughness =
+        parameters.GetFloatTexture("specular_roughness", 0.3f, alloc);
+
+    FloatTexture specular_roughness_anisotropy =
+            parameters.GetFloatTexture("specular_roughness_anisotropy", 0.f, alloc);
+
+    FloatTexture specular_ior = parameters.GetFloatTexture("specular_ior", 1.5f, alloc);
+
+    FloatTexture coat_weight = parameters.GetFloatTexture("coat_weight", 0.f, alloc);
     SpectrumTexture coat_color =
         parameters.GetSpectrumTexture("coat_color", nullptr, SpectrumType::Albedo, alloc);
     if (!coat_color)
         coat_color = alloc.new_object<SpectrumConstantTexture>(
             alloc.new_object<ConstantSpectrum>(1.0f));
-    FloatTexture coat_roughness =
-        parameters.GetFloatTextureOrNull("coat_roughness", alloc);
-    if (!coat_roughness)
-        coat_roughness = parameters.GetFloatTexture("coat_roughness", 0.0f, alloc);
-    FloatTexture coat_roughness_anisotropy =
-        parameters.GetFloatTextureOrNull("coat_roughness_anisotropy", alloc);
-    if (!coat_roughness_anisotropy)
-        coat_roughness_anisotropy =
-            parameters.GetFloatTexture("coat_roughness_anisotropy", 0.f, alloc);
-    FloatTexture coat_ior = parameters.GetFloatTextureOrNull("coat_ior", alloc);
-    if (!coat_ior)
-        coat_ior = parameters.GetFloatTexture("coat_ior", 1.6f, alloc);
-    FloatTexture coat_darkening =
-        parameters.GetFloatTextureOrNull("coat_darkening", alloc);
-    if (!coat_darkening)
-        coat_darkening = parameters.GetFloatTexture("coat_darkening", 1.0f, alloc);
 
-    FloatTexture fuzz_weight = parameters.GetFloatTextureOrNull("fuzz_weight", alloc);
-    if (!fuzz_weight)
-        fuzz_weight = parameters.GetFloatTexture("fuzz_weight", 0.f, alloc);
+    FloatTexture coat_roughness =
+        parameters.GetFloatTexture("coat_roughness", 0.0f, alloc);
+
+    FloatTexture coat_roughness_anisotropy =
+            parameters.GetFloatTexture("coat_roughness_anisotropy", 0.f, alloc);
+
+    FloatTexture coat_ior = parameters.GetFloatTexture("coat_ior", 1.6f, alloc);
+
+    FloatTexture coat_darkening =
+        parameters.GetFloatTexture("coat_darkening", 1.0f, alloc);
+
+    FloatTexture fuzz_weight = parameters.GetFloatTexture("fuzz_weight", 0.f, alloc);
+
     SpectrumTexture fuzz_color =
         parameters.GetSpectrumTexture("fuzz_color", nullptr, SpectrumType::Albedo, alloc);
     if (!fuzz_color)
         fuzz_color = alloc.new_object<SpectrumConstantTexture>(
             alloc.new_object<ConstantSpectrum>(1.0f));
+
     FloatTexture fuzz_roughness =
-        parameters.GetFloatTextureOrNull("fuzz_roughness", alloc);
-    if (!fuzz_roughness)
-        fuzz_roughness = parameters.GetFloatTexture("fuzz_roughness", 0.0f, alloc);
+        parameters.GetFloatTexture("fuzz_roughness", 0.0f, alloc);
 
     FloatTexture displacement = parameters.GetFloatTextureOrNull("displacement", alloc);
     bool remapRoughness = parameters.GetOneBool("remaproughness", false);
