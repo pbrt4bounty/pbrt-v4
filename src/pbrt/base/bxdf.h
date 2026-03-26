@@ -203,9 +203,9 @@ class BxDF : public TaggedPointer<DiffuseTransmissionBxDF, DiffuseBxDF, CoatedDi
     PBRT_CPU_GPU inline void Regularize(const Float regularizationGamma,
                                         const Float accumulatedRoughness);
 
-    PBRT_CPU_GPU float GetEta() const;
+    PBRT_CPU_GPU Float GetEta() const;
 
-    PBRT_CPU_GPU float GetRoughness() const;
+    PBRT_CPU_GPU Float GetRoughness() const;
 };
 
 }  // namespace pbrt

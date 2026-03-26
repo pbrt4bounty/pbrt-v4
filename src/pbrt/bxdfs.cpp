@@ -75,7 +75,7 @@ std::string LayeredBxDF<TopBxDF, BottomBxDF, twoSided>::ToString() const {
 }
 
 // CookTorranceBxDF Method Definitions
-pstd::optional<BSDFSample> CookTorranceBxDF::Sample_f(
+PBRT_CPU_GPU pstd::optional<BSDFSample> CookTorranceBxDF::Sample_f(
     Vector3f wo, Float uc, Point2f u, TransportMode mode,
     BxDFReflTransFlags sampleFlags) const {
     // Compute probabilities _pr_ and _pt_ for sampling glossy and diffuse
@@ -99,7 +99,7 @@ pstd::optional<BSDFSample> CookTorranceBxDF::Sample_f(
         pdf += CosineHemispherePDF(AbsCosTheta(wi)) * (pt / (pr + pt));
         DCHECK(!IsNaN(pdf));
         SampledSpectrum f(mfDistrib.D(wm) * mfDistrib.G(wo, wi) * R /
-                          (4 * CosTheta(wi) * CosTheta(wo)));
+                            (4 * CosTheta(wi) * CosTheta(wo)));
         f += (this->R * InvPi) * T;
         return BSDFSample(f, wi, pdf,
                           BxDFFlags::GlossyReflection | BxDFFlags::DiffuseReflection,
@@ -118,7 +118,7 @@ pstd::optional<BSDFSample> CookTorranceBxDF::Sample_f(
         pdf += mfDistrib.PDF(wo, wm) / (4 * AbsDot(wo, wm)) * pr / (pr + pt);
 
         SampledSpectrum f(mfDistrib.D(wm) * mfDistrib.G(wo, wi) * R /
-                          (4 * CosTheta(wi) * CosTheta(wo)));
+                            (4 * CosTheta(wi) * CosTheta(wo)));
         f += (this->R * InvPi) * T;
         return BSDFSample(f, wi, pdf,
                           BxDFFlags::GlossyReflection | BxDFFlags::DiffuseReflection,
@@ -151,7 +151,7 @@ SampledSpectrum CookTorranceBxDF::f(Vector3f wo, Vector3f wi, TransportMode mode
 }
 
 Float CookTorranceBxDF::PDF(Vector3f wo, Vector3f wi, TransportMode mode,
-                            BxDFReflTransFlags sampleFlags) const {
+                          BxDFReflTransFlags sampleFlags) const {
     if (!(sampleFlags & BxDFReflTransFlags::Reflection) || !SameHemisphere(wo, wi))
         return 0.f;
 
@@ -178,7 +178,7 @@ Float CookTorranceBxDF::PDF(Vector3f wo, Vector3f wi, TransportMode mode,
     Float pt = 1 - pr;
 
     // Return PDF for rough dielectric
-    Float pdf = mfDistrib.PDF(wo, wm) / (4 * AbsDot(wo, wm)) * pr / (pr + pt);
+    Float pdf =  mfDistrib.PDF(wo, wm) / (4 * AbsDot(wo, wm)) * pr / (pr + pt);
     pdf += CosineHemispherePDF(AbsCosTheta(wi)) * pt / (pr + pt);
 
     return pdf;
