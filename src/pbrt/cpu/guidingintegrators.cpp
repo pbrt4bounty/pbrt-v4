@@ -523,8 +523,9 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
 
             RGB rgbAlbedo = albedo.ToRGB(lambda, *colorSpace);
 #if defined(OPENPGL_IMAGE_SPACE_GUIDING_BUFFER)
-            isgbSample.albedo = {rgbAlbedo[0], rgbAlbedo[1], rgbAlbedo[2]};
-            isgbSample.normal = {isect.n[0], isect.n[1], isect.n[2]};
+            isgbSample.albedo = {(float)rgbAlbedo[0], (float)rgbAlbedo[1],
+                                 (float)rgbAlbedo[2]};
+            isgbSample.normal = {(float)isect.n[0], (float)isect.n[1], (float)isect.n[2]};
             isgbSample.SetSurfaceEvent(true);
 #endif
         }
@@ -718,7 +719,8 @@ SampledSpectrum GuidedVolPathVSPGIntegrator::Li(Point2i pPixel, RayDifferential 
 #else
         RGB colorRGB = sensor->ToSensorRGB(L, lambda);
 #endif
-        isgbSample.contribution = {colorRGB[0], colorRGB[1], colorRGB[2]};
+        isgbSample.contribution = {(float)colorRGB[0], (float)colorRGB[1],
+                                   (float)colorRGB[2]};
         imageSpaceGuidingBuffer->AddSample({pPixel[0], pPixel[1]}, isgbSample);
     }
 #endif
@@ -902,8 +904,10 @@ void GuidedVolPathVSPGIntegrator::SampleDistance(
             if (depth == 0) {
                 SampledSpectrum albedo = mp.sigma_s / (mp.sigma_s + mp.sigma_a);
                 RGB rgbAlbedo = albedo.ToRGB(lambda, *colorSpace);
-                isgbSample.albedo = {rgbAlbedo[0], rgbAlbedo[1], rgbAlbedo[2]};
-                isgbSample.normal = {-ray.d[0], -ray.d[1], -ray.d[1]};
+                isgbSample.albedo = {(float)rgbAlbedo[0], (float)rgbAlbedo[1],
+                                     (float)rgbAlbedo[2]};
+                isgbSample.normal = {(float)-ray.d[0], (float)-ray.d[1],
+                                     (float)-ray.d[1]};
                 isgbSample.SetSurfaceEvent(false);
             }
 #endif
@@ -1095,8 +1099,10 @@ void GuidedVolPathVSPGIntegrator::SampleDistance(
                         SampledSpectrum albedo = mp.sigma_s / (mp.sigma_s + mp.sigma_a);
 
                         RGB rgbAlbedo = albedo.ToRGB(lambda, *colorSpace);
-                        isgbSample.albedo = {rgbAlbedo[0], rgbAlbedo[1], rgbAlbedo[2]};
-                        isgbSample.normal = {-ray.d[0], -ray.d[1], -ray.d[1]};
+                        isgbSample.albedo = {(float)rgbAlbedo[0], (float)rgbAlbedo[1],
+                                             (float)rgbAlbedo[2]};
+                        isgbSample.normal = {(float)-ray.d[0], (float)-ray.d[1],
+                                             (float)-ray.d[1]};
                         isgbSample.SetSurfaceEvent(false);
                     }
 #endif
