@@ -81,7 +81,7 @@ std::string LayeredBxDF<TopBxDF, BottomBxDF, twoSided>::ToString() const {
 }
 
 // CookTorranceBxDF Method Definitions
-pstd::optional<BSDFSample> CookTorranceBxDF::Sample_f(
+PBRT_CPU_GPU pstd::optional<BSDFSample> CookTorranceBxDF::Sample_f(
     Vector3f wo, Float uc, Point2f u, TransportMode mode,
     BxDFReflTransFlags sampleFlags) const {
     // Compute probabilities _pr_ and _pt_ for sampling glossy and diffuse
