@@ -211,11 +211,18 @@ PBRT_CPU_GPU pstd::optional<BSDFSample> OpenPBRBxDF::Sample_f(
     inputs.specular_roughness = specular_roughness;
     inputs.specular_roughness_anisotropy = specular_roughness_anisotropy;
     inputs.specular_ior = specular_ior;
+    // default, is (1.0, 0.0)
+    inputs.specular_anisotropy_rotation_cos_sin =
+        vec2(specular_anisotropy_rotation.x, specular_anisotropy_rotation.y);
 
     inputs.coat_weight = coat_weight;
     inputs.coat_color = vec3(coat_color[0], coat_color[1], coat_color[2]);
     inputs.coat_roughness = coat_roughness;
     inputs.coat_roughness_anisotropy = coat_roughness_anisotropy;
+    // default, is (1.0, 0.0)
+    inputs.coat_anisotropy_rotation_cos_sin =
+        vec2(coat_anisotropy_rotation.x, coat_anisotropy_rotation.y);
+
     inputs.coat_ior = coat_ior;
     inputs.coat_darkening = coat_darkening;
 
@@ -252,7 +259,7 @@ PBRT_CPU_GPU pstd::optional<BSDFSample> OpenPBRBxDF::Sample_f(
 }
 
 PBRT_CPU_GPU SampledSpectrum OpenPBRBxDF::f(Vector3f wo, Vector3f wi,
-                                           TransportMode mode) const {
+                                            TransportMode mode) const {
     Float cosineTheta = std::abs(wi[2]);
     OpenPBR_ResolvedInputs inputs = openpbr_make_default_resolved_inputs();
     inputs.base_weight = base_weight;
@@ -265,11 +272,17 @@ PBRT_CPU_GPU SampledSpectrum OpenPBRBxDF::f(Vector3f wo, Vector3f wi,
     inputs.specular_roughness = specular_roughness;
     inputs.specular_roughness_anisotropy = specular_roughness_anisotropy;
     inputs.specular_ior = specular_ior;
+    // default, is (1.0, 0.0)
+    inputs.specular_anisotropy_rotation_cos_sin = vec2(specular_anisotropy_rotation.x, specular_anisotropy_rotation.y);
 
     inputs.coat_weight = coat_weight;
     inputs.coat_color = vec3(coat_color[0], coat_color[1], coat_color[2]);
     inputs.coat_roughness = coat_roughness;
     inputs.coat_roughness_anisotropy = coat_roughness_anisotropy;
+    // default, is (1.0, 0.0)
+    inputs.coat_anisotropy_rotation_cos_sin =
+        vec2(coat_anisotropy_rotation.x, coat_anisotropy_rotation.y);
+
     inputs.coat_ior = coat_ior;
     inputs.coat_darkening = coat_darkening;
 
@@ -310,11 +323,18 @@ PBRT_CPU_GPU Float OpenPBRBxDF::PDF(Vector3f wo, Vector3f wi, TransportMode mode
     inputs.specular_roughness = specular_roughness;
     inputs.specular_roughness_anisotropy = specular_roughness_anisotropy;
     inputs.specular_ior = specular_ior;
+    // default, is (1.0, 0.0)
+    inputs.specular_anisotropy_rotation_cos_sin =
+        vec2(specular_anisotropy_rotation.x, specular_anisotropy_rotation.y);
 
     inputs.coat_weight = coat_weight;
     inputs.coat_color = vec3(coat_color[0], coat_color[1], coat_color[2]);
     inputs.coat_roughness = coat_roughness;
     inputs.coat_roughness_anisotropy = coat_roughness_anisotropy;
+    // default, is (1.0, 0.0)
+    inputs.coat_anisotropy_rotation_cos_sin =
+        vec2(coat_anisotropy_rotation.x, coat_anisotropy_rotation.y);
+
     inputs.coat_ior = coat_ior;
     inputs.coat_darkening = coat_darkening;
 

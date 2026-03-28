@@ -237,9 +237,12 @@ class OpenPBRBxDF {
     OpenPBRBxDF(Float base_weight, SampledSpectrum base_color, Float base_metalness,
                 Float base_diffuse_roughness, Float specular_weight,
                 SampledSpectrum specular_color, Float specular_roughness,
-                Float specular_roughness_anisotropy, Float specular_ior,
+                Float specular_roughness_anisotropy,
+                Vector2f m_specular_anisotropy_rotation,
+                Float specular_ior,
                 Float coat_weight, SampledSpectrum coat_color, Float coat_roughness,
-                Float coat_roughness_anisotropy, Float coat_ior, Float coat_darkening,
+                Float coat_roughness_anisotropy, Vector2f m_coat_anisotropy_rotation,
+                Float coat_ior, Float coat_darkening,
                 Float fuzz_weight, SampledSpectrum fuzz_color, Float fuzz_roughness)
         : base_weight(base_weight),
           base_color(base_color),
@@ -249,11 +252,13 @@ class OpenPBRBxDF {
           specular_color(specular_color),
           specular_roughness(specular_roughness),
           specular_roughness_anisotropy(specular_roughness_anisotropy),
+          specular_anisotropy_rotation(m_specular_anisotropy_rotation),
           specular_ior(specular_ior),
           coat_weight(coat_weight),
           coat_color(coat_color),
           coat_roughness(coat_roughness),
           coat_roughness_anisotropy(coat_roughness_anisotropy),
+          coat_anisotropy_rotation(m_coat_anisotropy_rotation),
           coat_ior(coat_ior),
           coat_darkening(coat_darkening),
           fuzz_weight(fuzz_weight),
@@ -292,10 +297,10 @@ class OpenPBRBxDF {
     }  // TODO: regularize the roughness values }
 
     PBRT_CPU_GPU
-    float GetEta() const { return specular_ior; }
+    Float GetEta() const { return specular_ior; }
 
     PBRT_CPU_GPU
-    float GetRoughness() const { return specular_roughness; }
+    Float GetRoughness() const { return specular_roughness; }
 
   private:
     Float base_weight;
@@ -307,12 +312,14 @@ class OpenPBRBxDF {
     SampledSpectrum specular_color;
     Float specular_roughness;
     Float specular_roughness_anisotropy;
+    Vector2f specular_anisotropy_rotation;
     Float specular_ior;
 
     Float coat_weight;
     SampledSpectrum coat_color;
     Float coat_roughness;
     Float coat_roughness_anisotropy;
+    Vector2f coat_anisotropy_rotation;
     Float coat_ior;
     Float coat_darkening;
 

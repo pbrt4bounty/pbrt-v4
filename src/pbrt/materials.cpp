@@ -273,8 +273,17 @@ PBRT_CPU_GPU OpenPBRBxDF OpenPBRMaterial::GetBxDF(TextureEvaluator texEval,
     }
     specular_roughness_ = std::max(0.001f, specular_roughness_);
     Float specular_roughness_anisotropy_ = texEval(specular_roughness_anisotropy, ctx);
+    Float spec_urough = texEval(specular_uroughness, ctx);
+    Float spec_vrough = texEval(specular_vroughness, ctx);
+    // need more test..
+    //if (specular_roughness_anisotropy_ > 0.0001f || remapRoughness) {
+    //    spec_urough = TrowbridgeReitzDistribution::RoughnessToAlpha(spec_urough);
+    //    spec_vrough = TrowbridgeReitzDistribution::RoughnessToAlpha(spec_vrough);
+    //}
+    Vector2f specular_anisotropy_(spec_urough, spec_vrough);
     Float specular_ior_ = texEval(specular_ior, ctx);
 
+    // Initialize coat component
     Float coat_weight_ = texEval(coat_weight, ctx);
     SampledSpectrum coat_color_ = Clamp(texEval(coat_color, ctx, lambda), 0, 1);
     Float coat_roughness_ = texEval(coat_roughness, ctx);
@@ -283,6 +292,14 @@ PBRT_CPU_GPU OpenPBRBxDF OpenPBRMaterial::GetBxDF(TextureEvaluator texEval,
     }
     coat_roughness_ = std::max(0.001f, coat_roughness_);
     Float coat_roughness_anisotropy_ = texEval(coat_roughness_anisotropy, ctx);
+    Float coat_urough = texEval(coat_uroughness, ctx);
+    Float coat_vrough = texEval(coat_vroughness, ctx);
+    // need more test..
+    //if (coat_roughness_anisotropy_ > 0.0001f || remapRoughness) {
+    //    coat_urough = TrowbridgeReitzDistribution::RoughnessToAlpha(coat_urough);
+    //    coat_vrough = TrowbridgeReitzDistribution::RoughnessToAlpha(coat_vrough);
+    //}
+    Vector2f coat_anisotropy_(coat_urough, coat_vrough);
     Float coat_ior_ = texEval(coat_ior, ctx);
     Float coat_darkening_ = texEval(coat_darkening, ctx);
 
@@ -294,10 +311,11 @@ PBRT_CPU_GPU OpenPBRBxDF OpenPBRMaterial::GetBxDF(TextureEvaluator texEval,
     }
     return OpenPBRBxDF(base_weight_, base_color_, base_metalness_,
                        base_diffuse_roughness_, specular_weight_, specular_color_,
-                       specular_roughness_, specular_roughness_anisotropy_, specular_ior_,
-                       coat_weight_, coat_color_, coat_roughness_,
-                       coat_roughness_anisotropy_, coat_ior_, coat_darkening_,
-                       fuzz_weight_, fuzz_color_, fuzz_roughness_);
+                       specular_roughness_, specular_roughness_anisotropy_,
+                       specular_anisotropy_, specular_ior_, coat_weight_,
+                       coat_color_, coat_roughness_, coat_roughness_anisotropy_,
+                       coat_anisotropy_, coat_ior_, coat_darkening_, fuzz_weight_,
+                       fuzz_color_, fuzz_roughness_);
 }
 
 // Explicit template instantiation
@@ -338,7 +356,7 @@ OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &param
         parameters.GetFloatTexture("base_metalness", 1.f, alloc);
 
     FloatTexture base_diffuse_roughness =
-            parameters.GetFloatTexture("base_diffuse_roughness", 0.f, alloc);
+        parameters.GetFloatTexture("base_diffuse_roughness", 0.f, alloc);
 
     FloatTexture specular_weight =
         parameters.GetFloatTexture("specular_weight", 1.f, alloc);
@@ -353,8 +371,12 @@ OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &param
         parameters.GetFloatTexture("specular_roughness", 0.3f, alloc);
 
     FloatTexture specular_roughness_anisotropy =
-            parameters.GetFloatTexture("specular_roughness_anisotropy", 0.f, alloc);
+        parameters.GetFloatTexture("specular_roughness_anisotropy", 0.f, alloc);
 
+    FloatTexture specular_uroughness =
+        parameters.GetFloatTexture("specular_uroughness", 1.0f, alloc);
+    FloatTexture specular_vroughness =
+        parameters.GetFloatTexture("specular_vroughness", 0.0f, alloc);
     FloatTexture specular_ior = parameters.GetFloatTexture("specular_ior", 1.5f, alloc);
 
     FloatTexture coat_weight = parameters.GetFloatTexture("coat_weight", 0.f, alloc);
@@ -368,7 +390,11 @@ OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &param
         parameters.GetFloatTexture("coat_roughness", 0.0f, alloc);
 
     FloatTexture coat_roughness_anisotropy =
-            parameters.GetFloatTexture("coat_roughness_anisotropy", 0.f, alloc);
+        parameters.GetFloatTexture("coat_roughness_anisotropy", 0.f, alloc);
+    FloatTexture coat_uroughness =
+        parameters.GetFloatTexture("coat_uroughness", 1.0f, alloc);
+    FloatTexture coat_vroughness =
+        parameters.GetFloatTexture("coat_vroughness", 0.0f, alloc);
 
     FloatTexture coat_ior = parameters.GetFloatTexture("coat_ior", 1.6f, alloc);
 
@@ -391,10 +417,11 @@ OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &param
 
     return alloc.new_object<OpenPBRMaterial>(
         base_weight, base_color, base_metalness, base_diffuse_roughness, specular_weight,
-        specular_color, specular_roughness, specular_roughness_anisotropy, specular_ior,
-        coat_weight, coat_color, coat_roughness, coat_roughness_anisotropy, coat_ior,
-        coat_darkening, fuzz_weight, fuzz_color, fuzz_roughness, displacement, normalMap,
-        remapRoughness);
+        specular_color, specular_roughness, specular_uroughness, specular_vroughness,
+        specular_roughness_anisotropy, specular_ior, coat_weight, coat_color,
+        coat_roughness, coat_uroughness, coat_vroughness, coat_roughness_anisotropy,
+        coat_ior, coat_darkening, fuzz_weight, fuzz_color, fuzz_roughness, displacement,
+        normalMap, remapRoughness);
 }
 #endif
 

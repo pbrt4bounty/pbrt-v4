@@ -561,10 +561,13 @@ class OpenPBRMaterial {
     OpenPBRMaterial(FloatTexture base_weight, SpectrumTexture base_color,
                     FloatTexture base_metalness, FloatTexture base_diffuse_roughness,
                     FloatTexture specular_weight, SpectrumTexture specular_color,
-                    FloatTexture specular_roughness,
+                    FloatTexture specular_roughness, FloatTexture m_specular_uroughness,
+                    FloatTexture m_specular_vroughness,
                     FloatTexture specular_roughness_anisotropy, FloatTexture specular_ior,
                     FloatTexture coat_weight, SpectrumTexture coat_color,
-                    FloatTexture coat_roughness, FloatTexture coat_roughness_anisotropy,
+                    FloatTexture coat_roughness, FloatTexture m_coat_uroughness,
+                    FloatTexture m_coat_vroughness,
+                    FloatTexture coat_roughness_anisotropy,
                     FloatTexture coat_ior, FloatTexture coat_darkening,
                     FloatTexture fuzz_weight, SpectrumTexture fuzz_color,
                     FloatTexture fuzz_roughness, FloatTexture displacement,
@@ -578,11 +581,15 @@ class OpenPBRMaterial {
           specular_weight(specular_weight),
           specular_color(specular_color),
           specular_roughness(specular_roughness),
+          specular_uroughness(m_specular_uroughness),
+          specular_vroughness(m_specular_vroughness),
           specular_roughness_anisotropy(specular_roughness_anisotropy),
           specular_ior(specular_ior),
           coat_weight(coat_weight),
           coat_color(coat_color),
           coat_roughness(coat_roughness),
+          coat_uroughness(m_coat_uroughness),
+          coat_vroughness(m_coat_vroughness),
           coat_roughness_anisotropy(coat_roughness_anisotropy),
           coat_ior(coat_ior),
           coat_darkening(coat_darkening),
@@ -650,12 +657,16 @@ class OpenPBRMaterial {
     FloatTexture specular_weight;
     SpectrumTexture specular_color;
     FloatTexture specular_roughness;
+    FloatTexture specular_uroughness;
+    FloatTexture specular_vroughness;
     FloatTexture specular_roughness_anisotropy;
     FloatTexture specular_ior;
 
     FloatTexture coat_weight;
     SpectrumTexture coat_color;
     FloatTexture coat_roughness;
+    FloatTexture coat_uroughness;
+    FloatTexture coat_vroughness;
     FloatTexture coat_roughness_anisotropy;
     FloatTexture coat_ior;
     FloatTexture coat_darkening;
