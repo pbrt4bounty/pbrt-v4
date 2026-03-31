@@ -553,6 +553,7 @@ NanoVDBMedium::NanoVDBMedium(const Transform &renderFromMedium, Spectrum sigma_a
                              nanovdb::GridHandle<NanoVDBBuffer> dg,
                              nanovdb::GridHandle<NanoVDBBuffer> tg, Float LeScale,
                              Float temperatureOffset, Float temperatureScale,
+                             Float majorantScale, Float densityOffset,
                              Allocator alloc)
 #else
 NanoVDBMedium::NanoVDBMedium(const Transform &renderFromMedium, Spectrum sigma_a,
@@ -571,17 +572,15 @@ NanoVDBMedium::NanoVDBMedium(const Transform &renderFromMedium, Spectrum sigma_a
       LeScale(LeScale),
       temperatureOffset(temperatureOffset),
       temperatureScale(temperatureScale),
+      majorantScale(majorantScale),
+      densityOffset(densityOffset),
 
 #if !defined(PBRT_RGB_RENDERING)
       sigma_a_spec(sigma_a, alloc),
-      sigma_s_spec(sigma_s, alloc),
-      majorantScale(1.0),
-      densityOffset(0.0)
+      sigma_s_spec(sigma_s, alloc)
 #else
       sigma_a_spec(*cs, sigma_a.ToRGBUnbounded(*cs).GetRGB()),
-      sigma_s_spec(*cs, sigma_s.ToRGBUnbounded(*cs).GetRGB()),
-      majorantScale(majorantScale),
-      densityOffset(densityOffset)
+      sigma_s_spec(*cs, sigma_s.ToRGBUnbounded(*cs).GetRGB())
 #endif
 {
     densityFloatGrid = densityGrid.grid<float>();
@@ -725,10 +724,18 @@ NanoVDBMedium *NanoVDBMedium::Create(const ParameterDictionary &parameters,
         sigma_s = alloc.new_object<ConstantSpectrum>(1.f);
     Float sigmaScale = parameters.GetOneFloat("scale", 1.f);
 
+    /*
+     * povman: except with guidedVolPathVSPG integrator, in cpu render mode, low values
+     * of majorant scale, combined with sigmaScale, give a 'FATAL Check failed..' in
+     * /src/pbrt/cpu/integrators.cpp. line 1071: CHECK_GE(1 - pAbsorb - pScatter, -1e-6);
+     */
+    majorantScale = std::min<Float>(0.1, majorantScale);
+
 #if !defined(PBRT_RGB_RENDERING)
     return alloc.new_object<NanoVDBMedium>(
         renderFromMedium, sigma_a, sigma_s, sigmaScale, g, std::move(densityGrid),
-        std::move(temperatureGrid), LeScale, temperatureOffset, temperatureScale, alloc);
+        std::move(temperatureGrid), LeScale, temperatureOffset, temperatureScale,
+        majorantScale, densityOffset, alloc);
 #else
     const RGBColorSpace *cs = parameters.ColorSpace();
     return alloc.new_object<NanoVDBMedium>(

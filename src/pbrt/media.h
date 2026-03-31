@@ -669,7 +669,8 @@ class NanoVDBMedium {
     NanoVDBMedium(const Transform &renderFromMedium, Spectrum sigma_a, Spectrum sigma_s,
                   Float sigmaScale, Float g, nanovdb::GridHandle<NanoVDBBuffer> dg,
                   nanovdb::GridHandle<NanoVDBBuffer> tg, Float LeScale,
-                  Float temperatureOffset, Float temperatureScale, Allocator alloc);
+                  Float temperatureOffset, Float temperatureScale, Float majorantScale,
+                  Float densityOffset, Allocator alloc);
 #else
     NanoVDBMedium(const Transform &renderFromMedium, Spectrum sigma_a, Spectrum sigma_s,
                   Float sigmaScale, Float g, nanovdb::GridHandle<NanoVDBBuffer> dg,
