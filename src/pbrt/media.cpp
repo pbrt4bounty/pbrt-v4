@@ -729,7 +729,7 @@ NanoVDBMedium *NanoVDBMedium::Create(const ParameterDictionary &parameters,
      * of majorant scale, combined with sigmaScale, give a 'FATAL Check failed..' in
      * /src/pbrt/cpu/integrators.cpp. line 1071: CHECK_GE(1 - pAbsorb - pScatter, -1e-6);
      */
-    majorantScale = std::min<Float>(0.1, majorantScale);
+    majorantScale = std::max<Float>(0.1, majorantScale);
 
 #if !defined(PBRT_RGB_RENDERING)
     return alloc.new_object<NanoVDBMedium>(
