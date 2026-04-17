@@ -558,20 +558,28 @@ class OpenPBRMaterial {
     using BxDF = OpenPBRBxDF;
     using BSSRDF = void;
     // OpenPBRMaterial Public Methods
-    OpenPBRMaterial(FloatTexture base_weight, SpectrumTexture base_color,
-                    FloatTexture base_metalness, FloatTexture base_diffuse_roughness,
-                    FloatTexture specular_weight, SpectrumTexture specular_color,
-                    FloatTexture specular_roughness, FloatTexture m_specular_uroughness,
-                    FloatTexture m_specular_vroughness,
-                    FloatTexture specular_roughness_anisotropy, FloatTexture specular_ior,
-                    FloatTexture coat_weight, SpectrumTexture coat_color,
-                    FloatTexture coat_roughness, FloatTexture m_coat_uroughness,
-                    FloatTexture m_coat_vroughness,
-                    FloatTexture coat_roughness_anisotropy,
-                    FloatTexture coat_ior, FloatTexture coat_darkening,
-                    FloatTexture fuzz_weight, SpectrumTexture fuzz_color,
-                    FloatTexture fuzz_roughness, FloatTexture displacement,
-                    Image *normalMap, bool remapRoughness)
+    OpenPBRMaterial(
+        FloatTexture base_weight, SpectrumTexture base_color, FloatTexture base_metalness,
+        FloatTexture base_diffuse_roughness, FloatTexture specular_weight,
+        SpectrumTexture specular_color, FloatTexture specular_roughness,
+        FloatTexture m_specular_uroughness, FloatTexture m_specular_vroughness,
+        FloatTexture specular_roughness_anisotropy, FloatTexture specular_ior,
+        FloatTexture m_transmission_weight, SpectrumTexture m_transmission_color,
+        FloatTexture m_transmission_depth, SpectrumTexture m_transmission_scatter,
+        FloatTexture m_transmission_scatter_anisotropy,
+        FloatTexture m_transmission_dispersion_scale,
+        FloatTexture m_transmission_dispersion_abbe_number,
+        FloatTexture m_subsurface_weight, SpectrumTexture m_subsurface_color,
+        FloatTexture m_subsurface_radius, SpectrumTexture m_subsurface_radius_scale,
+        FloatTexture m_subsurface_scatter_anisotropy, FloatTexture coat_weight,
+        SpectrumTexture coat_color, FloatTexture coat_roughness,
+        FloatTexture m_coat_uroughness, FloatTexture m_coat_vroughness,
+        FloatTexture coat_roughness_anisotropy, FloatTexture coat_ior,
+        FloatTexture coat_darkening, FloatTexture fuzz_weight, SpectrumTexture fuzz_color,
+        FloatTexture fuzz_roughness, FloatTexture m_emission_luminance,
+        SpectrumTexture m_emission_color, FloatTexture m_thin_film_weight,
+        FloatTexture m_thin_film_thickness, FloatTexture m_thin_film_ior,
+        FloatTexture displacement, Image *normalMap, bool remapRoughness)
         : displacement(displacement),
           normalMap(normalMap),
           base_weight(base_weight),
@@ -585,6 +593,18 @@ class OpenPBRMaterial {
           specular_vroughness(m_specular_vroughness),
           specular_roughness_anisotropy(specular_roughness_anisotropy),
           specular_ior(specular_ior),
+          transmission_weight(m_transmission_weight),
+          transmission_color(m_transmission_color),
+          transmission_depth(m_transmission_depth),
+          transmission_scatter(m_transmission_scatter),
+          transmission_scatter_anisotropy(m_transmission_scatter_anisotropy),
+          transmission_dispersion_scale(m_transmission_dispersion_scale),
+          transmission_dispersion_abbe_number(m_transmission_dispersion_abbe_number),
+          subsurface_weight(m_subsurface_weight),
+          subsurface_color(m_subsurface_color),
+          subsurface_radius(m_subsurface_radius),
+          subsurface_radius_scale(m_subsurface_radius_scale),
+          subsurface_scatter_anisotropy(m_subsurface_scatter_anisotropy),
           coat_weight(coat_weight),
           coat_color(coat_color),
           coat_roughness(coat_roughness),
@@ -596,6 +616,11 @@ class OpenPBRMaterial {
           fuzz_weight(fuzz_weight),
           fuzz_color(fuzz_color),
           fuzz_roughness(fuzz_roughness),
+          emission_luminance(m_emission_luminance),
+          emission_color(m_emission_color),
+          thin_film_weight(m_thin_film_weight),
+          thin_film_thickness(m_thin_film_thickness),
+          thin_film_ior(m_thin_film_ior),
           remapRoughness(remapRoughness) {}
 
     static const char *Name() { return "OpenPBRMaterial"; }
@@ -603,27 +628,39 @@ class OpenPBRMaterial {
     template <typename TextureEvaluator>
     PBRT_CPU_GPU bool CanEvaluateTextures(TextureEvaluator texEval) const {
         return texEval.CanEvaluate(
-            {
-                base_weight,
-                base_metalness,
-                base_diffuse_roughness,
-                specular_weight,
-                specular_roughness,
-                specular_uroughness,
-                specular_vroughness,
-                specular_roughness_anisotropy,
-                specular_ior,
-                coat_weight,
-                coat_roughness,
-                coat_uroughness,
-                coat_vroughness,
-                coat_roughness_anisotropy,
-                coat_ior,
-                coat_darkening,
-                fuzz_weight,
-                fuzz_roughness,
-            },
-            {base_color, specular_color, coat_color, fuzz_color});
+            {base_weight,
+             base_metalness,
+             base_diffuse_roughness,
+             specular_weight,
+             specular_roughness,
+             specular_uroughness,
+             specular_vroughness,
+             specular_roughness_anisotropy,
+             specular_ior,
+             transmission_weight,
+             transmission_depth,
+             transmission_scatter_anisotropy,
+             transmission_dispersion_scale,
+             transmission_dispersion_abbe_number,
+             subsurface_weight,
+             subsurface_radius,
+             subsurface_scatter_anisotropy,
+             coat_weight,
+             coat_roughness,
+             coat_uroughness,
+             coat_vroughness,
+             coat_roughness_anisotropy,
+             coat_ior,
+             coat_darkening,
+             fuzz_weight,
+             fuzz_roughness,
+             emission_luminance,
+             thin_film_weight,
+             thin_film_thickness,
+             thin_film_ior},
+            {base_color, specular_color, transmission_color, transmission_scatter,
+             subsurface_color, subsurface_radius_scale, coat_color, fuzz_color,
+             emission_color});
     }
 
     template <typename TextureEvaluator>
@@ -666,6 +703,20 @@ class OpenPBRMaterial {
     FloatTexture specular_roughness_anisotropy;
     FloatTexture specular_ior;
 
+    FloatTexture transmission_weight;
+    SpectrumTexture transmission_color;
+    FloatTexture transmission_depth;
+    SpectrumTexture transmission_scatter;
+    FloatTexture transmission_scatter_anisotropy;
+    FloatTexture transmission_dispersion_scale;
+    FloatTexture transmission_dispersion_abbe_number;
+
+    FloatTexture subsurface_weight;
+    SpectrumTexture subsurface_color;
+    FloatTexture subsurface_radius;
+    SpectrumTexture subsurface_radius_scale;
+    FloatTexture subsurface_scatter_anisotropy;
+
     FloatTexture coat_weight;
     SpectrumTexture coat_color;
     FloatTexture coat_roughness;
@@ -678,6 +729,13 @@ class OpenPBRMaterial {
     FloatTexture fuzz_weight;
     SpectrumTexture fuzz_color;
     FloatTexture fuzz_roughness;
+    
+    FloatTexture emission_luminance;
+    SpectrumTexture emission_color;
+    
+    FloatTexture thin_film_weight;
+    FloatTexture  thin_film_thickness;
+    FloatTexture thin_film_ior;
 };
 #endif
 

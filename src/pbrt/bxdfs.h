@@ -238,11 +238,22 @@ class OpenPBRBxDF {
                 Float base_diffuse_roughness, Float specular_weight,
                 SampledSpectrum specular_color, Float specular_roughness,
                 Float specular_roughness_anisotropy,
-                Vector2f m_specular_anisotropy_rotation, Float specular_ior,
-                Float coat_weight, SampledSpectrum coat_color, Float coat_roughness,
-                Float coat_roughness_anisotropy, Vector2f m_coat_anisotropy_rotation,
+                Vector2f b_specular_anisotropy_rotation, Float specular_ior,
+                Float b_transmission_weight, SampledSpectrum b_transmission_color,
+                Float b_transmission_depth, SampledSpectrum b_transmission_scatter,
+                Float b_transmission_scatter_anisotropy,
+                Float b_transmission_dispersion_scale,
+                Float b_transmission_dispersion_abbe_number, Float b_subsurface_weight,
+                SampledSpectrum b_subsurface_color, Float b_subsurface_radius,
+                SampledSpectrum b_subsurface_radius_scale,
+                Float b_subsurface_scatter_anisotropy, Float coat_weight,
+                SampledSpectrum coat_color, Float coat_roughness,
+                Float coat_roughness_anisotropy, Vector2f b_coat_anisotropy_rotation,
                 Float coat_ior, Float coat_darkening, Float fuzz_weight,
-                SampledSpectrum fuzz_color, Float fuzz_roughness)
+                SampledSpectrum fuzz_color, Float fuzz_roughness,
+                Float emission_luminance, SampledSpectrum emission_color,
+                Float thin_film_weight, Float thin_film_thickness,
+                Float thin_film_ior)
         : base_weight(base_weight),
           base_color(base_color),
           base_metalness(base_metalness),
@@ -251,24 +262,42 @@ class OpenPBRBxDF {
           specular_color(specular_color),
           specular_roughness(specular_roughness),
           specular_roughness_anisotropy(specular_roughness_anisotropy),
-          specular_anisotropy_rotation(m_specular_anisotropy_rotation),
+          specular_anisotropy_rotation(b_specular_anisotropy_rotation),
           specular_ior(specular_ior),
+          transmission_weight(b_transmission_weight),
+          transmission_color(b_transmission_color),
+          transmission_depth(b_transmission_depth),
+          transmission_scatter(b_transmission_scatter),
+          transmission_scatter_anisotropy(b_transmission_scatter_anisotropy),
+          transmission_dispersion_scale(b_transmission_dispersion_scale),
+          transmission_dispersion_abbe_number(b_transmission_dispersion_abbe_number),
+          subsurface_weight(b_subsurface_weight),
+          subsurface_color(b_subsurface_color),
+          subsurface_radius(b_subsurface_radius),
+          subsurface_radius_scale(b_subsurface_radius_scale),
+          subsurface_scatter_anisotropy(b_subsurface_scatter_anisotropy),
           coat_weight(coat_weight),
           coat_color(coat_color),
           coat_roughness(coat_roughness),
           coat_roughness_anisotropy(coat_roughness_anisotropy),
-          coat_anisotropy_rotation(m_coat_anisotropy_rotation),
+          coat_anisotropy_rotation(b_coat_anisotropy_rotation),
           coat_ior(coat_ior),
           coat_darkening(coat_darkening),
           fuzz_weight(fuzz_weight),
           fuzz_color(fuzz_color),
-          fuzz_roughness(fuzz_roughness) {}
+          fuzz_roughness(fuzz_roughness),
+          emission_luminance(emission_luminance),
+          emission_color(emission_color),
+          thin_film_weight(thin_film_weight),
+          thin_film_thickness(thin_film_thickness),
+          thin_film_ior(thin_film_ior) {}
 
     PBRT_CPU_GPU
     BxDFFlags Flags() const {
         BxDFFlags flags = (specular_ior == 1)
                               ? BxDFFlags::DiffuseReflection
                               : (BxDFFlags::Reflection | BxDFFlags::DiffuseReflection);
+        //flags = (transmission_weight > 0.0f) ? (BxDFFlags::DiffuseTransmission | flags) : flags;
         return flags;
         // return flags |
         //        (mfDistrib.EffectivelySmooth() ? BxDFFlags::Specular :
@@ -314,6 +343,20 @@ class OpenPBRBxDF {
     Vector2f specular_anisotropy_rotation;
     Float specular_ior;
 
+    Float transmission_weight;
+    SampledSpectrum transmission_color;
+    Float transmission_depth;
+    SampledSpectrum transmission_scatter;
+    Float transmission_scatter_anisotropy;
+    Float transmission_dispersion_scale;
+    Float transmission_dispersion_abbe_number;
+    
+    Float subsurface_weight;
+    SampledSpectrum subsurface_color;
+    Float subsurface_radius;
+    SampledSpectrum subsurface_radius_scale;
+    Float subsurface_scatter_anisotropy;
+
     Float coat_weight;
     SampledSpectrum coat_color;
     Float coat_roughness;
@@ -325,6 +368,13 @@ class OpenPBRBxDF {
     Float fuzz_weight;
     SampledSpectrum fuzz_color;
     Float fuzz_roughness;
+    
+    Float emission_luminance;
+    SampledSpectrum emission_color;
+    
+    Float thin_film_weight;
+    Float thin_film_thickness;
+    Float thin_film_ior;
 };
 #endif
 
@@ -1340,14 +1390,15 @@ class NormalizedFresnelBxDF {
     Float eta;
 };
 
-PBRT_CPU_GPU inline SampledSpectrum BxDF::f(Vector3f wo, Vector3f wi, TransportMode mode) const {
+PBRT_CPU_GPU inline SampledSpectrum BxDF::f(Vector3f wo, Vector3f wi,
+                                            TransportMode mode) const {
     auto f = [&](auto ptr) -> SampledSpectrum { return ptr->f(wo, wi, mode); };
     return Dispatch(f);
 }
 
-PBRT_CPU_GPU inline pstd::optional<BSDFSample> BxDF::Sample_f(Vector3f wo, Float uc, Point2f u,
-                                                 TransportMode mode,
-                                                 BxDFReflTransFlags sampleFlags) const {
+PBRT_CPU_GPU inline pstd::optional<BSDFSample> BxDF::Sample_f(
+    Vector3f wo, Float uc, Point2f u, TransportMode mode,
+    BxDFReflTransFlags sampleFlags) const {
     auto sample_f = [&](auto ptr) -> pstd::optional<BSDFSample> {
         return ptr->Sample_f(wo, uc, u, mode, sampleFlags);
     };
@@ -1355,7 +1406,7 @@ PBRT_CPU_GPU inline pstd::optional<BSDFSample> BxDF::Sample_f(Vector3f wo, Float
 }
 
 PBRT_CPU_GPU inline Float BxDF::PDF(Vector3f wo, Vector3f wi, TransportMode mode,
-                       BxDFReflTransFlags sampleFlags) const {
+                                    BxDFReflTransFlags sampleFlags) const {
     auto pdf = [&](auto ptr) { return ptr->PDF(wo, wi, mode, sampleFlags); };
     return Dispatch(pdf);
 }
@@ -1365,8 +1416,11 @@ PBRT_CPU_GPU inline BxDFFlags BxDF::Flags() const {
     return Dispatch(flags);
 }
 
-PBRT_CPU_GPU inline void BxDF::Regularize(const Float regularizationGamma, const Float accumulatedRoughness) {
-    auto regularize = [&](auto ptr) { ptr->Regularize(regularizationGamma, accumulatedRoughness); };
+PBRT_CPU_GPU inline void BxDF::Regularize(const Float regularizationGamma,
+                                          const Float accumulatedRoughness) {
+    auto regularize = [&](auto ptr) {
+        ptr->Regularize(regularizationGamma, accumulatedRoughness);
+    };
     return Dispatch(regularize);
 }
 

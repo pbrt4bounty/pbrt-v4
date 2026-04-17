@@ -211,27 +211,51 @@ PBRT_CPU_GPU pstd::optional<BSDFSample> OpenPBRBxDF::Sample_f(
     inputs.specular_roughness = specular_roughness;
     inputs.specular_roughness_anisotropy = specular_roughness_anisotropy;
     inputs.specular_ior = specular_ior;
-    // default, is (1.0, 0.0)
     inputs.specular_anisotropy_rotation_cos_sin =
         vec2(specular_anisotropy_rotation.x, specular_anisotropy_rotation.y);
-
+    
+    inputs.transmission_weight = transmission_weight;
+    inputs.transmission_color =
+        vec3(transmission_color[0], transmission_color[1], transmission_color[2]);
+    inputs.transmission_depth = transmission_depth;
+    inputs.transmission_scatter =
+        vec3(transmission_scatter[0], transmission_scatter[1], transmission_scatter[2]);
+    inputs.transmission_scatter_anisotropy = transmission_scatter_anisotropy;
+    inputs.transmission_dispersion_scale = transmission_dispersion_scale;
+    inputs.transmission_dispersion_abbe_number = transmission_dispersion_abbe_number;
+    
+    inputs.subsurface_weight = subsurface_weight;
+    inputs.subsurface_color =
+        vec3(subsurface_color[0], subsurface_color[1], subsurface_color[2]);
+    inputs.subsurface_radius = subsurface_radius;
+    inputs.subsurface_radius_scale =
+        vec3(subsurface_radius_scale[0], subsurface_radius_scale[1],
+             subsurface_radius_scale[2]);
+    inputs.subsurface_scatter_anisotropy = subsurface_scatter_anisotropy;
+    
     inputs.coat_weight = coat_weight;
     inputs.coat_color = vec3(coat_color[0], coat_color[1], coat_color[2]);
     inputs.coat_roughness = coat_roughness;
     inputs.coat_roughness_anisotropy = coat_roughness_anisotropy;
-    // default, is (1.0, 0.0)
     inputs.coat_anisotropy_rotation_cos_sin =
         vec2(coat_anisotropy_rotation.x, coat_anisotropy_rotation.y);
-
     inputs.coat_ior = coat_ior;
     inputs.coat_darkening = coat_darkening;
 
     inputs.fuzz_weight = fuzz_weight;
     inputs.fuzz_color = vec3(fuzz_color[0], fuzz_color[1], fuzz_color[2]);
     inputs.fuzz_roughness = fuzz_roughness;
+    
+    inputs.emission_luminance = emission_luminance;
+    inputs.emission_color =
+        vec3(emission_color[0], emission_color[1], emission_color[2]);  
+    
+    inputs.thin_film_weight = thin_film_weight;
+    inputs.thin_film_thickness = thin_film_thickness;
+    inputs.thin_film_ior = thin_film_ior;
 
     const vec3 view_direction = vec3(wo[0], wo[1], wo[2]);
-    const OpenPBR_PreparedBsdf prepared = openpbr_prepare_bsdf_and_volume(
+    const OpenPBR_PreparedBsdf prepared = openpbr_prepare(
         inputs,
         vec3(1.0f),                     // path throughput (for importance sampling)
         OpenPBR_BaseRgbWavelengths_nm,  // RGB wavelengths in nanometers
@@ -261,6 +285,8 @@ PBRT_CPU_GPU pstd::optional<BSDFSample> OpenPBRBxDF::Sample_f(
 PBRT_CPU_GPU SampledSpectrum OpenPBRBxDF::f(Vector3f wo, Vector3f wi,
                                             TransportMode mode) const {
     Float cosineTheta = std::abs(wi[2]);
+    if (cosineTheta == 0)
+        printf("Cosine Theta is zero!\n");
     OpenPBR_ResolvedInputs inputs = openpbr_make_default_resolved_inputs();
     inputs.base_weight = base_weight;
     inputs.base_color = vec3(base_color[0], base_color[1], base_color[2]);  // terracotta
@@ -272,27 +298,50 @@ PBRT_CPU_GPU SampledSpectrum OpenPBRBxDF::f(Vector3f wo, Vector3f wi,
     inputs.specular_roughness = specular_roughness;
     inputs.specular_roughness_anisotropy = specular_roughness_anisotropy;
     inputs.specular_ior = specular_ior;
-    // default, is (1.0, 0.0)
     inputs.specular_anisotropy_rotation_cos_sin = vec2(specular_anisotropy_rotation.x, specular_anisotropy_rotation.y);
+    
+    inputs.transmission_weight = transmission_weight;
+    inputs.transmission_color =
+        vec3(transmission_color[0], transmission_color[1], transmission_color[2]);
+    inputs.transmission_depth = transmission_depth;
+    inputs.transmission_scatter =
+        vec3(transmission_scatter[0], transmission_scatter[1], transmission_scatter[2]);
+    inputs.transmission_scatter_anisotropy = transmission_scatter_anisotropy;
+    inputs.transmission_dispersion_scale = transmission_dispersion_scale;
+    inputs.transmission_dispersion_abbe_number = transmission_dispersion_abbe_number;
 
+    inputs.subsurface_weight = subsurface_weight;
+    inputs.subsurface_color =
+        vec3(subsurface_color[0], subsurface_color[1], subsurface_color[2]);
+    inputs.subsurface_radius = subsurface_radius;
+    inputs.subsurface_radius_scale =
+        vec3(subsurface_radius_scale[0], subsurface_radius_scale[1],
+             subsurface_radius_scale[2]);
+    inputs.subsurface_scatter_anisotropy = subsurface_scatter_anisotropy;
+    
     inputs.coat_weight = coat_weight;
     inputs.coat_color = vec3(coat_color[0], coat_color[1], coat_color[2]);
     inputs.coat_roughness = coat_roughness;
     inputs.coat_roughness_anisotropy = coat_roughness_anisotropy;
-    // default, is (1.0, 0.0)
     inputs.coat_anisotropy_rotation_cos_sin =
         vec2(coat_anisotropy_rotation.x, coat_anisotropy_rotation.y);
-
     inputs.coat_ior = coat_ior;
     inputs.coat_darkening = coat_darkening;
 
     inputs.fuzz_weight = fuzz_weight;
     inputs.fuzz_color = vec3(fuzz_color[0], fuzz_color[1], fuzz_color[2]);
     inputs.fuzz_roughness = fuzz_roughness;
-
+    
+    inputs.emission_luminance = emission_luminance;
+    inputs.emission_color = vec3(emission_color[0], emission_color[1], emission_color[2]);
+    
+    inputs.thin_film_weight = thin_film_weight;
+    inputs.thin_film_thickness = thin_film_thickness;
+    inputs.thin_film_ior = thin_film_ior;
+    
     const vec3 view_direction = vec3(wo[0], wo[1], wo[2]);
     const vec3 light_direction = vec3(wi[0], wi[1], wi[2]);
-    const OpenPBR_PreparedBsdf prepared = openpbr_prepare_bsdf_and_volume(
+    const OpenPBR_PreparedBsdf prepared = openpbr_prepare(
         inputs,
         vec3(1.0f),                     // path throughput (for importance sampling)
         OpenPBR_BaseRgbWavelengths_nm,  // RGB wavelengths in nanometers
@@ -317,39 +366,63 @@ PBRT_CPU_GPU Float OpenPBRBxDF::PDF(Vector3f wo, Vector3f wi, TransportMode mode
     inputs.base_color = vec3(base_color[0], base_color[1], base_color[2]);  // terracotta
     inputs.base_metalness = base_metalness;
     inputs.base_diffuse_roughness = base_diffuse_roughness;
-
+    
     inputs.specular_weight = specular_weight;
     inputs.specular_color = vec3(specular_color[0], specular_color[1], specular_color[2]);
     inputs.specular_roughness = specular_roughness;
     inputs.specular_roughness_anisotropy = specular_roughness_anisotropy;
     inputs.specular_ior = specular_ior;
-    // default, is (1.0, 0.0)
     inputs.specular_anisotropy_rotation_cos_sin =
         vec2(specular_anisotropy_rotation.x, specular_anisotropy_rotation.y);
+    
+    inputs.transmission_weight = transmission_weight;
+    inputs.transmission_color =
+        vec3(transmission_color[0], transmission_color[1], transmission_color[2]);
+    inputs.transmission_depth = transmission_depth;
+    inputs.transmission_scatter =
+        vec3(transmission_scatter[0], transmission_scatter[1], transmission_scatter[2]);
+    inputs.transmission_scatter_anisotropy = transmission_scatter_anisotropy;
+    inputs.transmission_dispersion_scale = transmission_dispersion_scale;
+    inputs.transmission_dispersion_abbe_number = transmission_dispersion_abbe_number;
 
+    inputs.subsurface_weight = subsurface_weight;
+    inputs.subsurface_color =
+        vec3(subsurface_color[0], subsurface_color[1], subsurface_color[2]);
+    inputs.subsurface_radius = subsurface_radius;
+    inputs.subsurface_radius_scale =
+        vec3(subsurface_radius_scale[0], subsurface_radius_scale[1],
+             subsurface_radius_scale[2]);
+    inputs.subsurface_scatter_anisotropy = subsurface_scatter_anisotropy;
+    
     inputs.coat_weight = coat_weight;
     inputs.coat_color = vec3(coat_color[0], coat_color[1], coat_color[2]);
     inputs.coat_roughness = coat_roughness;
     inputs.coat_roughness_anisotropy = coat_roughness_anisotropy;
-    // default, is (1.0, 0.0)
     inputs.coat_anisotropy_rotation_cos_sin =
         vec2(coat_anisotropy_rotation.x, coat_anisotropy_rotation.y);
 
     inputs.coat_ior = coat_ior;
     inputs.coat_darkening = coat_darkening;
-
+    
     inputs.fuzz_weight = fuzz_weight;
     inputs.fuzz_color = vec3(fuzz_color[0], fuzz_color[1], fuzz_color[2]);
     inputs.fuzz_roughness = fuzz_roughness;
+    
+    inputs.emission_luminance = emission_luminance;
+    inputs.emission_color = vec3(emission_color[0], emission_color[1], emission_color[2]);
+    
+    inputs.thin_film_weight = thin_film_weight;
+    inputs.thin_film_thickness = thin_film_thickness;
+    inputs.thin_film_ior = thin_film_ior;
 
     const vec3 view_direction = vec3(wo[0], wo[1], wo[2]);
     const vec3 light_direction = vec3(wi[0], wi[1], wi[2]);
-    const OpenPBR_PreparedBsdf prepared = openpbr_prepare_bsdf_and_volume(
-        inputs,
-        vec3(1.0f),                     // path throughput (for importance sampling)
-        OpenPBR_BaseRgbWavelengths_nm,  // RGB wavelengths in nanometers
-        OpenPBR_VacuumIor,              // exterior IOR
-        view_direction);
+    const OpenPBR_PreparedBsdf prepared =
+        openpbr_prepare(inputs,
+                        vec3(1.0f),  // path throughput (for importance sampling)
+                        OpenPBR_BaseRgbWavelengths_nm,  // RGB wavelengths in nanometers
+                        OpenPBR_VacuumIor,              // exterior IOR
+                        view_direction);
 
     return openpbr_pdf(prepared, light_direction);
 }

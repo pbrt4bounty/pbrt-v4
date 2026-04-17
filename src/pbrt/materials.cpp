@@ -257,65 +257,93 @@ template <typename TextureEvaluator>
 PBRT_CPU_GPU OpenPBRBxDF OpenPBRMaterial::GetBxDF(TextureEvaluator texEval,
                                                   const MaterialEvalContext &ctx,
                                                   SampledWavelengths &lambda) const {
-    // Initialize base component
+    // Base
     Float base_weight_ = texEval(base_weight, ctx);
     SampledSpectrum base_color_ = Clamp(texEval(base_color, ctx, lambda), 0, 1);
     Float base_metalness_ = texEval(base_metalness, ctx);
     Float base_diffuse_roughness_ = texEval(base_diffuse_roughness, ctx);
 
-    // Initialize specular component
+    // Specular
     Float specular_weight_ = texEval(specular_weight, ctx);
     SampledSpectrum specular_color_ = Clamp(texEval(specular_color, ctx, lambda), 0, 1);
     Float specular_roughness_ = texEval(specular_roughness, ctx);
-    if (remapRoughness) {
+    if (remapRoughness)
         specular_roughness_ =
             TrowbridgeReitzDistribution::RoughnessToAlpha(specular_roughness_);
-    }
     specular_roughness_ = std::max(0.001f, specular_roughness_);
     Float specular_roughness_anisotropy_ = texEval(specular_roughness_anisotropy, ctx);
     Float spec_urough = texEval(specular_uroughness, ctx);
+    spec_urough = std::max(0.00001f, spec_urough);
     Float spec_vrough = texEval(specular_vroughness, ctx);
-    // need more test..
-    //if (specular_roughness_anisotropy_ > 0.0001f || remapRoughness) {
-    //    spec_urough = TrowbridgeReitzDistribution::RoughnessToAlpha(spec_urough);
-    //    spec_vrough = TrowbridgeReitzDistribution::RoughnessToAlpha(spec_vrough);
-    //}
-    Vector2f specular_anisotropy_(spec_urough, spec_vrough);
+    spec_vrough = std::max(0.00001f, spec_vrough);
+    Vector2f specular_anisotropy(spec_urough, spec_vrough);
     Float specular_ior_ = texEval(specular_ior, ctx);
 
-    // Initialize coat component
+    // Transmission
+    Float transmission_weight_ = texEval(transmission_weight, ctx);
+    SampledSpectrum transmission_color_ =
+        Clamp(texEval(transmission_color, ctx, lambda), 0, 1);
+    Float transmission_depth_ = texEval(transmission_depth, ctx);
+    SampledSpectrum transmission_scatter_ =
+        Clamp(texEval(transmission_scatter, ctx, lambda), 0, 1);
+    Float transmission_scatter_anisotropy_ =
+        texEval(transmission_scatter_anisotropy, ctx);
+    Float transmission_dispersion_scale_ = texEval(transmission_dispersion_scale, ctx);
+    Float transmission_dispersion_abbe_number_ =
+        texEval(transmission_dispersion_abbe_number, ctx);
+
+    // Subsurface
+    Float subsurface_weight_ = texEval(subsurface_weight, ctx);
+    SampledSpectrum subsurface_color_ =
+        Clamp(texEval(subsurface_color, ctx, lambda), 0, 1);
+    Float subsurface_radius_ = texEval(subsurface_radius, ctx);
+    SampledSpectrum subsurface_radius_scale_ =
+        texEval(subsurface_radius_scale, ctx, lambda);
+    Float subsurface_scatter_anisotropy_ = texEval(subsurface_scatter_anisotropy, ctx);
+
+    // Coat
     Float coat_weight_ = texEval(coat_weight, ctx);
     SampledSpectrum coat_color_ = Clamp(texEval(coat_color, ctx, lambda), 0, 1);
     Float coat_roughness_ = texEval(coat_roughness, ctx);
-    if (remapRoughness) {
+    if (remapRoughness)
         coat_roughness_ = TrowbridgeReitzDistribution::RoughnessToAlpha(coat_roughness_);
-    }
     coat_roughness_ = std::max(0.001f, coat_roughness_);
     Float coat_roughness_anisotropy_ = texEval(coat_roughness_anisotropy, ctx);
     Float coat_urough = texEval(coat_uroughness, ctx);
+    coat_urough = std::max(0.00001f, coat_urough);
     Float coat_vrough = texEval(coat_vroughness, ctx);
-    // need more test..
-    //if (coat_roughness_anisotropy_ > 0.0001f || remapRoughness) {
-    //    coat_urough = TrowbridgeReitzDistribution::RoughnessToAlpha(coat_urough);
-    //    coat_vrough = TrowbridgeReitzDistribution::RoughnessToAlpha(coat_vrough);
-    //}
-    Vector2f coat_anisotropy_(coat_urough, coat_vrough);
+    coat_vrough = std::max(0.00001f, coat_vrough);
+    Vector2f coat_anisotropy(coat_urough, coat_vrough);
     Float coat_ior_ = texEval(coat_ior, ctx);
     Float coat_darkening_ = texEval(coat_darkening, ctx);
 
     Float fuzz_weight_ = texEval(fuzz_weight, ctx);
     SampledSpectrum fuzz_color_ = Clamp(texEval(fuzz_color, ctx, lambda), 0, 1);
     Float fuzz_roughness_ = texEval(fuzz_roughness, ctx);
-    if (remapRoughness) {
+    if (remapRoughness)
         fuzz_roughness_ = TrowbridgeReitzDistribution::RoughnessToAlpha(fuzz_roughness_);
-    }
+    
+    // Emission
+    Float emission_luminance_ = texEval(emission_luminance, ctx);
+    SampledSpectrum emission_color_ = Clamp(texEval(emission_color, ctx, lambda), 0, 1);
+    // Thin-film
+    Float thin_film_weight_ = texEval(thin_film_weight, ctx);
+    Float thin_film_thickness_ = texEval(thin_film_thickness, ctx);
+    Float thin_film_ior_ = texEval(thin_film_ior, ctx);
+
     return OpenPBRBxDF(base_weight_, base_color_, base_metalness_,
                        base_diffuse_roughness_, specular_weight_, specular_color_,
                        specular_roughness_, specular_roughness_anisotropy_,
-                       specular_anisotropy_, specular_ior_, coat_weight_,
-                       coat_color_, coat_roughness_, coat_roughness_anisotropy_,
-                       coat_anisotropy_, coat_ior_, coat_darkening_, fuzz_weight_,
-                       fuzz_color_, fuzz_roughness_);
+                       specular_anisotropy, specular_ior_, transmission_weight_,
+                       transmission_color_, transmission_depth_, transmission_scatter_,
+                       transmission_scatter_anisotropy_, transmission_dispersion_scale_,
+                       transmission_dispersion_abbe_number_, subsurface_weight_,
+                       subsurface_color_, subsurface_radius_, subsurface_radius_scale_,
+                       subsurface_scatter_anisotropy_, coat_weight_, coat_color_,
+                       coat_roughness_, coat_roughness_anisotropy_, coat_anisotropy,
+                       coat_ior_, coat_darkening_, fuzz_weight_, fuzz_color_,
+                       fuzz_roughness_, emission_luminance_, emission_color_,
+                       thin_film_weight_, thin_film_thickness_, thin_film_ior_);
 }
 
 // Explicit template instantiation
@@ -353,7 +381,7 @@ OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &param
             alloc.new_object<ConstantSpectrum>(0.8f));
 
     FloatTexture base_metalness =
-        parameters.GetFloatTexture("base_metalness", 1.f, alloc);
+        parameters.GetFloatTexture("base_metalness", 0.f, alloc);
 
     FloatTexture base_diffuse_roughness =
         parameters.GetFloatTexture("base_diffuse_roughness", 0.f, alloc);
@@ -379,6 +407,53 @@ OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &param
         parameters.GetFloatTexture("specular_vroughness", 0.0f, alloc);
     FloatTexture specular_ior = parameters.GetFloatTexture("specular_ior", 1.5f, alloc);
 
+    // Transmission
+    FloatTexture transmission_weight =
+        parameters.GetFloatTexture("transmission_weight", 0.0f, alloc);
+    SpectrumTexture transmission_color = parameters.GetSpectrumTexture(
+        "transmission_color", nullptr, SpectrumType::Albedo, alloc);
+    if (!transmission_color)
+        transmission_color = alloc.new_object<SpectrumConstantTexture>(
+            alloc.new_object<ConstantSpectrum>(1.0f));
+    FloatTexture transmission_depth =
+        parameters.GetFloatTexture("transmission_depth", 0.0f, alloc);
+
+    SpectrumTexture transmission_scatter = parameters.GetSpectrumTexture(
+        "transmission_scatter", nullptr, SpectrumType::Albedo, alloc);
+    if (!transmission_scatter)
+        transmission_scatter = alloc.new_object<SpectrumConstantTexture>(
+            alloc.new_object<ConstantSpectrum>(0.0f));
+
+    FloatTexture transmission_scatter_anisotropy =
+        parameters.GetFloatTexture("transmission_scatter_anisotropy", 0.0f, alloc);
+    FloatTexture transmission_dispersion_scale =
+        parameters.GetFloatTexture("transmission_dispersion_scale", 0.0f, alloc);
+    FloatTexture transmission_dispersion_abbe_number =
+        parameters.GetFloatTexture("transmission_dispersion_abbe_number", 20.0f, alloc);
+
+    // Subsurface
+    FloatTexture subsurface_weight =
+        parameters.GetFloatTexture("subsurface_weight", 0.0f, alloc);
+
+    SpectrumTexture subsurface_color = parameters.GetSpectrumTexture(
+        "subsurface_color", nullptr, SpectrumType::Albedo, alloc);
+    if (!subsurface_color)
+        subsurface_color = alloc.new_object<SpectrumConstantTexture>(
+            alloc.new_object<ConstantSpectrum>(1.0f));
+
+    FloatTexture subsurface_radius =
+        parameters.GetFloatTexture("subsurface_radius", 1.0f, alloc);
+
+    SpectrumTexture subsurface_radius_scale = parameters.GetSpectrumTexture(
+        "subsurface_radius_scale", nullptr, SpectrumType::Albedo, alloc);
+    if (!subsurface_radius_scale)
+        subsurface_radius_scale = alloc.new_object<SpectrumConstantTexture>(
+            alloc.new_object<ConstantSpectrum>(1.0f));
+
+    FloatTexture subsurface_scatter_anisotropy =
+        parameters.GetFloatTexture("subsurface_scatter_anisotropy", 0.0f, alloc);
+
+    // Coat
     FloatTexture coat_weight = parameters.GetFloatTexture("coat_weight", 0.f, alloc);
     SpectrumTexture coat_color =
         parameters.GetSpectrumTexture("coat_color", nullptr, SpectrumType::Albedo, alloc);
@@ -410,7 +485,22 @@ OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &param
             alloc.new_object<ConstantSpectrum>(1.0f));
 
     FloatTexture fuzz_roughness =
-        parameters.GetFloatTexture("fuzz_roughness", 0.0f, alloc);
+        parameters.GetFloatTexture("fuzz_roughness", 0.5f, alloc);
+
+    // Emission
+    FloatTexture emission_luminance =
+        parameters.GetFloatTexture("emission_luminance", 0.0f, alloc);
+    SpectrumTexture emission_color = parameters.GetSpectrumTexture(
+        "emission_color", nullptr, SpectrumType::Albedo, alloc);
+    if (!emission_color)
+        emission_color = alloc.new_object<SpectrumConstantTexture>(
+            alloc.new_object<ConstantSpectrum>(1.0f));
+    // Thin-film
+    FloatTexture thin_film_weight =
+        parameters.GetFloatTexture("thin_film_weight", 0.0f, alloc);
+    FloatTexture thin_film_thickness =
+        parameters.GetFloatTexture("thin_film_thickness", 0.5f, alloc);
+    FloatTexture thin_film_ior = parameters.GetFloatTexture("thin_film_ior", 1.4f, alloc);
 
     FloatTexture displacement = parameters.GetFloatTextureOrNull("displacement", alloc);
     bool remapRoughness = parameters.GetOneBool("remaproughness", false);
@@ -418,10 +508,15 @@ OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &param
     return alloc.new_object<OpenPBRMaterial>(
         base_weight, base_color, base_metalness, base_diffuse_roughness, specular_weight,
         specular_color, specular_roughness, specular_uroughness, specular_vroughness,
-        specular_roughness_anisotropy, specular_ior, coat_weight, coat_color,
-        coat_roughness, coat_uroughness, coat_vroughness, coat_roughness_anisotropy,
-        coat_ior, coat_darkening, fuzz_weight, fuzz_color, fuzz_roughness, displacement,
-        normalMap, remapRoughness);
+        specular_roughness_anisotropy, specular_ior, transmission_weight,
+        transmission_color, transmission_depth, transmission_scatter,
+        transmission_scatter_anisotropy, transmission_dispersion_scale,
+        transmission_dispersion_abbe_number, subsurface_weight, subsurface_color,
+        subsurface_radius, subsurface_radius_scale, subsurface_scatter_anisotropy,
+        coat_weight, coat_color, coat_roughness, coat_uroughness, coat_vroughness,
+        coat_roughness_anisotropy, coat_ior, coat_darkening, fuzz_weight, fuzz_color,
+        fuzz_roughness, emission_luminance, emission_color, thin_film_weight,
+        thin_film_thickness, thin_film_ior, displacement, normalMap, remapRoughness);
 }
 #endif
 
