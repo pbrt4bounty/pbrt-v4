@@ -356,17 +356,32 @@ OpenPBRMaterial::GetBxDF(UniversalTextureEvaluator, const MaterialEvalContext &c
 
 std::string OpenPBRMaterial::ToString() const {
     return StringPrintf(
-        "[ OpenPBRMaterial displacement: %s normalMap: %s base_color: %s base_weight: %s "
-        "base_metalness: %s base_diffuse_roughness: %s specular_weight: %s "
-        "specular_color: %s specular_roughness: %s specular_roughness_anisotropy: %s "
-        "specular_ior: %s coat_weight: %s coat_roughness: %s coat_roughness_anisotropy: "
-        "%s coat_ior: %s coat_darkening: %s fuzz_weight: %s fuzz_roughness: %s "
-        "coat_color: %s fuzz_color: %s remapRoughness: %s ]",
+        "[ OpenPBRMaterial displacement: %s normalMap: %s base_weight: %s "
+        "base_color: %s base_metalness: %s base_diffuse_roughness: %s specular_weight: %s "
+        "specular_color: %s specular_roughness: %s specular_uroughness: %s "
+        "specular_vroughness: %s specular_roughness_anisotropy: %s specular_ior: %s "
+        "transmission_weight: %s transmission_color: %s transmission_depth: %s "
+        "transmission_scatter: %s transmission_scatter_anisotropy: %s "
+        "transmission_dispersion_scale: %s transmission_dispersion_abbe_number: %s "
+        "subsurface_weight: %s subsurface_color: %s subsurface_radius: %s "
+        "subsurface_radius_scale: %s subsurface_scatter_anisotropy: %s "
+        "coat_weight: %s coat_color: %s coat_roughness: %s coat_uroughness: %s "
+        "coat_vroughness: %s coat_roughness_anisotropy: %s coat_ior: %s "
+        "coat_darkening: %s fuzz_weight: %s fuzz_color: %s fuzz_roughness: %s "
+        "emission_luminance: %s emission_color: %s thin_film_weight: %s "
+        "thin_film_thickness: %s thin_film_ior: %s remapRoughness: %s ]",
         displacement, normalMap ? normalMap->ToString() : std::string("(nullptr)"),
-        base_color, base_weight, base_metalness, base_diffuse_roughness, specular_weight,
-        specular_color, specular_roughness, specular_roughness_anisotropy, specular_ior,
-        coat_weight, coat_roughness, coat_roughness_anisotropy, coat_ior, coat_darkening,
-        fuzz_weight, fuzz_roughness, coat_color, fuzz_color, remapRoughness);
+        base_weight, base_color, base_metalness, base_diffuse_roughness, specular_weight,
+        specular_color, specular_roughness, specular_uroughness, specular_vroughness,
+        specular_roughness_anisotropy, specular_ior, transmission_weight,
+        transmission_color, transmission_depth, transmission_scatter,
+        transmission_scatter_anisotropy, transmission_dispersion_scale,
+        transmission_dispersion_abbe_number, subsurface_weight, subsurface_color,
+        subsurface_radius, subsurface_radius_scale, subsurface_scatter_anisotropy,
+        coat_weight, coat_color, coat_roughness, coat_uroughness, coat_vroughness,
+        coat_roughness_anisotropy, coat_ior, coat_darkening, fuzz_weight, fuzz_color,
+        fuzz_roughness, emission_luminance, emission_color, thin_film_weight,
+        thin_film_thickness, thin_film_ior, remapRoughness);
 }
 
 OpenPBRMaterial *OpenPBRMaterial::Create(const TextureParameterDictionary &parameters,
