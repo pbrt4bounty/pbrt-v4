@@ -93,6 +93,34 @@ Rendering options:
   --wavefront                   Use wavefront volumetric path integrator.
   --write-partial-images        Periodically write the current image to disk, rather
                                 than waiting for the end of rendering. Default: disabled.
+UnderwaterIntegrator options:
+  --caustics-time <time>        Set a new time for the caustics (time in Float); this will change their position.
+  --disable-caustics            Don't evaluates the direct light with the caustic shader.
+  --disable-floor               Don't evaluates the floor reflectance in multiple scattering.
+  --disable-floor-bsdf          Don't evaluates the floor reflectance with bsdf in multiple scattering.
+  --disable-ms                  Don't evaluates the multiple scattering light contribution.
+  --disable-ss-sur              Don't evaluates the single scattering light based on the surface contribution.
+  --disable-ss-vol              Don't evaluates the single scattering light based on the volume contribution.
+  --disable-ss-vol-uniform      Don't evaluates the single scattering light based on the volume contribution
+                                in the uniform volume sampling step (Uniform volume sampling: It uses a fixed
+                                distance to calculate the sample step length for all pixel samples.
+                                Great quality, high cost).
+  --disable-ss-vol-variable     Don't evaluates the single scattering light based on the volume contribution
+                                in the variable volume sample step (Variable volume sampling: It uses the
+                                distance to the first interaction with the surface to calculate the sampling
+                                step length for all pixel samples. That is different to each pixel sample.
+                                Low quality, low cost).
+  --fast-exp                    Evaluate light only using FastExp.
+  --only-ms                     Evaluate only the multiple scattering.
+  --sampling-vol <(Float) dist-uniform, (int) spp-uniform, (int) spp-variable>
+                                Pass volumetric settings to sampling.
+                                Setting a value less than 0 is equivalent to choosing the default value for the component
+                                (If the values was defined in the file description, this are the default values).
+                                Setting the value to 0 is equivalent to disabling the specific single scattering mode.
+  --ss-vol-always               Evaluates single scattering volume in all bounces of the ray.
+                                Default behavior of UnderwaterIntegrator: evaluates only when the bounce value is equal to 0.
+                                This command is overridden by --disable-ss-vol.
+  --time-statistics             Print the statistics about the time to render the image.
 
 Logging options:
   --log-file <filename>         Filename to write logging messages to. Default: none;
@@ -146,7 +174,7 @@ int main(int argc, char *argv[]) {
             exit(1);
         };
 
-        std::string cropWindow, pixelBounds, pixel, pixelMaterial;
+        std::string cropWindow, pixelBounds, pixel, pixelMaterial, samplingVolume;
         if (ParseArg(&iter, args.end(), "cropwindow", &cropWindow, onError)) {
             std::vector<Float> c = SplitStringToFloats(cropWindow, ',');
             if (c.size() != 4) {
@@ -177,6 +205,15 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
             options.pixelMaterial = Point2i(p[0], p[1]);
+#if defined(PBRT_WITH_UNDERWATER)
+        } else if (ParseArg(&iter, args.end(), "sampling-vol", &samplingVolume, onError)) {
+            std::vector<Float> c = SplitStringToFloats(samplingVolume, ',');
+            if (c.size() != 3) {
+                usage("Didn't find three values after --sampling-vol");
+                return 1;
+            }
+            options.samplingVolume = Point3f(c[0], c[1], c[2]);
+#endif // UNDER_WATER
         } else if (
 #ifdef PBRT_BUILD_GPU_RENDERER
             ParseArg(&iter, args.end(), "gpu", &options.useGPU, onError) ||
@@ -220,9 +257,39 @@ int main(int argc, char *argv[]) {
             ParseArg(&iter, args.end(), "stats", &options.printStatistics, onError) ||
             ParseArg(&iter, args.end(), "toply", &toPly, onError) ||
             ParseArg(&iter, args.end(), "wavefront", &options.wavefront, onError) ||
-            ParseArg(&iter, args.end(), "write-partial-images",
-                     &options.writePartialImages, onError) ||
-            ParseArg(&iter, args.end(), "upgrade", &options.upgrade, onError)) {
+            ParseArg(&iter, args.end(), "write-partial-images", &options.writePartialImages, onError) ||
+            ParseArg(&iter, args.end(), "upgrade", &options.upgrade, onError)
+#if defined(PBRT_WITH_UNDERWATER) // bounty: many items for options, we need to review..
+            ||
+            ParseArg(&iter, args.end(), "caustics-time", &options.causticsTime,
+                    onError) ||
+            ParseArg(&iter, args.end(), "disable-caustics", &options.disableCaustics,
+                    onError) ||
+            ParseArg(&iter, args.end(), "disable-floor", &options.disableFloorReflectanceInMS,
+                    onError) ||
+            ParseArg(&iter, args.end(), "disable-floor-bsdf", &options.disableFloorBsdfReflectanceInMS,
+                    onError) ||
+            ParseArg(&iter, args.end(), "disable-ms", &options.disableMultipleScattering,
+                    onError) ||
+            ParseArg(&iter, args.end(), "disable-ss-sur", &options.disableSingleScatteringSurface,
+                    onError) ||
+            ParseArg(&iter, args.end(), "disable-ss-vol", &options.disableSingleScatteringVolume,
+                    onError) ||
+            ParseArg(&iter, args.end(), "disable-ss-vol-uniform", &options.disableSingleScatteringVolumeUniform,
+                onError) ||
+            ParseArg(&iter, args.end(), "disable-ss-vol-variable", &options.disableSingleScatteringVolumeVariable,
+                onError) ||
+            ParseArg(&iter, args.end(), "fast-exp", &options.fastExponentialOnly,
+                    onError) ||
+            ParseArg(&iter, args.end(), "only-ms", &options.onlyMultipleScattering,
+                    onError) ||
+            // ParseArg(&iter, args.end(), "ray-marching", &options.rayMarchingSteps,
+            //         onError) ||
+            ParseArg(&iter, args.end(), "ss-vol-always", &options.singleScatteringVolumeAlways,
+                    onError) ||
+            ParseArg(&iter, args.end(), "time-statistics", &options.timeStatistics, onError)
+#endif // UNDER_WATER
+            ) {
             // success
         } else if (*iter == "--help" || *iter == "-help" || *iter == "-h") {
             usage();
@@ -284,7 +351,7 @@ int main(int argc, char *argv[]) {
 
     if (options.interactive && !(options.useGPU || options.wavefront))
         Warning("Natively, the --interactive option is only supported with the --gpu "
-                "and --wavefront integrators.");
+                  "and --wavefront integrators.");
 
     if (options.fullscreen && !options.interactive) {
         ErrorExit("The --fullscreen option is only supported in interactive mode");

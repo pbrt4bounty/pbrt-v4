@@ -128,6 +128,14 @@ if(PBRT_WITH_PROCEDURAL)
   list (APPEND PBRT_DEFINITIONS "PBRT_WITH_PROCEDURAL")
 endif()
 
+###########################################################################
+# Under Water..
+option(PBRT_WITH_UNDERWATER "Build PBRT with experimental underwater integrator support." OFF)
+
+if(PBRT_WITH_UNDERWATER)
+  list (APPEND PBRT_DEFINITIONS "PBRT_WITH_UNDERWATER")
+endif()
+
 #######################################
 ## ext
 
@@ -659,6 +667,9 @@ SET (PBRT_CPU_SOURCE
   src/pbrt/cpu/primitive.cpp
   src/pbrt/cpu/render.cpp
 )
+if (PBRT_WITH_UNDERWATER)
+  set(PBRT_CPU_SOURCE ${PBRT_CPU_SOURCE} src/pbrt/cpu/underwater.cpp)
+endif()
 
 SET (PBRT_CPU_SOURCE_HEADERS
   src/pbrt/cpu/aggregates.h
@@ -1157,7 +1168,7 @@ set (PBRT_TEST_SOURCE
 
   src/pbrt/util/args_test.cpp
   src/pbrt/util/buffercache_test.cpp
-  #src/pbrt/util/color_test.cpp
+  src/pbrt/util/color_test.cpp
   src/pbrt/util/containers_test.cpp
   src/pbrt/util/file_test.cpp
   src/pbrt/util/float_test.cpp
@@ -1169,7 +1180,7 @@ set (PBRT_TEST_SOURCE
   src/pbrt/util/pstd_test.cpp
   src/pbrt/util/rng_test.cpp
   src/pbrt/util/sampling_test.cpp
-  #src/pbrt/util/spectrum_test.cpp
+  src/pbrt/util/spectrum_test.cpp
   src/pbrt/util/splines_test.cpp
   src/pbrt/util/string_test.cpp
   src/pbrt/util/taggedptr_test.cpp
@@ -1178,7 +1189,7 @@ set (PBRT_TEST_SOURCE
   )
 
 # we need any explicit variable to manage this..
-#if(NOT PBRT_WITH_RGB)
+if (PBRT_WITH_TEST)
 add_executable (pbrt_test src/pbrt/cmd/pbrt_test.cpp ${PBRT_TEST_SOURCE})
 
 target_link_libraries (pbrt_test PRIVATE ${ALL_PBRT_LIBS} pbrt_opt pbrt_warnings)
@@ -1191,7 +1202,7 @@ add_sanitizers (pbrt_test)
 add_test (pbrt_unit_test pbrt_test)
 
 set_property (TARGET pbrt_test PROPERTY FOLDER "cmd")
-#endif()
+endif()
 
 ###############################
 # Installation

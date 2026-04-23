@@ -122,8 +122,8 @@ struct BSDFSample {
     // BSDFSample Public Methods
     BSDFSample() = default;
     PBRT_CPU_GPU
-    BSDFSample(SampledSpectrum f, Vector3f wi, Float pdf, BxDFFlags flags,
-               Float eta = 1, bool pdfIsProportional = false)
+    BSDFSample(SampledSpectrum f, Vector3f wi, Float pdf, BxDFFlags flags, Float eta = 1,
+               bool pdfIsProportional = false)
         : f(f),
           wi(wi),
           pdf(pdf),
@@ -161,12 +161,20 @@ class ConductorBxDF;
 class NormalizedFresnelBxDF;
 class CoatedDiffuseBxDF;
 class CoatedConductorBxDF;
+#if defined(PBRT_WITH_UNDERWATER)
+class WaterSurfaceBxDF;
+#endif
 
 // BxDF Definition
 class BxDF
     : public TaggedPointer<DiffuseTransmissionBxDF, DiffuseBxDF, CoatedDiffuseBxDF,
                            CoatedConductorBxDF, DielectricBxDF, ThinDielectricBxDF,
-                           HairBxDF, MeasuredBxDF, ConductorBxDF, NormalizedFresnelBxDF> {
+                           HairBxDF, MeasuredBxDF, ConductorBxDF, NormalizedFresnelBxDF
+#if defined(PBRT_WITH_UNDERWATER)
+                           ,
+                           WaterSurfaceBxDF
+#endif
+                           > {
   public:
     // BxDF Interface
     PBRT_CPU_GPU inline BxDFFlags Flags() const;

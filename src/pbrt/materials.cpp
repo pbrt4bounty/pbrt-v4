@@ -676,10 +676,18 @@ Material Material::Create(const std::string &name,
 
             if (materials[i] == nullptr)
                 ErrorExit("%s: an \"interface\" material cannot be used as an element of "
-                          "the \"mix\" material.", materialNames[i]);
+                          "the \"mix\" material.",
+                          materialNames[i]);
         }
         material = MixMaterial::Create(materials, parameters, loc, alloc);
-    } else
+    }
+#if defined(PBRT_WITH_UNDERWATER)
+    else if (name == "waterboundary")
+        material = WaterBoundaryMaterial::Create(parameters, normalMap, loc, alloc);
+    else if (name == "watersurface")
+        material = WaterSurfaceMaterial::Create(parameters, normalMap, loc, alloc);
+#endif
+    else
         ErrorExit(loc, "%s: material type unknown.", name);
 
     if (!material)
@@ -690,4 +698,22 @@ Material Material::Create(const std::string &name,
     return material;
 }
 
+#if defined(PBRT_WITH_UNDERWATER)
+// WaterBoundaryMaterial Method Definitions
+std::string WaterBoundaryMaterial::ToString() const {
+    return StringPrintf(
+        "[ WaterBoundaryMaterial displacement: %s normalMap: %s eta: %s ]", displacement,
+        normalMap ? normalMap->ToString() : std::string("(nullptr)"), eta);
+}
+
+WaterBoundaryMaterial *WaterBoundaryMaterial::Create(
+    const TextureParameterDictionary &parameters, Image *normalMap, const FileLoc *loc,
+    Allocator alloc) {
+    Spectrum eta = alloc.new_object<ConstantSpectrum>(1.f);
+
+    FloatTexture displacement = parameters.GetFloatTextureOrNull("displacement", alloc);
+
+    return alloc.new_object<WaterBoundaryMaterial>(eta, displacement, normalMap);
+}
+#endif
 }  // namespace pbrt

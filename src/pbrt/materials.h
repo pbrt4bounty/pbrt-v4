@@ -261,7 +261,11 @@ class ThinDielectricMaterial {
 
     std::string ToString() const;
 
+#if !defined(PBRT_WITH_UNDERWATER)
   private:
+#else
+  protected:
+#endif
     // ThinDielectricMaterial Private Data
     FloatTexture displacement;
     Image *normalMap;
@@ -890,6 +894,71 @@ class MeasuredMaterial {
     Image *normalMap;
     const MeasuredBxDFData *brdf;
 };
+
+#if defined(PBRT_WITH_UNDERWATER)
+
+// WaterBoundaryMaterial Definition
+class WaterBoundaryMaterial : public ThinDielectricMaterial {
+    public:
+        WaterBoundaryMaterial(Spectrum eta, FloatTexture displacement, Image *normalMap)
+            : ThinDielectricMaterial(eta, displacement, normalMap) {}
+
+        static const char *Name() { return "WaterBoundaryMaterial"; }
+
+        static WaterBoundaryMaterial *Create(const TextureParameterDictionary &parameters,
+                                  Image *normalMap, const FileLoc *loc,
+                                  Allocator alloc);
+
+        std::string ToString() const;
+};
+
+// WaterSurfaceMaterial Definition
+// Class not yet used
+class WaterSurfaceMaterial {
+    public:
+        using BxDF = WaterSurfaceBxDF;
+        using BSSRDF = void;
+
+        // Constructor
+        WaterSurfaceMaterial(Image *normalMap, FloatTexture displacement)
+            : normalMap(normalMap), displacement(displacement) {}
+
+        static const char *Name() { return "WaterSurfaceMaterial"; }
+
+        static WaterSurfaceMaterial *Create(const TextureParameterDictionary &parameters,
+                                            Image *normalMap, const FileLoc *loc,
+                                            Allocator alloc) {
+            FloatTexture displacement = parameters.GetFloatTextureOrNull("displacement", alloc);
+            return alloc.new_object<WaterSurfaceMaterial>(normalMap, displacement);
+        }
+
+        template <typename TextureEvaluator>
+        PBRT_CPU_GPU WaterSurfaceBxDF GetBxDF(TextureEvaluator texEval,
+                                              MaterialEvalContext ctx,
+                                              SampledWavelengths &lambda) const {
+            return WaterSurfaceBxDF();
+        }
+
+        template <typename TextureEvaluator>
+        PBRT_CPU_GPU bool CanEvaluateTextures(TextureEvaluator texEval) const { return true; }
+
+        PBRT_CPU_GPU FloatTexture GetDisplacement() const { return displacement; }
+        PBRT_CPU_GPU const Image *GetNormalMap() const { return normalMap; }
+
+        template <typename TextureEvaluator>
+        PBRT_CPU_GPU void GetBSSRDF(TextureEvaluator texEval, MaterialEvalContext ctx,
+                                    SampledWavelengths &lambda) const {}
+
+        PBRT_CPU_GPU static constexpr bool HasSubsurfaceScattering() { return false; }
+
+        std::string ToString() const { return "WaterSurfaceMaterial"; }
+
+    private:
+        FloatTexture displacement;
+        Image *normalMap;
+};
+
+#endif // PBRT_WITH_UNDERWATER
 
 // Material Inline Method Definitions
 template <typename TextureEvaluator>

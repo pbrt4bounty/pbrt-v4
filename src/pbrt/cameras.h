@@ -181,7 +181,9 @@ class CameraBase {
         *dpdy =
             sppScale * RenderFromCamera(DownZFromCamera.ApplyInverse(py - pDownZ), time);
     }
-
+#if defined(PBRT_WITH_UNDERWATER)
+    PBRT_CPU_GPU Medium GetMedium() const { return medium; }
+#endif
   protected:
     // CameraBase Protected Members
     CameraTransform cameraTransform;
@@ -657,7 +659,12 @@ PBRT_CPU_GPU inline void Camera::Approximate_dp_dxy(Point3f p, Normal3f n, Float
         return Dispatch(approx);
     }
 }
-
+#if defined(PBRT_WITH_UNDERWATER)
+PBRT_CPU_GPU inline Medium Camera::GetMedium() const {
+    auto getmedium = [&](auto ptr) { return ptr->GetMedium(); };
+    return Dispatch(getmedium);
+}
+#endif
 }  // namespace pbrt
 
 #endif  // PBRT_CAMERAS_H

@@ -275,8 +275,11 @@ class VolPathIntegrator : public RayIntegrator {
         Primitive aggregate, std::vector<Light> lights, const FileLoc *loc);
 
     std::string ToString() const;
-
+#if !defined(PBRT_WITH_UNDERWATER)
   private:
+#else
+  protected:
+#endif
     // VolPathIntegrator Private Methods
     SampledSpectrum SampleLd(const Interaction &intr, const BSDF *bsdf,
                              SampledWavelengths &lambda, Sampler sampler,
@@ -495,6 +498,103 @@ class FunctionIntegrator : public Integrator {
     std::string imageFilename;
 };
 
-}  // namespace pbrt
+#if defined(PBRT_WITH_UNDERWATER)
+enum class ExponentialType { Fast, Classic };
+
+class UnderwaterIntegrator : public VolPathIntegrator {
+  public:
+    // UnderwaterIntegrator Public Methods
+    UnderwaterIntegrator(int maxDepth, Camera camera, Sampler sampler,
+                         Primitive aggregate, const std::array<Float, 4> samplingVolume,
+                         std::vector<Light> lights, Light sunLight = nullptr,
+                         const std::string &lightSampleStrategy = "bvh",
+                         bool regularize = false)
+        : VolPathIntegrator(maxDepth, camera, sampler, aggregate, lights,
+                            lightSampleStrategy, regularize),
+          sun(sunLight),
+          volumeUniformDistance(samplingVolume.at(0)),
+          volumeUniformSPP(samplingVolume.at(1)),
+          volumeVariableSPP(samplingVolume.at(2)),
+          causticsTime(samplingVolume.at(3)) {
+        LOG_VERBOSE("\n\nUnderwaterIntegrator created\n\n");
+        SetOnePixelToRender();  // To use in development in this way: if
+                                // (onePixelToRender) { Printf("[ waterDepth: %f ]\n\n",
+                                // waterDepth); }
+        settingWaterDepthAndMedium();
+        LOG_VERBOSE("[ waterDepth: %f ]\n\n", waterDepth);
+
+        if (volumeUniformDistance == 0.f || volumeUniformSPP == 0) {
+            Options->disableSingleScatteringVolumeUniform = true;
+        }
+        if (volumeVariableSPP == 0) {
+            Options->disableSingleScatteringVolumeVariable = true;
+        }
+        if (Options->disableSingleScatteringVolumeUniform &&
+            Options->disableSingleScatteringVolumeVariable) {
+            Options->disableSingleScatteringVolume = true;
+        }
+    };
+
+    SampledSpectrum Li(RayDifferential ray, SampledWavelengths &lambda, Sampler sampler,
+                       ScratchBuffer &scratchBuffer,
+                       VisibleSurface *visibleSurface) const;
+
+    static std::unique_ptr<UnderwaterIntegrator> Create(
+        const ParameterDictionary &parameters, Camera camera, Sampler sampler,
+        Primitive aggregate, std::vector<Light> lights, const FileLoc *loc);
+
+    void Render();
+
+    std::string ToString() const;
+
+  protected:
+    // UnderwaterIntegrator Protected Methods
+    SampledSpectrum SampleLdUnderwater(
+        const Interaction &intr, const BSDF *bsdf, SampledWavelengths &lambda,
+        Sampler sampler, SampledSpectrum beta, SampledSpectrum inv_w_u,
+        const UnderwaterMediumProperties &mediumProperties) const;
+
+    void settingWaterDepthAndMedium();
+
+    pstd::optional<ShapeIntersection> IntersectWaterBoundary(Ray ray) const;
+
+    static bool IsUnderwaterHomogeneousMedium(const SurfaceInteraction &intr);
+
+    void SetOnePixelToRender();
+
+    pstd::optional<LightLiSample> GetSunProps(SampledSpectrum &sunIrradiance,
+                                              Vector3f &dirToSun,
+                                              const SampledWavelengths &lambda) const;
+
+    SampledSpectrum MultipleScatteringLight(const RayDifferential &ray,
+                                            const ShapeIntersection &si,
+                                            const UnderwaterMediumProperties &mediumProps,
+                                            const SampledSpectrum &sunIrradiance,
+                                            const BSDF *bsdf = nullptr) const;
+
+    static Float GetTParamIntersectPlaneWater(const Point3f &origin,
+                                              const Vector3f &direction,
+                                              const Float &planeWater);
+
+    static Float CausticPattern(const Point2f &p, const Float &time);
+
+    static Float GetCaustics(const Point3f &p, const Vector3f &sunDir,
+                             const Float &tToSurface, const Float &time = 1.f);
+
+    // UnderwaterIntegrator Protected Members
+    Float waterDepth;
+    Medium waterMedium;
+    ShapeIntersection siWaterBoundary;
+    bool onePixelToRender;
+    Light sun;
+    Float causticsTime;
+
+    const Float volumeUniformDistance;
+    const int volumeUniformSPP;
+    const int volumeVariableSPP;
+};
+#endif // PBRT_WITH_UNDERWATER
+
+} // namespace pbrt
 
 #endif  // PBRT_CPU_INTEGRATORS_H

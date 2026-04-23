@@ -31,12 +31,21 @@ class SubsurfaceMaterial;
 class ThinDielectricMaterial;
 class MixMaterial;
 
+#if defined(PBRT_WITH_UNDERWATER)
+class WaterBoundaryMaterial;
+class WaterSurfaceMaterial;
+#endif
+
 // Material Definition
-class Material : public TaggedPointer<  // Material Types
+class Material
+    : public TaggedPointer<  // Material Types
           CoatedDiffuseMaterial, CoatedConductorMaterial, ConductorMaterial,
           DielectricMaterial, DiffuseMaterial, DiffuseTransmissionMaterial, HairMaterial,
           MeasuredMaterial, SubsurfaceMaterial, ThinDielectricMaterial, MixMaterial
-
+#if defined(PBRT_WITH_UNDERWATER)
+          ,
+          WaterBoundaryMaterial, WaterSurfaceMaterial
+#endif
           > {
   public:
     // Material Interface

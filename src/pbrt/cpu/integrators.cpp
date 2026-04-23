@@ -43,8 +43,17 @@
 #include <pbrt/util/gui.h>
 
 #include <algorithm>
-
 #include <iostream>
+
+#ifdef PBRT_WITH_UNDERWATER // bounty: need to review
+#include <vector>
+#include <numeric>
+#include <cmath>
+#include <map>
+#include <iomanip>
+#include <fstream>
+#endif
+
 namespace pbrt {
 
 STAT_COUNTER("Integrator/Camera rays traced", nCameraRays);
@@ -192,7 +201,7 @@ void ImageTileIntegrator::Render() {
             }
             PBRT_DBG("Finished image tile (%d,%d)-(%d,%d)\n", tileBounds.pMin.x,
                      tileBounds.pMin.y, tileBounds.pMax.x, tileBounds.pMax.y);
-                progress.Update((waveEnd - waveStart) * tileBounds.Area());
+            progress.Update((waveEnd - waveStart) * tileBounds.Area());
         });
 
         // Update start and end wave
@@ -215,7 +224,7 @@ void ImageTileIntegrator::Render() {
                     camera.GetFilm().GetImage(&filmMetadata, 1.f / waveStart);
                 ImageChannelValues mse =
                     filmImage.MSE(filmImage.AllChannelsDesc(), *referenceImage);
-                    fprintf(mseOutFile, "%d, %.9g\n", waveStart, mse.Average());
+                fprintf(mseOutFile, "%d, %.9g\n", waveStart, mse.Average());
                 metadata.MSE = mse.Average();
                 fflush(mseOutFile);
             }
@@ -2648,11 +2657,11 @@ void MLTIntegrator::Render() {
                                Float scale =
                                    b / std::max<Float>(1, finishedPixelMutations);
                                RGB rgb = film.GetPixelRGB(pixelBounds.pMin + p, scale);
-                               for (int c = 0; c < 3; ++c)
-                                   displayValue[c][index] = rgb[c];
-                               ++index;
-                           }
-                       });
+                    for (int c = 0; c < 3; ++c)
+                        displayValue[c][index] = rgb[c];
+                    ++index;
+                }
+            });
     }
 
     // Follow _nChains_ Markov chains to render image
@@ -2884,12 +2893,12 @@ void SPPMIntegrator::Render() {
                                for (Point2i pPixel : b) {
                                    const SPPMPixel &pixel = pixels[pPixel];
                                    RGB rgb = pixel.Ld / (iter + 1) +
-                                             pixel.tau / (np * Pi * Sqr(pixel.radius));
-                                   for (int c = 0; c < 3; ++c)
-                                       displayValue[c][index] = rgb[c];
-                                   ++index;
-                               }
-                           });
+                                  pixel.tau / (np * Pi * Sqr(pixel.radius));
+                        for (int c = 0; c < 3; ++c)
+                            displayValue[c][index] = rgb[c];
+                        ++index;
+                    }
+                });
         }
         //--------------------------------------------------
         if (gui) {
@@ -3743,6 +3752,11 @@ std::unique_ptr<Integrator> Integrator::Create(
     else if (name == "sppm")
         integrator = SPPMIntegrator::Create(parameters, colorSpace, camera, sampler,
                                             aggregate, lights, loc);
+#ifdef PBRT_WITH_UNDERWATER
+    else if (name == "underwater")
+        integrator = UnderwaterIntegrator::Create(parameters, camera, sampler, aggregate,
+                                                  lights, loc);
+#endif
     else
         ErrorExit(loc, "%s: integrator type unknown.", name);
 

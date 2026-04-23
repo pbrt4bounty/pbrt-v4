@@ -40,6 +40,11 @@ class PhaseFunction : public TaggedPointer<HGPhaseFunction> {
                                                                      Point2f u) const;
 
     PBRT_CPU_GPU inline Float PDF(Vector3f wo, Vector3f wi) const;
+
+#if defined(PBRT_WITH_UNDERWATER)
+    PBRT_CPU_GPU inline Float GetGAsymmetryParam() const;
+#endif
+
 };
 
 class HomogeneousMedium;
@@ -49,6 +54,11 @@ class CloudMedium;
 class NanoVDBMedium;
 
 struct MediumProperties;
+
+#if defined(PBRT_WITH_UNDERWATER)
+class UnderwaterHomogeneousMedium;
+struct UnderwaterMediumProperties;
+#endif
 
 // RayMajorantSegment Definition
 struct RayMajorantSegment {
@@ -73,9 +83,13 @@ class RayMajorantIterator
 };
 
 // Medium Definition
-class Medium : public TaggedPointer<  // Medium Types
+class Medium
+    : public TaggedPointer<  // Medium Types
           HomogeneousMedium, GridMedium, RGBGridMedium, CloudMedium, NanoVDBMedium
-
+#if defined(PBRT_WITH_UNDERWATER)
+          ,
+          UnderwaterHomogeneousMedium
+#endif
           > {
   public:
     // Medium Interface
@@ -96,6 +110,15 @@ class Medium : public TaggedPointer<  // Medium Types
     // Medium Public Methods
     RayMajorantIterator SampleRay(Ray ray, Float tMax, const SampledWavelengths &lambda,
                                   ScratchBuffer &buf) const;
+
+#if defined(PBRT_WITH_UNDERWATER)
+    PBRT_CPU_GPU
+    pstd::optional<UnderwaterMediumProperties> SampleUnderwaterHomogeneousMedium(const SampledWavelengths &lambda) const;
+
+    PBRT_CPU_GPU inline
+    Float GetGAsymmetryParam() const;
+#endif
+
 };
 
 // MediumInterface Definition

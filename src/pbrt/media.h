@@ -64,6 +64,9 @@ class HGPhaseFunction {
 
     std::string ToString() const;
 
+#if defined(PBRT_WITH_UNDERWATER)
+    PBRT_CPU_GPU inline Float GetGAsymmetryParam() const { return g; }
+#endif
   private:
     // HGPhaseFunction Private Members
     Float g;
@@ -255,11 +258,59 @@ class HomogeneousMedium {
 
     std::string ToString() const;
 
+#if !defined(PBRT_WITH_UNDERWATER)
   private:
+#else
+  protected:
+#endif
     // HomogeneousMedium Private Data
     DenselySampledSpectrum sigma_a_spec, sigma_s_spec, Le_spec;
     HGPhaseFunction phase;
 };
+
+#if defined(PBRT_WITH_UNDERWATER)
+
+// UnderwaterMediumProperties Definition
+struct UnderwaterMediumProperties {
+    SampledSpectrum sigma_a, sigma_s, sigma_t, kd;
+    PhaseFunction phase;
+    SampledSpectrum Le;
+};
+
+// HomogeneousMedium Definition
+class UnderwaterHomogeneousMedium: public HomogeneousMedium {
+    public:
+        // UnderwaterHomogeneousMedium Public Methods
+        UnderwaterHomogeneousMedium(Spectrum sigma_a, Spectrum sigma_s, Spectrum kd, Float sigmaScale, Spectrum Le,
+                          Float LeScale, Float g, Allocator alloc)
+        : HomogeneousMedium(sigma_a, sigma_s, sigmaScale, Le,
+                            LeScale, g, alloc), kd_spec(kd, alloc) {
+            kd_spec.Scale(sigmaScale);
+        }
+
+        static UnderwaterHomogeneousMedium *Create(const ParameterDictionary &parameters,
+                                 const FileLoc *loc, Allocator alloc);
+
+        std::string ToString() const;
+
+        PBRT_CPU_GPU
+        UnderwaterMediumProperties SampleUnderwaterHomogeneousMedium(const SampledWavelengths &lambda) const {
+            SampledSpectrum sigma_a = sigma_a_spec.Sample(lambda);
+            SampledSpectrum sigma_s = sigma_s_spec.Sample(lambda);
+            SampledSpectrum sigma_t = sigma_a + sigma_s;
+            SampledSpectrum kd = kd_spec.Sample(lambda);
+            SampledSpectrum Le = Le_spec.Sample(lambda);
+            return UnderwaterMediumProperties{sigma_a, sigma_s, sigma_t, kd, &phase, Le};
+        }
+
+    PBRT_CPU_GPU inline Float GetGAsymmetryParam() const { return phase.GetGAsymmetryParam(); }
+
+    private:
+        // UnderwaterHomogeneousMedium Private Data
+        DenselySampledSpectrum kd_spec;
+};
+
+#endif // PBRT_WITH_UNDERWATER
 
 // GridMedium Definition
 class GridMedium {
@@ -271,8 +322,8 @@ class GridMedium {
     GridMedium(const Bounds3f &bounds, const Transform &renderFromMedium,
                Spectrum sigma_a, Spectrum sigma_s, Float sigmaScale, Float g,
                SampledGrid<Float> density, pstd::optional<SampledGrid<Float>> temperature,
-               Float temperatureScale, Float temperatureOffset, Spectrum Le,
-               SampledGrid<Float> LeScale, Allocator alloc);
+               Float temperatureScale, Float temperatureOffset,
+               Spectrum Le, SampledGrid<Float> LeScale, Allocator alloc);
 
     static GridMedium *Create(const ParameterDictionary &parameters,
                               const Transform &renderFromMedium, const FileLoc *loc,
@@ -694,6 +745,13 @@ PBRT_CPU_GPU inline Float PhaseFunction::PDF(Vector3f wo, Vector3f wi) const {
     return Dispatch(pdf);
 }
 
+#if defined(PBRT_WITH_UNDERWATER)
+PBRT_CPU_GPU inline Float PhaseFunction::GetGAsymmetryParam() const {
+    auto getGAsymmetryParam = [&](auto ptr) { return ptr->GetGAsymmetryParam(); };
+    return Dispatch(getGAsymmetryParam);
+}
+#endif
+
 PBRT_CPU_GPU inline pstd::optional<RayMajorantSegment> RayMajorantIterator::Next() {
     auto next = [](auto ptr) { return ptr->Next(); };
     return Dispatch(next);
@@ -720,6 +778,39 @@ inline RayMajorantIterator Medium::SampleRay(Ray ray, Float tMax,
     };
     return DispatchCPU(sample);
 }
+
+#if defined(PBRT_WITH_UNDERWATER)
+PBRT_CPU_GPU inline
+pstd::optional<UnderwaterMediumProperties> Medium::SampleUnderwaterHomogeneousMedium(const SampledWavelengths &lambda) const {
+    auto sample = [&](auto ptr) -> pstd::optional<UnderwaterMediumProperties> {
+        using Type = std::decay_t<decltype(*ptr)>;
+
+        if constexpr (std::is_same_v<Type, UnderwaterHomogeneousMedium>) {
+            return ptr->SampleUnderwaterHomogeneousMedium(lambda);
+        } else {
+            return {};
+        }
+    };
+
+    return Dispatch(sample);
+}
+
+// PBRT_CPU_GPU inline Float GetGAsymmetryParam() const { phase.GetGAsymmetryParam(); }
+PBRT_CPU_GPU inline
+Float Medium::GetGAsymmetryParam() const {
+    auto sample = [&](auto ptr) -> Float {
+        using Type = std::decay_t<decltype(*ptr)>;
+
+        if constexpr (std::is_same_v<Type, UnderwaterHomogeneousMedium>) {
+            return ptr->GetGAsymmetryParam();
+        } else {
+            return 0.8f;
+        }
+    };
+
+    return Dispatch(sample);
+}
+#endif // PBRT_WITH_UNDERWATER
 
 template <typename F>
 PBRT_CPU_GPU SampledSpectrum SampleT_maj(Ray ray, Float tMax, Float u, RNG &rng,

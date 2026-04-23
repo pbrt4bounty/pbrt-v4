@@ -276,6 +276,76 @@ class ThinDielectricBxDF {
     Float eta;
 };
 
+#if defined(PBRT_WITH_UNDERWATER)
+
+// TODO-UNDER_WATER: Properly implement the Snell Window.
+// Class not yet used
+
+// WaterSurfaceBxDF Definition
+class WaterSurfaceBxDF {
+  public:
+    // PBRT Standard BxDF Interface
+    WaterSurfaceBxDF() = default;
+
+    PBRT_CPU_GPU
+    SampledSpectrum f(Vector3f wo, Vector3f wi, TransportMode mode) const {
+        // Specular materials (mirrors/clear glass) have no scattering value
+        // for arbitrary directions. They are Dirac Deltas.
+        return SampledSpectrum(0.f);
+    }
+
+    PBRT_CPU_GPU
+    pstd::optional<BSDFSample> Sample_f(Vector3f wo, Float uc, Point2f u,
+                                        TransportMode mode,
+                                        BxDFReflTransFlags sampleFlags) const {
+        // We assume we are underwater looking up.
+        // n1 (Water) = 1.333, n2 (Air) = 1.0
+        const Float n1 = 1.333f;
+        const Float n2 = 1.0f;
+
+        // Snell's Law for critical angle: n1 * sin(theta_c) = n2 * sin(90)
+        // sin(theta_c) = n2 / n1
+        // sin^2(theta_c) = (n2 / n1)^2
+        const Float sinCrit = n2 / n1;
+        const Float sin2Crit = sinCrit * sinCrit;
+
+        // In local frame, Normal is (0,0,1). Sin2Theta is helper for 1 - cos^2
+        Float sin2Theta = Sin2Theta(wo);
+
+        Vector3f wi;
+
+        // Check for Total Internal Reflection (TIR)
+        if (sin2Theta >= sin2Crit) {
+            // --- PERFECT MIRROR ---
+            // Reflect wo about the normal (0,0,1)
+            wi = Vector3f(-wo.x, -wo.y, wo.z);
+            return BSDFSample(SampledSpectrum(1.f), wi, 1.f, BxDFFlags::SpecularReflection);
+        } else {
+            // --- SNELL WINDOW (Passthrough) ---
+            wi = -wo;
+            return BSDFSample(SampledSpectrum(1.f), wi, 1.f, BxDFFlags::SpecularTransmission);
+        }
+    }
+
+    PBRT_CPU_GPU
+    Float PDF(Vector3f wo, Vector3f wi, TransportMode mode,
+              BxDFReflTransFlags sampleFlags) const {
+        return 0;
+    }
+
+    PBRT_CPU_GPU
+    void Regularize() {}
+
+    PBRT_CPU_GPU
+    BxDFFlags Flags() const {
+        // This material can be both reflection and transmission depending on angle
+        return BxDFFlags::SpecularReflection | BxDFFlags::SpecularTransmission;
+    }
+
+    std::string ToString() const { return "WaterSurfaceBxDF"; }
+};
+#endif // PBRT_WITH_UNDERWATER
+
 // ConductorBxDF Definition
 class ConductorBxDF {
   public:
