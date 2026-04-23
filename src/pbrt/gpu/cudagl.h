@@ -78,10 +78,10 @@ class BufferDisplay {
     BufferImageFormat m_image_format;
 };
 
-static GLuint createGLShader(const std::string &source, GLuint shader_type) {
+static GLuint createGLShader(const std::string& source, GLuint shader_type) {
     GLuint shader = glCreateShader(shader_type);
 
-    const GLchar *source_data = reinterpret_cast<const GLchar *>(source.data());
+    const GLchar* source_data = reinterpret_cast<const GLchar*>(source.data());
     glShaderSource(shader, 1, &source_data, nullptr);
     glCompileShader(shader);
 
@@ -92,7 +92,7 @@ static GLuint createGLShader(const std::string &source, GLuint shader_type) {
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &max_length);
 
         std::string info_log(max_length, '\0');
-        GLchar *info_log_data = reinterpret_cast<GLchar *>(&info_log[0]);
+        GLchar* info_log_data = reinterpret_cast<GLchar*>(&info_log[0]);
         glGetShaderInfoLog(shader, max_length, nullptr, info_log_data);
 
         glDeleteShader(shader);
@@ -104,8 +104,8 @@ static GLuint createGLShader(const std::string &source, GLuint shader_type) {
     return shader;
 }
 
-static GLuint createGLProgram(const std::string &vert_source,
-                              const std::string &frag_source) {
+static GLuint createGLProgram(const std::string& vert_source,
+                              const std::string& frag_source) {
     GLuint vert_shader = createGLShader(vert_source, GL_VERTEX_SHADER);
     if (vert_shader == 0)
         return 0;
@@ -128,7 +128,7 @@ static GLuint createGLProgram(const std::string &vert_source,
         glGetProgramiv(program, GL_INFO_LOG_LENGTH, &max_length);
 
         std::string info_log(max_length, '\0');
-        GLchar *info_log_data = reinterpret_cast<GLchar *>(&info_log[0]);
+        GLchar* info_log_data = reinterpret_cast<GLchar*>(&info_log[0]);
         glGetProgramInfoLog(program, max_length, nullptr, info_log_data);
         LOG_FATAL("Program linking failed: %s", info_log);
 
@@ -147,7 +147,7 @@ static GLuint createGLProgram(const std::string &vert_source,
     return program;
 }
 
-static GLint getGLUniformLocation(GLuint program, const std::string &name) {
+static GLint getGLUniformLocation(GLuint program, const std::string& name) {
     GLint loc = glGetUniformLocation(program, name.c_str());
     CHECK_NE(loc, -1);
     return loc;
@@ -282,7 +282,7 @@ inline void BufferDisplay::display(const int32_t screen_res_x, const int32_t scr
                                    GL_FLOAT,  // type
                                    GL_FALSE,  // normalized?
                                    0,         // stride
-                                   (void *)0  // array buffer offset
+                                   (void*)0   // array buffer offset
                                    ));
 
     if (convertToSrgb)
@@ -352,8 +352,7 @@ CUDAOutputBuffer<PIXEL_FORMAT>::CUDAOutputBuffer(int32_t width, int32_t height) 
     CUDA_CHECK(cudaGetDevice(&current_device));
     CUDA_CHECK(cudaDeviceGetAttribute(&is_display_device, cudaDevAttrKernelExecTimeout,
                                       current_device));
-    if (getenv("XDG_SESSION_TYPE") == nullptr ||
-        getenv("XDG_SESSION_TYPE") != std::string("wayland")) {
+    if (getenv("XDG_SESSION_TYPE") == nullptr || getenv("XDG_SESSION_TYPE") != std::string("wayland")) {
         if (!is_display_device)
             LOG_FATAL("GL interop is only available on display device.");
     }
@@ -393,13 +392,13 @@ CUDAOutputBuffer<PIXEL_FORMAT>::~CUDAOutputBuffer() {
 }
 
 template <typename PIXEL_FORMAT>
-PIXEL_FORMAT *CUDAOutputBuffer<PIXEL_FORMAT>::Map() {
+PIXEL_FORMAT* CUDAOutputBuffer<PIXEL_FORMAT>::Map() {
     makeCurrent();
 
     size_t buffer_size = 0u;
     CUDA_CHECK(cudaGraphicsMapResources(1, &m_cuda_gfx_resource, m_stream));
     CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(
-        reinterpret_cast<void **>(&m_device_pixels), &buffer_size, m_cuda_gfx_resource));
+        reinterpret_cast<void**>(&m_device_pixels), &buffer_size, m_cuda_gfx_resource));
 
     return m_device_pixels;
 }

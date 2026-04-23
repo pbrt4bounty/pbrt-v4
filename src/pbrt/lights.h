@@ -156,13 +156,8 @@ inline LightBounds Union(const LightBounds &a, const LightBounds &b) {
 class LightBase {
   public:
     // LightBase Public Methods
-#if !defined(PBRT_RGB_RENDERING)
     LightBase(LightType type, const Transform &renderFromLight,
               const MediumInterface &mediumInterface);
-#else
-    LightBase(LightType type, const Transform &renderFromLight,
-              const MediumInterface &mediumInterface, const RGBColorSpace *colorSpace);
-#endif
 
     PBRT_CPU_GPU
     LightType Type() const { return type; }
@@ -180,42 +175,25 @@ class LightBase {
 
   protected:
     // LightBase Protected Methods
-#if !defined(PBRT_RGB_RENDERING)
     static const DenselySampledSpectrum *LookupSpectrum(Spectrum s);
-#else
-    const RGBIlluminantSpectrum *LookupSpectrum(Spectrum s);
-#endif
 
     std::string BaseToString() const;
     // LightBase Protected Members
     LightType type;
     Transform renderFromLight;
     MediumInterface mediumInterface;
-    const RGBColorSpace *colorSpace;
-#if !defined(PBRT_RGB_RENDERING)
     static InternCache<DenselySampledSpectrum> *spectrumCache;
-#else
-    static InternCache<RGBIlluminantSpectrum> *spectrumCache;
-#endif
 };
 
 // PointLight Definition
 class PointLight : public LightBase {
   public:
     // PointLight Public Methods
-#if !defined(PBRT_RGB_RENDERING)
     PointLight(Transform renderFromLight, MediumInterface mediumInterface, Spectrum I,
                Float scale)
         : LightBase(LightType::DeltaPosition, renderFromLight, mediumInterface),
           I(LookupSpectrum(I)),
           scale(scale) {}
-#else
-    PointLight(Transform renderFromLight, MediumInterface mediumInterface, Spectrum I,
-               Float scale, const RGBColorSpace *colorSpace)
-        : LightBase(LightType::DeltaPosition, renderFromLight, mediumInterface, colorSpace),
-          I(LookupSpectrum(I)),
-          scale(scale) {}
-#endif
 
     static PointLight *Create(const Transform &renderFromLight, Medium medium,
                               const ParameterDictionary &parameters,
@@ -256,11 +234,7 @@ class PointLight : public LightBase {
 
   private:
     // PointLight Private Members
-#if !defined(PBRT_RGB_RENDERING)
     const DenselySampledSpectrum *I;
-#else
-    const RGBIlluminantSpectrum *I;
-#endif
     Float scale;
 };
 
@@ -268,17 +242,10 @@ class PointLight : public LightBase {
 class DistantLight : public LightBase {
   public:
     // DistantLight Public Methods
-#if !defined(PBRT_RGB_RENDERING)
     DistantLight(const Transform &renderFromLight, Spectrum Lemit, Float scale)
         : LightBase(LightType::DeltaDirection, renderFromLight, {}),
           Lemit(LookupSpectrum(Lemit)),
           scale(scale) {}
-#else
-    DistantLight(const Transform &renderFromLight, Spectrum Lemit, Float scale, const RGBColorSpace *colorSpace)
-        : LightBase(LightType::DeltaDirection, renderFromLight, {}, colorSpace),
-          Lemit(LookupSpectrum(Lemit)),
-          scale(scale) {}
-#endif
 
     static DistantLight *Create(const Transform &renderFromLight,
                                 const ParameterDictionary &parameters,
@@ -286,11 +253,6 @@ class DistantLight : public LightBase {
                                 Allocator alloc);
 
     SampledSpectrum Phi(SampledWavelengths lambda) const;
-
-    PBRT_CPU_GPU
-    SampledSpectrum Le(const Ray &, const SampledWavelengths &lambda) const {
-        return scale * Lemit->Sample(lambda);
-    }
 
     PBRT_CPU_GPU
     Float PDF_Li(LightSampleContext, Vector3f, bool allowIncompletePDF) const {
@@ -328,11 +290,7 @@ class DistantLight : public LightBase {
 
   private:
     // DistantLight Private Members
-#if !defined(PBRT_RGB_RENDERING)
     const DenselySampledSpectrum *Lemit;
-#else
-    const RGBIlluminantSpectrum *Lemit;
-#endif
     Float scale;
     Point3f sceneCenter;
     Float sceneRadius;
@@ -395,15 +353,10 @@ class ProjectionLight : public LightBase {
 class GoniometricLight : public LightBase {
   public:
     // GoniometricLight Public Methods
-#if !defined(PBRT_RGB_RENDERING)
     GoniometricLight(const Transform &renderFromLight,
                      const MediumInterface &mediumInterface, Spectrum I, Float scale,
                      Image image, Allocator alloc);
-#else
-    GoniometricLight(const Transform &renderFromLight,
-                     const MediumInterface &mediumInterface, Spectrum I, Float scale,
-                      const RGBColorSpace *colorSpace, Image image, Allocator alloc);
-#endif
+
     static GoniometricLight *Create(const Transform &renderFromLight, Medium medium,
                                     const ParameterDictionary &parameters,
                                     const RGBColorSpace *colorSpace, const FileLoc *loc,
@@ -444,11 +397,7 @@ class GoniometricLight : public LightBase {
 
   private:
     // GoniometricLight Private Members
-#if !defined(PBRT_RGB_RENDERING)
     const DenselySampledSpectrum *Iemit;
-#else
-    const RGBIlluminantSpectrum *Iemit;
-#endif
     Float scale;
     Image image;
     PiecewiseConstant2D distrib;
@@ -524,11 +473,7 @@ class DiffuseAreaLight : public LightBase {
     FloatTexture alpha;
     Float area;
     bool twoSided;
-#if !defined(PBRT_RGB_RENDERING)
     const DenselySampledSpectrum *Lemit;
-#else
-    const RGBIlluminantSpectrum *Lemit;
-#endif
     Float scale;
     Image *image;
     const RGBColorSpace *imageColorSpace;
@@ -555,11 +500,7 @@ class DiffuseAreaLight : public LightBase {
 class UniformInfiniteLight : public LightBase {
   public:
     // UniformInfiniteLight Public Methods
-#if !defined(PBRT_RGB_RENDERING)
     UniformInfiniteLight(const Transform &renderFromLight, Spectrum Lemit, Float scale);
-#else
-    UniformInfiniteLight(const Transform &renderFromLight, Spectrum Lemit, Float scale, const RGBColorSpace *colorSpace);
-#endif
 
     void Preprocess(const Bounds3f &sceneBounds) {
         sceneBounds.BoundingSphere(&sceneCenter, &sceneRadius);
@@ -593,11 +534,7 @@ class UniformInfiniteLight : public LightBase {
 
   private:
     // UniformInfiniteLight Private Members
-#if !defined(PBRT_RGB_RENDERING)
     const DenselySampledSpectrum *Lemit;
-#else
-    const RGBIlluminantSpectrum *Lemit;
-#endif
     Float scale;
     Point3f sceneCenter;
     Float sceneRadius;
@@ -607,15 +544,9 @@ class UniformInfiniteLight : public LightBase {
 class ImageInfiniteLight : public LightBase {
   public:
     // ImageInfiniteLight Public Methods
-#if !defined(PBRT_RGB_RENDERING)
     ImageInfiniteLight(Transform renderFromLight, Image image,
                        const RGBColorSpace *imageColorSpace, Float scale,
                        std::string filename, Allocator alloc);
-#else
-    ImageInfiniteLight(Transform renderFromLight, Image image,
-                       const RGBColorSpace *imageColorSpace, Float scale, const RGBColorSpace *colorSpace,
-                       std::string filename, Allocator alloc);
-#endif
 
     void Preprocess(const Bounds3f &sceneBounds) {
         sceneBounds.BoundingSphere(&sceneCenter, &sceneRadius);
@@ -700,18 +631,10 @@ class ImageInfiniteLight : public LightBase {
 class PortalImageInfiniteLight : public LightBase {
   public:
     // PortalImageInfiniteLight Public Methods
-#if !defined(PBRT_RGB_RENDERING)
     PortalImageInfiniteLight(const Transform &renderFromLight, Image image,
                              const RGBColorSpace *imageColorSpace, Float scale,
                              const std::string &filename, std::vector<Point3f> portal,
                              Allocator alloc);
-#else
-    PortalImageInfiniteLight(const Transform &renderFromLight, Image image,
-                             const RGBColorSpace *imageColorSpace, Float scale,
-                             const RGBColorSpace *colorSpace,
-                             const std::string &filename, std::vector<Point3f> portal,
-                             Allocator alloc);
-#endif
 
     void Preprocess(const Bounds3f &sceneBounds) {
         sceneBounds.BoundingSphere(&sceneCenter, &sceneRadius);
@@ -811,13 +734,9 @@ class PortalImageInfiniteLight : public LightBase {
 class SpotLight : public LightBase {
   public:
     // SpotLight Public Methods
-#if !defined(PBRT_RGB_RENDERING)
     SpotLight(const Transform &renderFromLight, const MediumInterface &m, Spectrum I,
               Float scale, Float totalWidth, Float falloffStart);
-#else
-    SpotLight(const Transform &renderFromLight, const MediumInterface &m, Spectrum I,
-              Float scale, const RGBColorSpace *colorSpace, Float totalWidth, Float falloffStart);
-#endif
+
     static SpotLight *Create(const Transform &renderFromLight, Medium medium,
                              const ParameterDictionary &parameters,
                              const RGBColorSpace *colorSpace, const FileLoc *loc,
@@ -865,11 +784,7 @@ class SpotLight : public LightBase {
 
   private:
     // SpotLight Private Members
-#if !defined(PBRT_RGB_RENDERING)
     const DenselySampledSpectrum *Iemit;
-#else
-    const RGBIlluminantSpectrum *Iemit;
-#endif
     Float scale, cosFalloffStart, cosFalloffEnd;
 };
 

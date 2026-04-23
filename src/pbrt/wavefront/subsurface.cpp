@@ -125,8 +125,8 @@ void WavefrontPathIntegrator::SampleSubsurface(int wavefrontDepth) {
 
                         LightSampleContext ctx(intr.pi, intr.n, intr.ns);
                         nextRayQueue->PushIndirectRay(
-                            ray, w.depth + 1, ctx, beta, indir_r_u, r_l, lambda, etaScale,
-                            bsdfSample->IsSpecular(), anyNonSpecularBounces,
+                            ray, w.depth + 1, ctx, beta, indir_r_u, r_l, lambda,
+                            etaScale, bsdfSample->IsSpecular(), anyNonSpecularBounces,
                             w.pixelIndex);
 
                         PBRT_DBG("Spawned indirect ray at depth %d. "
@@ -135,10 +135,12 @@ void WavefrontPathIntegrator::SampleSubsurface(int wavefrontDepth) {
                                  "%f %f %f "
                                  "beta/indir_r_u %f %f %f %f\n",
                                  w.depth + 1, int(bsdfSample->IsSpecular()), beta[0],
-                                 beta[1], beta[2], beta[3], indir_r_u[0], indir_r_u[1],
-                                 indir_r_u[2], indir_r_u[3], r_l[0], r_l[1], r_l[2],
-                                 r_l[3], SafeDiv(beta, indir_r_u)[0],
-                                 SafeDiv(beta, indir_r_u)[1], SafeDiv(beta, indir_r_u)[2],
+                                 beta[1], beta[2], beta[3], indir_r_u[0],
+                                 indir_r_u[1], indir_r_u[2], indir_r_u[3],
+                                 r_l[0], r_l[1], r_l[2], r_l[3],
+                                 SafeDiv(beta, indir_r_u)[0],
+                                 SafeDiv(beta, indir_r_u)[1],
+                                 SafeDiv(beta, indir_r_u)[2],
                                  SafeDiv(beta, indir_r_u)[3]);
                     }
                 }
@@ -186,8 +188,8 @@ void WavefrontPathIntegrator::SampleSubsurface(int wavefrontDepth) {
                          w.depth, Ld[0], Ld[1], Ld[2], Ld[3], beta[0], beta[1], beta[2],
                          beta[3], SafeDiv(beta, r_u)[0], SafeDiv(beta, r_u)[1],
                          SafeDiv(beta, r_u)[2], SafeDiv(beta, r_u)[3],
-                         SafeDiv(Ld, r_u)[0], SafeDiv(Ld, r_u)[1], SafeDiv(Ld, r_u)[2],
-                         SafeDiv(Ld, r_u)[3]);
+                         SafeDiv(Ld, r_u)[0], SafeDiv(Ld, r_u)[1],
+                         SafeDiv(Ld, r_u)[2], SafeDiv(Ld, r_u)[3]);
 
                 Ray ray = SpawnRayTo(intr.pi, intr.n, time, ls->pLight.pi, ls->pLight.n);
                 if (haveMedia)

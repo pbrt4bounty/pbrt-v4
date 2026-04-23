@@ -677,7 +677,7 @@ void BasicSceneBuilder::ProceduralMesh(const std::string &name,
             materialType, textureName, bumpMapName, normalMapName, opacityMapName,
             outputFilePath);
 }
-#endif //PBRT_WITH_PROCEDURAL
+#endif // PBRT_WITH_PROCEDURAL
 
 void BasicSceneBuilder::EndOfFiles() {
     if (currentBlock != BlockState::WorldBlock)
@@ -694,7 +694,6 @@ void BasicSceneBuilder::EndOfFiles() {
 
     if (!shapes.empty())
         scene->AddShapes(shapes);
-
     if (!instanceUses.empty())
         scene->AddInstanceUses(instanceUses);
 
@@ -1058,6 +1057,7 @@ void BasicScene::SetOptions(SceneEntity filter, SceneEntity film,
         return Sampler::Create(sampler.name, sampler.parameters, res, &sampler.loc,
                                alloc);
     });
+
     // Enqueue asynchronous job to create camera
     cameraJob = RunAsync([camera, this]() {
         LOG_VERBOSE("Starting to create camera");
@@ -1070,7 +1070,6 @@ void BasicScene::SetOptions(SceneEntity filter, SceneEntity film,
         LOG_VERBOSE("Finished creating camera");
         return c;
     });
-    cameraJob->Wait();
 }
 
 void BasicScene::AddMedium(MediumSceneEntity medium) {

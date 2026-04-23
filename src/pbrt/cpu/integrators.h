@@ -1,5 +1,4 @@
 // pbrt is Copyright(c) 1998-2020 Matt Pharr, Wenzel Jakob, and Greg Humphreys.
-// Modifications Copyright 2023 Intel Corporation.
 // The pbrt source code is licensed under the Apache License, Version 2.0.
 // SPDX: Apache-2.0
 
@@ -23,20 +22,12 @@
 #include <pbrt/util/rng.h>
 #include <pbrt/util/sampling.h>
 
-#ifdef PBRT_WITH_PATH_GUIDING
-#include <pbrt/cpu/guiding.h>
-#include <pbrt/cpu/trbuffer.h>
-#endif
-
 #include <functional>
 #include <memory>
 #include <ostream>
 #include <string>
 #include <vector>
 
-#if defined(OPENPGL_IMAGE_SPACE_GUIDING_BUFFER) && defined(OPENPGL_RADIANCE_CACHES)
-#define GUIDED_RR
-#endif
 namespace pbrt {
 
 // Integrator Definition
@@ -79,11 +70,7 @@ class Integrator {
         LOG_VERBOSE("Scene bounds %s", sceneBounds);
         for (auto &light : lights) {
             light.Preprocess(sceneBounds);
-            // VSPG add here 'LightType::DeltaDirection' but this cause a hiper lighted
-            // render when both 'distant' and 'infinite' light types are added to scene.
-            // We need to check if this addition is necessary for VSPG or we can removed.
-            // ||   light.Type() == LightType::DeltaDirection)
-            if (light.Type() == LightType::Infinite) 
+            if (light.Type() == LightType::Infinite)
                 infiniteLights.push_back(light);
         }
     }
@@ -102,17 +89,6 @@ class ImageTileIntegrator : public Integrator {
     virtual void EvaluatePixelSample(Point2i pPixel, int sampleIndex, Sampler sampler,
                                      ScratchBuffer &scratchBuffer) = 0;
 
-    virtual void PostProcessWave();
-
-    template <typename F>
-    void ParallelFor(const char *description, int nItems, F &&func) {
-        pbrt::ParallelFor(0, nItems, func);
-    }
-    template <typename F>
-    void ParallelFor(Bounds2i bound, F &&func) {
-        pbrt::ParallelFor2D(bound, func);
-    }
-
   protected:
     // ImageTileIntegrator Protected Members
     Camera camera;
@@ -130,9 +106,8 @@ class RayIntegrator : public ImageTileIntegrator {
     void EvaluatePixelSample(Point2i pPixel, int sampleIndex, Sampler sampler,
                              ScratchBuffer &scratchBuffer) final;
 
-    virtual SampledSpectrum Li(Point2i pPixel, RayDifferential ray,
-                               SampledWavelengths &lambda, Sampler sampler,
-                               ScratchBuffer &scratchBuffer,
+    virtual SampledSpectrum Li(RayDifferential ray, SampledWavelengths &lambda,
+                               Sampler sampler, ScratchBuffer &scratchBuffer,
                                VisibleSurface *visibleSurface) const = 0;
 };
 
@@ -150,8 +125,8 @@ class RandomWalkIntegrator : public RayIntegrator {
 
     std::string ToString() const;
 
-    SampledSpectrum Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
-                       Sampler sampler, ScratchBuffer &scratchBuffer,
+    SampledSpectrum Li(RayDifferential ray, SampledWavelengths &lambda, Sampler sampler,
+                       ScratchBuffer &scratchBuffer,
                        VisibleSurface *visibleSurface) const {
         return LiRandomWalk(ray, lambda, sampler, scratchBuffer, 0);
     }
@@ -211,9 +186,8 @@ class SimplePathIntegrator : public RayIntegrator {
     SimplePathIntegrator(int maxDepth, bool sampleLights, bool sampleBSDF, Camera camera,
                          Sampler sampler, Primitive aggregate, std::vector<Light> lights);
 
-    SampledSpectrum Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
-                       Sampler sampler, ScratchBuffer &scratchBuffer,
-                       VisibleSurface *visibleSurface) const;
+    SampledSpectrum Li(RayDifferential ray, SampledWavelengths &lambda, Sampler sampler,
+                       ScratchBuffer &scratchBuffer, VisibleSurface *visibleSurface) const;
 
     static std::unique_ptr<SimplePathIntegrator> Create(
         const ParameterDictionary &parameters, Camera camera, Sampler sampler,
@@ -237,9 +211,8 @@ class PathIntegrator : public RayIntegrator {
                    const std::string &lightSampleStrategy = "bvh",
                    bool regularize = false);
 
-    SampledSpectrum Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
-                       Sampler sampler, ScratchBuffer &scratchBuffer,
-                       VisibleSurface *visibleSurface) const;
+    SampledSpectrum Li(RayDifferential ray, SampledWavelengths &lambda, Sampler sampler,
+                       ScratchBuffer &scratchBuffer, VisibleSurface *visibleSurface) const;
 
     static std::unique_ptr<PathIntegrator> Create(const ParameterDictionary &parameters,
                                                   Camera camera, Sampler sampler,
@@ -260,100 +233,6 @@ class PathIntegrator : public RayIntegrator {
     bool regularize;
 };
 
-#ifdef PBRT_WITH_PATH_GUIDING
-// GuidedPathIntegrator Definition
-class GuidedPathIntegrator : public RayIntegrator {
-  public:
-    struct GuidingSettings {
-        bool enableGuiding{true};
-        bool guideSurface{true};
-
-        bool guideRR{false};
-        bool rrCorrection{true};
-
-        GuidingDistributionType distributionType{EGuideDistributionPAVMM};
-
-        GuidingType surfaceGuidingType{EGuideRIS};
-        float guideSurfaceProbability{0.5f};
-        bool knnLookup{true};
-        int guideNumTrainingWaves{128};
-
-        bool storeGuidingCache{false};
-        bool loadGuidingCache{false};
-        std::string guidingCacheFileName{""};
-
-        bool storeContributionEstimate{false};
-        bool loadContributionEstimate{false};
-        std::string contributionEstimateFileName{""};
-
-        Float regularizationGamma{0.1f};
-    };
-
-  public:
-    // GuidedPathIntegrator Public Methods
-    GuidedPathIntegrator(const int maxDepth, const int minRRDepth, const bool useNEE,
-                         const GuidingSettings settings, const RGBColorSpace *colorSpace,
-                         Camera camera, Sampler sampler, Primitive aggregate,
-                         std::vector<Light> lights,
-                         const std::string &lightSampleStrategy = "bvh",
-                         bool regularize = false);
-
-    ~GuidedPathIntegrator() override;
-
-    SampledSpectrum Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
-                       Sampler sampler, ScratchBuffer &scratchBuffer,
-                       VisibleSurface *visibleSurface) const override;
-
-    void PostProcessWave() override;
-
-    static std::unique_ptr<GuidedPathIntegrator> Create(
-        const ParameterDictionary &parameters, const RGBColorSpace *colorSpace,
-        Camera camera, Sampler sampler, Primitive aggregate, std::vector<Light> lights,
-        const FileLoc *loc);
-
-    std::string ToString() const override;
-
-  private:
-    // GuidedPathIntegrator Private Methods
-    SampledSpectrum SampleLd(const SurfaceInteraction &intr, const GuidedBSDF *bsdf,
-                             const Float survivalProb, SampledWavelengths &lambda,
-                             Sampler sampler) const;
-
-    const PixelSensor *sensor{nullptr};
-
-    // GuidedPathIntegrator Private Members
-    int maxDepth;
-    int minRRDepth;
-    bool useNEE{true};
-    LightSampler lightSampler;
-    bool regularize;
-    const RGBColorSpace *colorSpace{nullptr};
-
-    // Path Guiding
-    GuidingSettings guideSettings;
-    bool guideTraining{true};
-    float guidingInfiniteLightDistance{1e6f};
-
-    ThreadLocal<openpgl::cpp::PathSegmentStorage *> *guiding_threadPathSegmentStorage;
-    ThreadLocal<openpgl::cpp::SurfaceSamplingDistribution *>
-        *guiding_threadSurfaceSamplingDistribution;
-
-    openpgl::cpp::FieldConfig guiding_fieldConfig;
-    openpgl::cpp::SampleStorage *guiding_sampleStorage{nullptr};
-    openpgl::cpp::Field *guiding_field{nullptr};
-    openpgl::cpp::Device *guiding_device{nullptr};
-    // ThreadLocal<Allocator> threadPathSegmentStorage;
-#if defined(GUIDED_RR)
-    openpgl::cpp::util::ImageSpaceGuidingBuffer *imageSpaceGuidingBuffer;
-
-    bool imageSpaceGuidingBufferReady{false};
-    bool calculateImageSpaceGuidingBuffer{false};
-    int imageSpaceGuidingBufferUpdateWave{0};
-#endif
-    int waveCounter{0};
-};
-#endif
-
 // SimpleVolPathIntegrator Definition
 class SimpleVolPathIntegrator : public RayIntegrator {
   public:
@@ -361,9 +240,8 @@ class SimpleVolPathIntegrator : public RayIntegrator {
     SimpleVolPathIntegrator(int maxDepth, Camera camera, Sampler sampler,
                             Primitive aggregate, std::vector<Light> lights);
 
-    SampledSpectrum Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
-                       Sampler sampler, ScratchBuffer &scratchBuffer,
-                       VisibleSurface *visibleSurface) const;
+    SampledSpectrum Li(RayDifferential ray, SampledWavelengths &lambda, Sampler sampler,
+                       ScratchBuffer &scratchBuffer, VisibleSurface *visibleSurface) const;
 
     static std::unique_ptr<SimpleVolPathIntegrator> Create(
         const ParameterDictionary &parameters, Camera camera, Sampler sampler,
@@ -389,9 +267,8 @@ class VolPathIntegrator : public RayIntegrator {
           lightSampler(LightSampler::Create(lightSampleStrategy, lights, Allocator())),
           regularize(regularize) {}
 
-    SampledSpectrum Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
-                       Sampler sampler, ScratchBuffer &scratchBuffer,
-                       VisibleSurface *visibleSurface) const;
+    SampledSpectrum Li(RayDifferential ray, SampledWavelengths &lambda, Sampler sampler,
+                       ScratchBuffer &scratchBuffer, VisibleSurface *visibleSurface) const;
 
     static std::unique_ptr<VolPathIntegrator> Create(
         const ParameterDictionary &parameters, Camera camera, Sampler sampler,
@@ -411,289 +288,6 @@ class VolPathIntegrator : public RayIntegrator {
     bool regularize;
 };
 
-#ifdef PBRT_WITH_PATH_GUIDING
-// GuidedVolPathIntegrator Definition
-class GuidedVolPathIntegrator : public RayIntegrator {
-  public:
-    struct GuidingSettings {
-        bool enableGuiding{true};
-        bool guideSurface{true};
-        bool guideVolume{true};
-
-        bool guideRR{false};
-        bool guideSurfaceRR{true};
-        bool guideVolumeRR{true};
-        bool rrCorrection{true};
-        GuidingDistributionType distributionType{EGuideDistributionPAVMM};
-
-        GuidingType surfaceGuidingType{EGuideRIS};
-        GuidingType volumeGuidingType{EGuideRIS};
-        float guideSurfaceProbability{0.5f};
-        float guideVolumeProbability{0.5f};
-        bool knnLookup{true};
-        int guideNumTrainingWaves{128};
-
-        bool storeGuidingCache{false};
-        bool loadGuidingCache{false};
-        std::string guidingCacheFileName{""};
-
-        bool storeContributionEstimate{false};
-        bool loadContributionEstimate{false};
-        std::string contributionEstimateFileName{""};
-
-        Float regularizationGamma{0.f};
-    };
-
-  public:
-    // GuidedVolPathIntegrator Public Methods
-    GuidedVolPathIntegrator(int maxDepth, int minRRDepth, bool useNEE,
-                            const GuidingSettings settings,
-                            const RGBColorSpace *colorSpace, Camera camera,
-                            Sampler sampler, Primitive aggregate,
-                            std::vector<Light> lights,
-                            const std::string &lightSampleStrategy = "bvh",
-                            bool regularize = false);
-
-    ~GuidedVolPathIntegrator();
-
-    SampledSpectrum Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
-                       Sampler sampler, ScratchBuffer &scratchBuffer,
-                       VisibleSurface *visibleSurface) const override;
-
-    void PostProcessWave() override;
-
-    static std::unique_ptr<GuidedVolPathIntegrator> Create(
-        const ParameterDictionary &parameters, const RGBColorSpace *colorSpace,
-        Camera camera, Sampler sampler, Primitive aggregate, std::vector<Light> lights,
-        const FileLoc *loc);
-
-    std::string ToString() const override;
-
-  private:
-    // GuidedVolPathIntegrator Private Methods
-    SampledSpectrum SampleLd(const Interaction &intr, const GuidedBSDF *bsdf,
-                             const GuidedPhaseFunction *phase, const Float survivalProb,
-                             SampledWavelengths &lambda, Sampler sampler,
-                             SampledSpectrum inv_w_u) const;
-
-    const PixelSensor *sensor{nullptr};
-
-    // GuidedVolPathIntegrator Private Members
-    int maxDepth;
-    int minRRDepth;
-    bool useNEE{true};
-    LightSampler lightSampler;
-    bool regularize;
-    const RGBColorSpace *colorSpace{nullptr};
-
-    // Path Guiding
-    GuidingSettings guideSettings;
-    bool guideTraining{true};
-    float guidingInfiniteLightDistance{1e6f};
-
-    ThreadLocal<openpgl::cpp::PathSegmentStorage *> *guiding_threadPathSegmentStorage;
-    ThreadLocal<openpgl::cpp::SurfaceSamplingDistribution *>
-        *guiding_threadSurfaceSamplingDistribution;
-    ThreadLocal<openpgl::cpp::VolumeSamplingDistribution *>
-        *guiding_threadVolumeSamplingDistribution;
-
-    openpgl::cpp::FieldConfig guiding_fieldConfig;
-    openpgl::cpp::SampleStorage *guiding_sampleStorage{nullptr};
-    openpgl::cpp::Field *guiding_field{nullptr};
-    openpgl::cpp::Device *guiding_device{nullptr};
-
-#if defined(GUIDED_RR)
-    openpgl::cpp::util::ImageSpaceGuidingBuffer *imageSpaceGuidingBuffer;
-
-    bool imageSpaceGuidingBufferReady{false};
-    bool calculateImageSpaceGuidingBuffer{false};
-    int imageSpaceGuidingBufferUpdateWave{0};
-#endif
-    int waveCounter{0};
-};
-
-// GuidedVolPathVSPGIntegrator Definition
-class GuidedVolPathVSPGIntegrator : public RayIntegrator {
-  public:
-    enum VSPCriterion { EContribution = 0, EVariance };
-
-    enum VSPSamplingMethodType { EResampling, ENDS };
-
-    struct GuidingSettings {
-        bool guideSurface{true};
-        bool guideVolume{true};
-
-        bool guideRR{false};
-        bool guideSurfaceRR{true};
-        bool guideVolumeRR{true};
-
-        GuidingType surfaceGuidingType{EGuideRIS};
-        GuidingType volumeGuidingType{EGuideRIS};
-        // float guideSurfaceProbability {0.5f};
-        // float guideVolumeProbability {0.5f};
-        // bool knnLookup {true};
-        int guideNumTrainingWaves{128};
-
-        bool storeGuidingCache{false};
-        bool loadGuidingCache{false};
-        std::string guidingCacheFileName{""};
-
-        bool storeISGBuffer{false};
-        bool loadISGBuffer{false};
-        std::string isgBufferFileName{""};
-
-        bool storeTrBuffer{false};
-        bool loadTrBuffer{false};
-        std::string trBufferFileName{""};
-
-        bool guideVSP{false};
-        bool guidePrimaryVSP{true};
-        bool guideSecondaryVSP{true};
-        VSPSamplingMethodType guideVSPSamplingMethod{VSPSamplingMethodType::EResampling};
-
-        float vspMISRatio{0.5f};
-        VSPCriterion vspCriterion{EContribution};
-        bool collisionProbabilityBias{false};
-        Float regularizationGamma{0.1f};
-    };
-
-    struct CandidateData {
-        Point3f p;
-        MediumProperties mp;
-        Float wi;
-        Float sigmaTTrEst;
-        SampledSpectrum throughputNumerator;
-        SampledSpectrum throughputDenominator;
-
-        CandidateData() {}
-
-        CandidateData(Point3f _p, MediumProperties _mp, Float _wi, Float _sigmaTTrEst,
-                      SampledSpectrum _throughputNumerator,
-                      SampledSpectrum _throughputDenominator)
-            : p(_p),
-              mp(_mp),
-              wi(_wi),
-              sigmaTTrEst(_sigmaTTrEst),
-              throughputNumerator(_throughputNumerator),
-              throughputDenominator(_throughputDenominator) {}
-    };
-
-  public:
-    // GuidedVolPathVSPGIntegrator Public Methods
-    GuidedVolPathVSPGIntegrator(int maxDepth, int minRRDepth, bool useNEE,
-                                const GuidingSettings settings,
-                                const RGBColorSpace *colorSpace, Camera camera,
-                                Sampler sampler, Primitive aggregate,
-                                std::vector<Light> lights,
-                                const std::string &lightSampleStrategy = "bvh",
-                                bool regularize = false);
-
-    ~GuidedVolPathVSPGIntegrator();
-
-    SampledSpectrum Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
-                       Sampler sampler, ScratchBuffer &scratchBuffer,
-                       VisibleSurface *visibleSurface) const override;
-
-    void PostProcessWave() override;
-
-    static std::unique_ptr<GuidedVolPathVSPGIntegrator> Create(
-        const ParameterDictionary &parameters, const RGBColorSpace *colorSpace,
-        Camera camera, Sampler sampler, Primitive aggregate, std::vector<Light> lights,
-        const FileLoc *loc);
-
-    std::string ToString() const override;
-
-  private:
-    // GuidedVolPathVSPGIntegrator Private Methods
-#if defined(OPENPGL_IMAGE_SPACE_GUIDING_BUFFER)
-    void SampleDistance(Point2i pPixel, RayDifferential &ray, Float tMax,
-                        SampledWavelengths &lambda, Sampler &sampler, RNG &rng,
-                        bool &scattered, bool &terminated, int &depth, SampledSpectrum &L,
-                        SampledSpectrum &beta, SampledSpectrum &r_u, SampledSpectrum &r_l,
-                        bool &specularBounce, bool &anyNonSpecularBounces,
-                        LightSampleContext &prevIntrContext, bool &lastVertexVolume,
-                        openpgl::cpp::PathSegmentStorage *pathSegmentStorage,
-                        openpgl::cpp::PathSegment **pathSegmentDataPointer,
-                        const GuidedBSDF &gbsdf, GuidedPhaseFunction &gphase,
-                        GuidedInscatteredRadiance ginscatteredradiance,
-                        float rr_correction, SampledSpectrum &transmittanceWeight,
-                        openpgl::cpp::util::ImageSpaceGuidingBuffer::Sample &isgbSample,
-                        bool guideRR, bool guideVolumeRR,
-                        SampledSpectrum &adjointEstimate,
-                        SampledSpectrum &pixelContributionEstimate) const;
-#else
-    void SampleDistance(Point2i pPixel, RayDifferential &ray, Float tMax,
-                        SampledWavelengths &lambda, Sampler &sampler, RNG &rng,
-                        bool &scattered, bool &terminated, int &depth, SampledSpectrum &L,
-                        SampledSpectrum &beta, SampledSpectrum &r_u, SampledSpectrum &r_l,
-                        bool &specularBounce, bool &anyNonSpecularBounces,
-                        LightSampleContext &prevIntrContext, bool &lastVertexVolume,
-                        openpgl::cpp::PathSegmentStorage *pathSegmentStorage,
-                        openpgl::cpp::PathSegment **pathSegmentDataPointer,
-                        const GuidedBSDF &gbsdf, GuidedPhaseFunction &gphase,
-                        GuidedInscatteredRadiance ginscatteredradiance,
-                        float rr_correction, SampledSpectrum &transmittanceWeight,
-                        bool guideRR, bool guideVolumeRR,
-                        SampledSpectrum &adjointEstimate,
-                        SampledSpectrum &pixelContributionEstimate) const;
-#endif
-
-    inline Float GetPrimaryRayVolumeScatterProbability(const Point2i &pPixel,
-                                                       bool &scatterPrimary) const;
-
-    inline Float GetSecondaryRayVolumeScatterProbability(
-        const GuidedPhaseFunction &gphase, Vector3f wi, bool &scatterSecondary) const;
-
-    inline Float GetSecondaryRayVolumeScatterProbability(const GuidedBSDF &gbsdf,
-                                                         Vector3f wi,
-                                                         bool &scatterSecondary) const;
-
-    SampledSpectrum SampleLd(const Interaction &intr, const GuidedBSDF *bsdf,
-                             const GuidedPhaseFunction *phase, const Float survivalProb,
-                             SampledWavelengths &lambda, Sampler sampler,
-                             SampledSpectrum inv_w_u) const;
-
-    const PixelSensor *sensor{nullptr};
-
-    // GuidedVolPathVSPGIntegrator Private Members
-    int maxDepth;
-    int minRRDepth;
-    bool useNEE{true};
-    LightSampler lightSampler;
-    bool regularize;
-    const RGBColorSpace *colorSpace{nullptr};
-
-    // Path Guiding
-    GuidingSettings guideSettings;
-    bool enableGuiding{false};
-    bool guideTraining{false};
-    float guidingInfiniteLightDistance{1e6f};
-
-    ThreadLocal<openpgl::cpp::PathSegmentStorage *> *guiding_threadPathSegmentStorage;
-    ThreadLocal<openpgl::cpp::SurfaceSamplingDistribution *>
-        *guiding_threadSurfaceSamplingDistribution;
-    ThreadLocal<openpgl::cpp::VolumeSamplingDistribution *>
-        *guiding_threadVolumeSamplingDistribution;
-
-    openpgl::cpp::FieldConfig guiding_fieldConfig;
-    openpgl::cpp::SampleStorage *guiding_sampleStorage{nullptr};
-    openpgl::cpp::Field *guiding_field{nullptr};
-    openpgl::cpp::Device *guiding_device{nullptr};
-
-    TrBuffer *trBuffer{nullptr};
-    bool trBufferLoad{false};
-    bool calculateTrBuffer{false};
-#if defined(OPENPGL_IMAGE_SPACE_GUIDING_BUFFER)
-    openpgl::cpp::util::ImageSpaceGuidingBuffer *imageSpaceGuidingBuffer{nullptr};
-#endif
-    bool imageSpaceGuidingBufferReady{false};
-    bool calculateImageSpaceGuidingBuffer{false};
-
-    int bufferWave{0};
-    int waveCounter{0};
-};
-#endif
-
 // AOIntegrator Definition
 class AOIntegrator : public RayIntegrator {
   public:
@@ -701,9 +295,8 @@ class AOIntegrator : public RayIntegrator {
     AOIntegrator(bool cosSample, Float maxDist, Camera camera, Sampler sampler,
                  Primitive aggregate, std::vector<Light> lights, Spectrum illuminant);
 
-    SampledSpectrum Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
-                       Sampler sampler, ScratchBuffer &scratchBuffer,
-                       VisibleSurface *visibleSurface) const;
+    SampledSpectrum Li(RayDifferential ray, SampledWavelengths &lambda, Sampler sampler,
+                       ScratchBuffer &scratchBuffer, VisibleSurface *visibleSurface) const;
 
     static std::unique_ptr<AOIntegrator> Create(const ParameterDictionary &parameters,
                                                 Spectrum illuminant, Camera camera,
@@ -757,9 +350,8 @@ class BDPTIntegrator : public RayIntegrator {
           visualizeStrategies(visualizeStrategies),
           visualizeWeights(visualizeWeights) {}
 
-    SampledSpectrum Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
-                       Sampler sampler, ScratchBuffer &scratchBuffer,
-                       VisibleSurface *visibleSurface) const;
+    SampledSpectrum Li(RayDifferential ray, SampledWavelengths &lambda, Sampler sampler,
+                       ScratchBuffer &scratchBuffer, VisibleSurface *visibleSurface) const;
 
     static std::unique_ptr<BDPTIntegrator> Create(const ParameterDictionary &parameters,
                                                   Camera camera, Sampler sampler,
@@ -840,10 +432,7 @@ class SPPMIntegrator : public Integrator {
     // SPPMIntegrator Public Methods
     SPPMIntegrator(Camera camera, Sampler sampler, Primitive aggregate,
                    std::vector<Light> lights, int photonsPerIteration, int maxDepth,
-                   Float initialSearchRadius, int seed, const RGBColorSpace *colorSpace,
-                   bool applyBilateralFilter = false, Float sigmaSpatial = 2.0,
-                   Float sigmaRange = 0.1)
-
+                   Float initialSearchRadius, int seed, const RGBColorSpace *colorSpace)
         : Integrator(aggregate, lights),
           camera(camera),
           samplerPrototype(sampler),
@@ -853,10 +442,6 @@ class SPPMIntegrator : public Integrator {
                                   ? photonsPerIteration
                                   : camera.GetFilm().PixelBounds().Area()),
           colorSpace(colorSpace),
-          applyBilateral(applyBilateralFilter),
-          bilateralSigmaSpatial(sigmaSpatial),
-          bilateralSigmaRange(sigmaRange),
-
           digitPermutationsSeed(seed) {}
 
     static std::unique_ptr<SPPMIntegrator> Create(const ParameterDictionary &parameters,
@@ -865,8 +450,6 @@ class SPPMIntegrator : public Integrator {
                                                   Primitive aggregate,
                                                   std::vector<Light> lights,
                                                   const FileLoc *loc);
-
-    void ApplyBilateralFilter(Image &image);
 
     std::string ToString() const;
 
@@ -886,10 +469,6 @@ class SPPMIntegrator : public Integrator {
     int maxDepth;
     int photonsPerIteration;
     const RGBColorSpace *colorSpace;
-
-    bool applyBilateral;
-    Float bilateralSigmaSpatial;
-    Float bilateralSigmaRange;
 };
 
 // FunctionIntegrator Definition

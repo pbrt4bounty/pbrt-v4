@@ -40,14 +40,10 @@ Float SpectrumToPhotometric(Spectrum s) {
     // illuminant for the sake of this calculation, and we should consider the
     // RGB separately for the purposes of target power/illuminance computation
     // in the lights themselves (but we currently don't)
-#if !defined(PBRT_RGB_RENDERING)
     if (s.Is<RGBIlluminantSpectrum>())
         s = s.Cast<RGBIlluminantSpectrum>()->Illuminant();
 
     return InnerProduct(&Spectra::Y(), s);
-#else
-    return 1.f;
-#endif
 }
 
 XYZ SpectrumToXYZ(Spectrum s) {
@@ -91,14 +87,6 @@ PiecewiseLinearSpectrum::PiecewiseLinearSpectrum(pstd::span<const Float> l,
     for (size_t i = 0; i < lambdas.size() - 1; ++i)
         CHECK_LT(lambdas[i], lambdas[i + 1]);
 }
-
-#if defined(PBRT_RGB_RENDERING)
-PBRT_CPU_GPU RGBUnboundedSpectrum PiecewiseLinearSpectrum::ToRGBUnbounded(const RGBColorSpace &cs) const {
-                XYZ xyz = SpectrumToXYZ(this);
-                RGB rgb = cs.ToRGB(xyz);
-    return RGBUnboundedSpectrum(cs, rgb);
-}
-#endif
 
 std::string PiecewiseLinearSpectrum::ToString() const {
     std::string name = FindMatchingNamedSpectrum(this);
@@ -170,23 +158,9 @@ PiecewiseLinearSpectrum *PiecewiseLinearSpectrum::FromInterleaved(
     return spec;
 }
 
-#if defined(PBRT_RGB_RENDERING)
-PBRT_CPU_GPU RGBUnboundedSpectrum BlackbodySpectrum::ToRGBUnbounded(const RGBColorSpace &cs) const {
-                XYZ xyz = SpectrumToXYZ(this);
-                RGB rgb = cs.ToRGB(xyz);
-    return RGBUnboundedSpectrum(cs, rgb);
-}
-#endif
-
 std::string BlackbodySpectrum::ToString() const {
     return StringPrintf("[ BlackbodySpectrum T: %f ]", T);
 }
-
-#if defined(PBRT_RGB_RENDERING)
-PBRT_CPU_GPU RGBUnboundedSpectrum ConstantSpectrum::ToRGBUnbounded(const RGBColorSpace &cs) const {
-    return RGBUnboundedSpectrum(cs, RGB(c, c, c));
-}
-#endif
 
 PBRT_CPU_GPU SampledSpectrum ConstantSpectrum::Sample(const SampledWavelengths &) const {
     return SampledSpectrum(c);
@@ -195,14 +169,6 @@ PBRT_CPU_GPU SampledSpectrum ConstantSpectrum::Sample(const SampledWavelengths &
 std::string ConstantSpectrum::ToString() const {
     return StringPrintf("[ ConstantSpectrum c: %f ]", c);
 }
-
-#if defined(PBRT_RGB_RENDERING)
-PBRT_CPU_GPU RGBUnboundedSpectrum DenselySampledSpectrum::ToRGBUnbounded(const RGBColorSpace &cs) const {
-                XYZ xyz = SpectrumToXYZ(this);
-                RGB rgb = cs.ToRGB(xyz);
-    return RGBUnboundedSpectrum(cs, rgb);
-}
-#endif
 
 std::string DenselySampledSpectrum::ToString() const {
     std::string s = StringPrintf("[ DenselySampledSpectrum lambda_min: %d lambda_max: %d "
@@ -257,89 +223,41 @@ PBRT_CPU_GPU Float SampledSpectrum::y(const SampledWavelengths &lambda) const {
 
 PBRT_CPU_GPU RGB SampledSpectrum::ToRGB(const SampledWavelengths &lambda,
                            const RGBColorSpace &cs) const {
-#if !defined(PBRT_RGB_RENDERING)
     XYZ xyz = ToXYZ(lambda);
     return cs.ToRGB(xyz);
-#else
-    return RGB(values[0], values[1], values[2]);
-#endif
 }
 
 PBRT_CPU_GPU RGBAlbedoSpectrum::RGBAlbedoSpectrum(const RGBColorSpace &cs, RGB rgb) {
     DCHECK_LE(std::max({rgb.r, rgb.g, rgb.b}), 1);
     DCHECK_GE(std::min({rgb.r, rgb.g, rgb.b}), 0);
-#if !defined(PBRT_RGB_RENDERING)
     rsp = cs.ToRGBCoeffs(rgb);
-#else
-    this->rgb = rgb;
-#endif
 }
-
-#if defined(PBRT_RGB_RENDERING)
-PBRT_CPU_GPU RGBUnboundedSpectrum RGBAlbedoSpectrum::ToRGBUnbounded(const RGBColorSpace &cs) const {
-    return RGBUnboundedSpectrum(cs, rgb);
-}
-#endif
 
 PBRT_CPU_GPU RGBUnboundedSpectrum::RGBUnboundedSpectrum(const RGBColorSpace &cs, RGB rgb) {
-#if !defined(PBRT_RGB_RENDERING)
     Float m = std::max({rgb.r, rgb.g, rgb.b});
     scale = 2 * m;
     rsp = cs.ToRGBCoeffs(scale ? rgb / scale : RGB(0, 0, 0));
-#else
-    this->rgb = rgb;
-#endif
 }
 
 PBRT_CPU_GPU RGBIlluminantSpectrum::RGBIlluminantSpectrum(const RGBColorSpace &cs, RGB rgb)
-#if !defined(PBRT_RGB_RENDERING)
     : illuminant(&cs.illuminant) {
-
     Float m = std::max({rgb.r, rgb.g, rgb.b});
     scale = 2 * m;
     rsp = cs.ToRGBCoeffs(scale ? rgb / scale : RGB(0, 0, 0));
-#else
-{
-    this->rgb = rgb;
-#endif
 }
-
-#if defined(PBRT_RGB_RENDERING)
-PBRT_CPU_GPU RGBIlluminantSpectrum::RGBIlluminantSpectrum(const RGBIlluminantSpectrum &s, Allocator alloc)
-{
-    this->rgb = s.rgb;
-}
-
-PBRT_CPU_GPU RGBUnboundedSpectrum RGBIlluminantSpectrum::ToRGBUnbounded(const RGBColorSpace &cs) const {
-    return RGBUnboundedSpectrum(cs, rgb);
-}
-#endif
 
 std::string RGBAlbedoSpectrum::ToString() const {
-#if !defined(PBRT_RGB_RENDERING)
     return StringPrintf("[ RGBAlbedoSpectrum rsp: %s ]", rsp);
-#else
-    return StringPrintf("[ RGBAlbedoSpectrum rgb: %s ]", rgb);
-#endif
 }
 
 std::string RGBUnboundedSpectrum::ToString() const {
-#if !defined(PBRT_RGB_RENDERING)
     return StringPrintf("[ RGBUnboundedSpectrum rsp: %s ]", rsp);
-#else
-    return StringPrintf("[ RGBUnboundedSpectrum rgb: %s ]", rgb);
-#endif
 }
 
 std::string RGBIlluminantSpectrum::ToString() const {
-#if !defined(PBRT_RGB_RENDERING)
     return StringPrintf("[ RGBIlluminantSpectrum: rsp: %s scale: %f illuminant: %s ]",
                         rsp, scale,
                         illuminant ? illuminant->ToString() : std::string("(nullptr)"));
-#else
-    return StringPrintf("[ RGBIlluminantSpectrum: rgb: %s]",
-                        rgb);
-#endif
 }
 
 namespace {

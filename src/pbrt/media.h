@@ -1,5 +1,4 @@
 // pbrt is Copyright(c) 1998-2020 Matt Pharr, Wenzel Jakob, and Greg Humphreys.
-// Modifications Copyright 2023 Intel Corporation.
 // The pbrt source code is licensed under the Apache License, Version 2.0.
 // SPDX: Apache-2.0
 
@@ -55,14 +54,11 @@ class HGPhaseFunction {
     pstd::optional<PhaseFunctionSample> Sample_p(Vector3f wo, Point2f u) const {
         Float pdf;
         Vector3f wi = SampleHenyeyGreenstein(wo, g, u, &pdf);
-        return PhaseFunctionSample{pdf, wi, g, pdf, pdf, pdf};
+        return PhaseFunctionSample{pdf, wi, pdf};
     }
 
     PBRT_CPU_GPU
     Float PDF(Vector3f wo, Vector3f wi) const { return p(wo, wi); }
-
-    PBRT_CPU_GPU
-    Float MeanCosine() const { return g; }
 
     static const char *Name() { return "Henyey-Greenstein"; }
 
@@ -224,19 +220,11 @@ class HomogeneousMedium {
     using MajorantIterator = HomogeneousMajorantIterator;
 
     // HomogeneousMedium Public Methods
-#if !defined(PBRT_RGB_RENDERING)
     HomogeneousMedium(Spectrum sigma_a, Spectrum sigma_s, Float sigmaScale, Spectrum Le,
                       Float LeScale, Float g, Allocator alloc)
         : sigma_a_spec(sigma_a, alloc),
           sigma_s_spec(sigma_s, alloc),
           Le_spec(Le, alloc),
-#else
-    HomogeneousMedium(Spectrum sigma_a, Spectrum sigma_s, Float sigmaScale, Spectrum Le,
-                      Float LeScale, Float g, const RGBColorSpace *cs, Allocator alloc)
-        : sigma_a_spec(*cs, sigma_a.ToRGBUnbounded(*cs).GetRGB()),
-          sigma_s_spec(*cs, sigma_s.ToRGBUnbounded(*cs).GetRGB()),
-          Le_spec(*cs, Le.ToRGBUnbounded(*cs).GetRGB()),
-#endif
           phase(g) {
         sigma_a_spec.Scale(sigmaScale);
         sigma_s_spec.Scale(sigmaScale);
@@ -248,9 +236,6 @@ class HomogeneousMedium {
 
     PBRT_CPU_GPU
     bool IsEmissive() const { return Le_spec.MaxValue() > 0; }
-
-    PBRT_CPU_GPU
-    bool IsHomogeneous() const { return true; }
 
     PBRT_CPU_GPU
     MediumProperties SamplePoint(Point3f p, const SampledWavelengths &lambda) const {
@@ -272,11 +257,7 @@ class HomogeneousMedium {
 
   private:
     // HomogeneousMedium Private Data
-#if !defined(PBRT_RGB_RENDERING)
     DenselySampledSpectrum sigma_a_spec, sigma_s_spec, Le_spec;
-#else
-    RGBUnboundedSpectrum sigma_a_spec, sigma_s_spec, Le_spec;
-#endif
     HGPhaseFunction phase;
 };
 
@@ -287,19 +268,12 @@ class GridMedium {
     using MajorantIterator = DDAMajorantIterator;
 
     // GridMedium Public Methods
-#if !defined(PBRT_RGB_RENDERING)
     GridMedium(const Bounds3f &bounds, const Transform &renderFromMedium,
                Spectrum sigma_a, Spectrum sigma_s, Float sigmaScale, Float g,
                SampledGrid<Float> density, pstd::optional<SampledGrid<Float>> temperature,
                Float temperatureScale, Float temperatureOffset, Spectrum Le,
                SampledGrid<Float> LeScale, Allocator alloc);
-#else
-    GridMedium(const Bounds3f &bounds, const Transform &renderFromMedium,
-               Spectrum sigma_a, Spectrum sigma_s, Float sigmaScale, Float g,
-               SampledGrid<Float> density, pstd::optional<SampledGrid<Float>> temperature,
-               Float temperatureScale, Float temperatureOffset, Spectrum Le,
-               SampledGrid<Float> LeScale, const RGBColorSpace *cs, Allocator alloc);
-#endif
+
     static GridMedium *Create(const ParameterDictionary &parameters,
                               const Transform &renderFromMedium, const FileLoc *loc,
                               Allocator alloc);
@@ -308,9 +282,6 @@ class GridMedium {
 
     PBRT_CPU_GPU
     bool IsEmissive() const { return isEmissive; }
-
-    PBRT_CPU_GPU
-    bool IsHomogeneous() const { return false; }
 
     PBRT_CPU_GPU
     MediumProperties SamplePoint(Point3f p, const SampledWavelengths &lambda) const {
@@ -369,19 +340,11 @@ class GridMedium {
     // GridMedium Private Members
     Bounds3f bounds;
     Transform renderFromMedium;
-#if !defined(PBRT_RGB_RENDERING)
     DenselySampledSpectrum sigma_a_spec, sigma_s_spec;
-#else
-    RGBUnboundedSpectrum sigma_a_spec, sigma_s_spec;
-#endif
     SampledGrid<Float> densityGrid;
     HGPhaseFunction phase;
     pstd::optional<SampledGrid<Float>> temperatureGrid;
-#if !defined(PBRT_RGB_RENDERING)
     DenselySampledSpectrum Le_spec;
-#else
-    RGBUnboundedSpectrum Le_spec;
-#endif
     SampledGrid<Float> LeScale;
     bool isEmissive;
     Float temperatureScale, temperatureOffset;
@@ -409,9 +372,6 @@ class RGBGridMedium {
 
     PBRT_CPU_GPU
     bool IsEmissive() const { return LeGrid && LeScale > 0; }
-
-    PBRT_CPU_GPU
-    bool IsHomogeneous() const { return false; }
 
     PBRT_CPU_GPU
     MediumProperties SamplePoint(Point3f p, const SampledWavelengths &lambda) const {
@@ -485,36 +445,20 @@ class CloudMedium {
                             density, wispiness, frequency);
     }
 
-#if !defined(PBRT_RGB_RENDERING)
     CloudMedium(const Bounds3f &bounds, const Transform &renderFromMedium,
                 Spectrum sigma_a, Spectrum sigma_s, Float g, Float density,
                 Float wispiness, Float frequency, Allocator alloc)
-#else
-    CloudMedium(const Bounds3f &bounds, const Transform &renderFromMedium,
-                Spectrum sigma_a, Spectrum sigma_s, Float g, Float density,
-                Float wispiness, Float frequency, const RGBColorSpace *cs,
-                Allocator alloc)
-#endif
         : bounds(bounds),
           renderFromMedium(renderFromMedium),
-#if !defined(PBRT_RGB_RENDERING)
           sigma_a_spec(sigma_a, alloc),
           sigma_s_spec(sigma_s, alloc),
-#else
-          sigma_a_spec(*cs, sigma_a.ToRGBUnbounded(*cs).GetRGB()),
-          sigma_s_spec(*cs, sigma_s.ToRGBUnbounded(*cs).GetRGB()),
-#endif
           phase(g),
           density(density),
           wispiness(wispiness),
-          frequency(frequency) {
-    }
+          frequency(frequency) {}
 
     PBRT_CPU_GPU
     bool IsEmissive() const { return false; }
-
-    PBRT_CPU_GPU
-    bool IsHomogeneous() const { return false; }
 
     PBRT_CPU_GPU
     MediumProperties SamplePoint(Point3f p, const SampledWavelengths &lambda) const {
@@ -576,11 +520,7 @@ class CloudMedium {
     Bounds3f bounds;
     Transform renderFromMedium;
     HGPhaseFunction phase;
-#if !defined(PBRT_RGB_RENDERING)
     DenselySampledSpectrum sigma_a_spec, sigma_s_spec;
-#else
-    RGBUnboundedSpectrum sigma_a_spec, sigma_s_spec;
-#endif
     Float density, wispiness, frequency;
 };
 
@@ -665,24 +605,14 @@ class NanoVDBMedium {
                                  Allocator alloc);
 
     std::string ToString() const;
-#if !defined(PBRT_RGB_RENDERING)
+
     NanoVDBMedium(const Transform &renderFromMedium, Spectrum sigma_a, Spectrum sigma_s,
                   Float sigmaScale, Float g, nanovdb::GridHandle<NanoVDBBuffer> dg,
                   nanovdb::GridHandle<NanoVDBBuffer> tg, Float LeScale,
-                  Float temperatureOffset, Float temperatureScale, Float majorantScale,
-                  Float densityOffset, Allocator alloc);
-#else
-    NanoVDBMedium(const Transform &renderFromMedium, Spectrum sigma_a, Spectrum sigma_s,
-                  Float sigmaScale, Float g, nanovdb::GridHandle<NanoVDBBuffer> dg,
-                  nanovdb::GridHandle<NanoVDBBuffer> tg, Float LeScale,
-                  Float temperatureOffset, Float temperatureScale, Float majorantScale,
-                  Float densityOffset, const RGBColorSpace *cs, Allocator alloc);
-#endif
-    PBRT_CPU_GPU
-    bool IsEmissive() const { return temperatureFloatGrid && LeScale > 0; }
+                  Float temperatureOffset, Float temperatureScale, Allocator alloc);
 
     PBRT_CPU_GPU
-    bool IsHomogeneous() const { return false; }
+    bool IsEmissive() const { return temperatureFloatGrid && LeScale > 0; }
 
     PBRT_CPU_GPU
     MediumProperties SamplePoint(Point3f p, const SampledWavelengths &lambda) const {
@@ -697,7 +627,6 @@ class NanoVDBMedium {
             densityFloatGrid->worldToIndexF(nanovdb::Vec3<float>(p.x, p.y, p.z));
         using Sampler = nanovdb::SampleFromVoxels<nanovdb::FloatGrid::TreeType, 1, false>;
         Float d = Sampler(densityFloatGrid->tree())(pIndex);
-        d += densityOffset;
 
         return MediumProperties{sigma_a * d, sigma_s * d, &phase, Le(p, lambda)};
     }
@@ -739,11 +668,7 @@ class NanoVDBMedium {
     // NanoVDBMedium Private Members
     Bounds3f bounds;
     Transform renderFromMedium;
-#if !defined(PBRT_RGB_RENDERING)
     DenselySampledSpectrum sigma_a_spec, sigma_s_spec;
-#else
-    RGBUnboundedSpectrum sigma_a_spec, sigma_s_spec;
-#endif
     HGPhaseFunction phase;
     MajorantGrid majorantGrid;
     nanovdb::GridHandle<NanoVDBBuffer> densityGrid;
@@ -751,211 +676,6 @@ class NanoVDBMedium {
     const nanovdb::FloatGrid *densityFloatGrid = nullptr;
     const nanovdb::FloatGrid *temperatureFloatGrid = nullptr;
     Float LeScale, temperatureOffset, temperatureScale;
-    Float majorantScale, densityOffset;
-};
-
-class EarthMedium {
-  public:
-    using MajorantIterator = HomogeneousMajorantIterator;
-    using PhaseFunction = HGPhaseFunction;
-
-    // EarthMedium Public Methods
-    EarthMedium(const Bounds3f &bounds, const Transform &renderFromMedium,
-                Spectrum sigma_a_atmosphere, Spectrum sigma_s_atmosphere,
-                Float sigmaScale_atmosphere, Spectrum sigma_a_cloud,
-                Spectrum sigma_s_cloud, Float sigmaScale_cloud, Float g,
-                Float innerRadius_atmosphere, Float innerRadius_cloud,
-                Float outerRadius_atmosphere, Float outerRadius_cloud, Point3f center,
-                Float decay, Float majorantScale, Float densityOffset, Float _rotationx,
-                Float _rotationy, Float _rotationz,
-#if !defined(PBRT_RGB_RENDERING)
-                Image *heightmap, Allocator alloc)
-#else
-                Image *heightmap, const RGBColorSpace *cs, Allocator alloc)
-#endif
-        : bounds(bounds),
-          renderFromMedium(renderFromMedium),
-#if !defined(PBRT_RGB_RENDERING)
-          sigma_a_spec_atmosphere(sigma_a_atmosphere, alloc),
-          sigma_s_spec_atmosphere(sigma_s_atmosphere, alloc),
-          sigma_a_spec_cloud(sigma_a_cloud, alloc),
-          sigma_s_spec_cloud(sigma_s_cloud, alloc),
-#else
-          sigma_a_spec_atmosphere(*cs, sigma_a_atmosphere.ToRGBUnbounded(*cs).GetRGB()),
-          sigma_s_spec_atmosphere(*cs, sigma_s_atmosphere.ToRGBUnbounded(*cs).GetRGB()),
-          sigma_a_spec_cloud(*cs, sigma_a_cloud.ToRGBUnbounded(*cs).GetRGB()),
-          sigma_s_spec_cloud(*cs, sigma_s_cloud.ToRGBUnbounded(*cs).GetRGB()),
-#endif
-          phase(g),
-          center(center),
-          innerRadius_atmosphere(innerRadius_atmosphere),
-          innerRadius_cloud(innerRadius_cloud),
-          outerRadius_atmosphere(outerRadius_atmosphere),
-          outerRadius_cloud(outerRadius_cloud),
-          h(decay),
-          majorantScale(majorantScale),
-          densityOffset(densityOffset),
-          heightMap(heightmap) {
-        sigma_a_spec_atmosphere.Scale(sigmaScale_atmosphere);
-        sigma_s_spec_atmosphere.Scale(sigmaScale_atmosphere);
-        sigma_a_spec_cloud.Scale(sigmaScale_cloud);
-        sigma_s_spec_cloud.Scale(sigmaScale_cloud);
-        rotationx = Radians(_rotationx);
-        rotationy = Radians(_rotationy);
-        rotationz = Radians(_rotationz);
-    }
-
-    static EarthMedium *Create(const ParameterDictionary &parameters,
-                               const Transform &renderFromMedium, const FileLoc *loc,
-                               Allocator alloc);
-
-    std::string ToString() const {
-        return StringPrintf("[ EarthMedium bounds: %s renderFromMedium: %s "
-                            "phase: %s sigma_a_atmosphere: %s sigma_s_atmosphere: %s "
-                            "sigma_a_cloud: %s sigma_s_cloud: %s "
-                            "innerRadius_atmosphere: %f innerRadius_cloud: %f "
-                            "outerRadius_atmosphere: %f outerRadius_cloud: %f "
-                            "decay: %f center: %s ]",
-                            bounds, renderFromMedium, phase, sigma_a_spec_atmosphere,
-                            sigma_s_spec_atmosphere, sigma_a_spec_cloud,
-                            sigma_s_spec_cloud, innerRadius_atmosphere, innerRadius_cloud,
-                            outerRadius_atmosphere, outerRadius_cloud, h, center);
-    }
-
-    PBRT_CPU_GPU
-    bool IsEmissive() const { return false; }
-
-    PBRT_CPU_GPU
-    bool IsHomogeneous() const { return false; }
-
-    PBRT_CPU_GPU
-    MediumProperties SamplePoint(Point3f p, const SampledWavelengths &lambda) const {
-        // Compute sampled spectra for cloud $\sigmaa$ and $\sigmas$ at _p_
-        Float exponentialDensity = ExponentialDensity(renderFromMedium.ApplyInverse(p));
-        Float cloudDensity = IsInsideCloud(renderFromMedium.ApplyInverse(p)) ? 1 : 0;
-        SampledSpectrum sigma_a =
-            exponentialDensity * sigma_a_spec_atmosphere.Sample(lambda) +
-            cloudDensity * sigma_a_spec_cloud.Sample(lambda);
-        SampledSpectrum sigma_s =
-            exponentialDensity * sigma_s_spec_atmosphere.Sample(lambda) +
-            cloudDensity * sigma_s_spec_cloud.Sample(lambda);
-
-        return MediumProperties{sigma_a, sigma_s, &phase, SampledSpectrum(0.f)};
-    }
-
-    PBRT_CPU_GPU
-    HomogeneousMajorantIterator SampleRay(Ray ray, Float raytMax,
-                                          const SampledWavelengths &lambda) const {
-        // Transform ray to medium's space and compute bounds overlap
-        ray = renderFromMedium.ApplyInverse(ray, &raytMax);
-        Float tMin, tMax;
-        if (!bounds.IntersectP(ray.o, ray.d, raytMax, &tMin, &tMax))
-            return {};
-        DCHECK_LE(tMax, raytMax);
-
-        // Compute $\sigmat$ bound for cloud medium and initialize majorant iterator
-        SampledSpectrum sigma_a_atmosphere = sigma_a_spec_atmosphere.Sample(lambda);
-        SampledSpectrum sigma_s_atmosphere = sigma_s_spec_atmosphere.Sample(lambda);
-        SampledSpectrum sigma_a_cloud = sigma_a_spec_cloud.Sample(lambda);
-        SampledSpectrum sigma_s_cloud = sigma_s_spec_cloud.Sample(lambda);
-        SampledSpectrum sigma_t =
-            (sigma_a_atmosphere + sigma_s_atmosphere) * (1 + densityOffset) +
-            sigma_a_cloud + sigma_s_cloud;
-        return HomogeneousMajorantIterator(tMin, tMax, sigma_t * majorantScale);
-    }
-
-  private:
-    // EarthMedium Private Methods
-    PBRT_CPU_GPU
-    Float ExponentialDensity(Point3f p) const {
-        Float distance = Distance(p, center) - innerRadius_atmosphere;
-        distance = std::min(std::max(distance, Float(0.0)), outerRadius_atmosphere);
-        return FastExp(-distance / h) + densityOffset;
-    }
-
-    PBRT_CPU_GPU
-    Point2f GetUVs(const Vector3f &p) const {
-        Vector3f d = Normalize(p);
-        // Order of rotation: Y->X->Z (when getting uv, take the reverse)
-        //        d = RotateAroundZ(d);
-        //        d = RotateAroundX(d);
-        //        d = RotateAroundY(d);
-        Point2f uv = EqualAreaSphereToSquare(d);
-        uv[0] *= InvPi;
-        uv[0] = uv[0] - std::floor(uv[0]);
-        uv[1] += rotationy;
-        uv[1] *= Inv2Pi;
-        uv[1] = uv[1] - std::floor(uv[1]);
-
-        pstd::swap(uv[0], uv[1]);
-        return uv;
-    }
-
-    PBRT_CPU_GPU
-    Vector3f RotateAroundX(Vector3f dir) const {
-        Point2f result(std::acos(dir.x), std::atan2(dir.z, dir.y));
-        float theta = result.x;
-        float phi = result.y;
-        phi += rotationx;
-
-        return Vector3f(std::cos(theta), std::sin(theta) * std::cos(phi),
-                        std::sin(theta) * std::sin(phi));
-    }
-
-    PBRT_CPU_GPU
-    Vector3f RotateAroundY(Vector3f dir) const {
-        Point2f result(std::acos(dir.y), std::atan2(dir.z, dir.x));
-        float theta = result.x;
-        float phi = result.y;
-        phi += rotationy;
-
-        return Vector3f(std::sin(theta) * std::cos(phi), std::cos(theta),
-                        std::sin(theta) * std::sin(phi));
-    }
-
-    PBRT_CPU_GPU
-    Vector3f RotateAroundZ(Vector3f dir) const {
-        Point2f result(std::acos(dir.z), std::atan2(dir.y, dir.x));
-        float theta = result.x;
-        float phi = result.y;
-        phi += rotationz;
-
-        return Vector3f(std::sin(theta) * std::cos(phi), std::sin(theta) * std::sin(phi),
-                        std::cos(theta));
-    }
-
-    PBRT_CPU_GPU
-    float GetHeight(const Vector3f &p) const {
-        Point2f uv = GetUVs(p);
-        return innerRadius_cloud + (outerRadius_cloud - innerRadius_cloud) *
-                                       heightMap->BilerpChannel(uv, 0, WrapMode::Repeat);
-    }
-
-    PBRT_CPU_GPU
-    bool IsInsideCloud(const Point3f &p) const {
-        const Vector3f pShifted = p - center;
-        const float height = GetHeight(pShifted);
-        return Length(pShifted) <= height;
-    }
-
-    // EarthMedium Private Members
-    Bounds3f bounds;
-    Transform renderFromMedium;
-#if !defined(PBRT_RGB_RENDERING)
-    DenselySampledSpectrum sigma_a_spec_atmosphere, sigma_s_spec_atmosphere;
-    DenselySampledSpectrum sigma_a_spec_cloud, sigma_s_spec_cloud;
-#else
-    RGBUnboundedSpectrum sigma_a_spec_atmosphere, sigma_s_spec_atmosphere;
-    RGBUnboundedSpectrum sigma_a_spec_cloud, sigma_s_spec_cloud;
-#endif
-    HGPhaseFunction phase;
-    Point3f center;
-    Float innerRadius_atmosphere, innerRadius_cloud, outerRadius_atmosphere,
-        outerRadius_cloud;
-    Float h;  // Control how fast the atmosphere decays
-    Float majorantScale, densityOffset;
-    Float rotationx, rotationy, rotationz;
-    Image *heightMap;
 };
 
 PBRT_CPU_GPU inline Float PhaseFunction::p(Vector3f wo, Vector3f wi) const {
@@ -972,15 +692,6 @@ PBRT_CPU_GPU inline pstd::optional<PhaseFunctionSample> PhaseFunction::Sample_p(
 PBRT_CPU_GPU inline Float PhaseFunction::PDF(Vector3f wo, Vector3f wi) const {
     auto pdf = [&](auto ptr) { return ptr->PDF(wo, wi); };
     return Dispatch(pdf);
-}
-
-// bounty: in the VSPG implementation this is defined 'inline Float
-// PhaseFunction::MeanCosine() const' but in the siggraph-course branch is set
-// 'PBRT_CPU_GPU Float PhaseFunction::MeanCosine() const' there, we uses a mix way:
-// PBRT_CPU_GPU inline
-PBRT_CPU_GPU inline Float PhaseFunction::MeanCosine() const {
-    auto meancosine = [&](auto ptr) { return ptr->MeanCosine(); };
-    return Dispatch(meancosine);
 }
 
 PBRT_CPU_GPU inline pstd::optional<RayMajorantSegment> RayMajorantIterator::Next() {
@@ -1010,9 +721,82 @@ inline RayMajorantIterator Medium::SampleRay(Ray ray, Float tMax,
     return DispatchCPU(sample);
 }
 
-inline bool Medium::IsHomogeneous() const {
-    auto homo = [&](auto ptr) { return ptr->IsHomogeneous(); };
-    return Dispatch(homo);
+template <typename F>
+PBRT_CPU_GPU SampledSpectrum SampleT_maj(Ray ray, Float tMax, Float u, RNG &rng,
+                                         const SampledWavelengths &lambda, F callback) {
+    auto sample = [&](auto medium) {
+        using M = typename std::remove_reference_t<decltype(*medium)>;
+        return SampleT_maj<M>(ray, tMax, u, rng, lambda, callback);
+    };
+    return ray.medium.Dispatch(sample);
+}
+
+template <typename ConcreteMedium, typename F>
+PBRT_CPU_GPU SampledSpectrum SampleT_maj(Ray ray, Float tMax, Float u, RNG &rng,
+                                         const SampledWavelengths &lambda, F callback) {
+    // Normalize ray direction and update _tMax_ accordingly
+    tMax *= Length(ray.d);
+    ray.d = Normalize(ray.d);
+
+    // Initialize _MajorantIterator_ for ray majorant sampling
+    ConcreteMedium *medium = ray.medium.Cast<ConcreteMedium>();
+    typename ConcreteMedium::MajorantIterator iter = medium->SampleRay(ray, tMax, lambda);
+
+    // Generate ray majorant samples until termination
+    SampledSpectrum T_maj(1.f);
+    bool done = false;
+    while (!done) {
+        // Get next majorant segment from iterator and sample it
+        pstd::optional<RayMajorantSegment> seg = iter.Next();
+        if (!seg)
+            return T_maj;
+        // Handle zero-valued majorant for current segment
+        if (seg->sigma_maj[0] == 0) {
+            Float dt = seg->tMax - seg->tMin;
+            // Handle infinite _dt_ for ray majorant segment
+            if (IsInf(dt))
+                dt = std::numeric_limits<Float>::max();
+
+            T_maj *= FastExp(-dt * seg->sigma_maj);
+            continue;
+        }
+
+        // Generate samples along current majorant segment
+        Float tMin = seg->tMin;
+        while (true) {
+            // Try to generate sample along current majorant segment
+            Float t = tMin + SampleExponential(u, seg->sigma_maj[0]);
+            PBRT_DBG("Sampled t = %f from tMin %f u %f sigma_maj[0] %f\n", t, tMin, u,
+                     seg->sigma_maj[0]);
+            u = rng.Uniform<Float>();
+            if (t < seg->tMax) {
+                // Call callback function for sample within segment
+                PBRT_DBG("t < seg->tMax\n");
+                T_maj *= FastExp(-(t - tMin) * seg->sigma_maj);
+                MediumProperties mp = medium->SamplePoint(ray(t), lambda);
+                if (!callback(ray(t), mp, seg->sigma_maj, T_maj)) {
+                    // Returning out of doubly-nested while loop is not as good perf. wise
+                    // on the GPU vs using "done" here.
+                    done = true;
+                    break;
+                }
+                T_maj = SampledSpectrum(1.f);
+                tMin = t;
+
+            } else {
+                // Handle sample past end of majorant segment
+                Float dt = seg->tMax - tMin;
+                // Handle infinite _dt_ for ray majorant segment
+                if (IsInf(dt))
+                    dt = std::numeric_limits<Float>::max();
+
+                T_maj *= FastExp(-dt * seg->sigma_maj);
+                PBRT_DBG("Past end, added dt %f * maj[0] %f\n", dt, seg->sigma_maj[0]);
+                break;
+            }
+        }
+    }
+    return SampledSpectrum(1.f);
 }
 
 }  // namespace pbrt

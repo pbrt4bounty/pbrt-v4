@@ -29,8 +29,8 @@
 
 namespace pbrt {
 
-OptixDenoiser::OptixDenoiser(Vector2i resolution, bool haveAlbedoAndNormal)
-    : Denoiser(resolution, haveAlbedoAndNormal) {
+Denoiser::Denoiser(Vector2i resolution, bool haveAlbedoAndNormal)
+    : resolution(resolution), haveAlbedoAndNormal(haveAlbedoAndNormal) {
     CUcontext cudaContext;
     CU_CHECK(cuCtxGetCurrent(&cudaContext));
     CHECK(cudaContext != nullptr);
@@ -74,7 +74,7 @@ OptixDenoiser::OptixDenoiser(Vector2i resolution, bool haveAlbedoAndNormal)
     CUDA_CHECK(cudaMalloc(&intensity, sizeof(float)));
 }
 
-void OptixDenoiser::Denoise(RGB *rgb, Normal3f *n, RGB *albedo, RGB *result) {
+void Denoiser::Denoise(RGB *rgb, Normal3f *n, RGB *albedo, RGB *result) {
     std::array<OptixImage2D, 3> inputLayers;
     int nLayers = haveAlbedoAndNormal ? 3 : 1;
     for (int i = 0; i < nLayers; ++i) {

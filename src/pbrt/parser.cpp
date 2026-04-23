@@ -979,7 +979,7 @@ void parse(ParserTarget *target, std::unique_ptr<Tokenizer> t) {
         case 'W':
             if (tok->token == "WorldBegin")
                 target->WorldBegin(tok->loc);
-            else if (tok->token == "WorldEnd" /*&& formatting*/)
+            else if (tok->token == "WorldEnd" && formatting)
                 ;  // just swallow it
             else
                 syntaxError(*tok);

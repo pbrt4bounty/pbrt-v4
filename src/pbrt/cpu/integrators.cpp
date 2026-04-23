@@ -1,5 +1,4 @@
 // pbrt is Copyright(c) 1998-2020 Matt Pharr, Wenzel Jakob, and Greg Humphreys.
-// Modifications Copyright 2023 Intel Corporation.
 // The pbrt source code is licensed under the Apache License, Version 2.0.
 // SPDX: Apache-2.0
 
@@ -14,7 +13,6 @@
 #include <pbrt/lights.h>
 #include <pbrt/materials.h>
 #include <pbrt/media.h>
-#include <pbrt/media_sampleTMaj.h>
 #include <pbrt/options.h>
 #include <pbrt/paramdict.h>
 #include <pbrt/samplers.h>
@@ -47,13 +45,9 @@
 #include <algorithm>
 
 #include <iostream>
-
-//#define VOLUME_ABSORB
-
 namespace pbrt {
 
 STAT_COUNTER("Integrator/Camera rays traced", nCameraRays);
-STAT_TIME_COUNTER("Pure Rendering Time", pureRenderingTime);
 
 // RandomWalkIntegrator Method Definitions
 std::unique_ptr<RandomWalkIntegrator> RandomWalkIntegrator::Create(
@@ -70,8 +64,6 @@ std::string RandomWalkIntegrator::ToString() const {
 
 // Integrator Method Definitions
 Integrator::~Integrator() {}
-
-void ImageTileIntegrator::PostProcessWave() {}
 
 // ImageTileIntegrator Method Definitions
 void ImageTileIntegrator::Render() {
@@ -93,6 +85,7 @@ void ImageTileIntegrator::Render() {
         tileSampler.StartPixelSample(pPixel, sampleIndex);
 
         EvaluatePixelSample(pPixel, sampleIndex, tileSampler, scratchBuffer);
+
         return;
     }
 
@@ -111,19 +104,11 @@ void ImageTileIntegrator::Render() {
     ThreadLocal<Sampler> samplers([this]() { return samplerPrototype.Clone(); });
 
     Bounds2i pixelBounds = camera.GetFilm().PixelBounds();
-
-    bool timeBudget = Options->timeBudgetInSeconds && *Options->timeBudgetInSeconds > 0;
-    float remainingTime = 0;
-    if (timeBudget)
-        remainingTime = *Options->timeBudgetInSeconds;
-
     int spp = samplerPrototype.SamplesPerPixel();
-    const int64_t totalBudgetForProgress =
-        timeBudget ? remainingTime : int64_t(spp) * pixelBounds.Area();
-    ProgressReporter progress(totalBudgetForProgress, "Rendering", Options->quiet);
+    ProgressReporter progress(int64_t(spp) * pixelBounds.Area(), "Rendering",
+                              Options->quiet);
 
     int waveStart = 0, waveEnd = 1, nextWaveSize = 1;
-    double waveStartTimeTotal, waveEndTimeTotal;
 
     if (Options->recordPixelStatistics)
         StatsEnablePixelStats(pixelBounds,
@@ -183,10 +168,7 @@ void ImageTileIntegrator::Render() {
     }
 
     // Render image in waves
-    bool renderingDone = false;
-    while (!renderingDone) {
-        waveStartTimeTotal = progress.ElapsedSeconds();
-        Timer pureRenderingTimer;
+    while (waveStart < spp) {
         // Render current wave's image tiles in parallel
         ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
             // Render image tile given by _tileBounds_
@@ -210,43 +192,19 @@ void ImageTileIntegrator::Render() {
             }
             PBRT_DBG("Finished image tile (%d,%d)-(%d,%d)\n", tileBounds.pMin.x,
                      tileBounds.pMin.y, tileBounds.pMax.x, tileBounds.pMax.y);
-            if (!timeBudget)
                 progress.Update((waveEnd - waveStart) * tileBounds.Area());
         });
-        pureRenderingTime += pureRenderingTimer.ElapsedSeconds();
-
-        // Check if already overtime, then do not update the path guiding data structure
-        waveEndTimeTotal = progress.ElapsedSeconds();
-        float waveTimeTotal = waveEndTimeTotal - waveStartTimeTotal;
-        if (!(timeBudget && remainingTime < waveTimeTotal)) {
-            PostProcessWave();
-        }
-
-        waveEndTimeTotal = progress.ElapsedSeconds();
-
-        // Update start and end wave
-        waveTimeTotal = waveEndTimeTotal - waveStartTimeTotal;
-        remainingTime -= waveTimeTotal;
-        if (timeBudget) {
-            // Apply std::ceil to deal with the case of waveTimeTotal < 1
-            progress.Update(std::ceil(waveTimeTotal));
-        }
-
-        renderingDone = (timeBudget ? remainingTime <= 0 : waveEnd >= spp);
-        if (renderingDone) {
-            progress.Done();
-            if (timeBudget)
-                LOG_VERBOSE("Total spp: %d", waveStart);
-        }
 
         // Update start and end wave
         waveStart = waveEnd;
-        waveEnd = waveEnd + nextWaveSize;
+        waveEnd = std::min(spp, waveEnd + nextWaveSize);
         if (!referenceImage)
-            nextWaveSize = (timeBudget ? 1 : std::min(2 * nextWaveSize, 64));
+            nextWaveSize = std::min(2 * nextWaveSize, 64);
+        if (waveStart == spp)
+            progress.Done();
 
         // Optionally write current image to disk
-        if (renderingDone || Options->writePartialImages || referenceImage) {
+        if (waveStart == spp || Options->writePartialImages || referenceImage) {
             LOG_VERBOSE("Writing image with spp = %d", waveStart);
             ImageMetadata metadata;
             metadata.renderTimeSeconds = progress.ElapsedSeconds();
@@ -257,12 +215,11 @@ void ImageTileIntegrator::Render() {
                     camera.GetFilm().GetImage(&filmMetadata, 1.f / waveStart);
                 ImageChannelValues mse =
                     filmImage.MSE(filmImage.AllChannelsDesc(), *referenceImage);
-                if (mseOutFile)
                     fprintf(mseOutFile, "%d, %.9g\n", waveStart, mse.Average());
                 metadata.MSE = mse.Average();
                 fflush(mseOutFile);
             }
-            if (renderingDone || Options->writePartialImages) {
+            if (waveStart == spp || Options->writePartialImages) {
                 camera.InitMetadata(&metadata);
                 camera.GetFilm().WriteImage(metadata, 1.0f / waveStart);
             }
@@ -308,7 +265,7 @@ void RayIntegrator::EvaluatePixelSample(Point2i pPixel, int sampleIndex, Sampler
         ++nCameraRays;
         // Evaluate radiance along camera ray
         bool initializeVisibleSurface = camera.GetFilm().UsesVisibleSurface();
-        L = cameraRay->weight * Li(pPixel, cameraRay->ray, lambda, sampler, scratchBuffer,
+        L = cameraRay->weight * Li(cameraRay->ray, lambda, sampler, scratchBuffer,
                                    initializeVisibleSurface ? &visibleSurface : nullptr);
 
         // Issue warning if unexpected radiance value is returned
@@ -394,7 +351,7 @@ SampledSpectrum Integrator::Tr(const Interaction &p0, const Interaction &p1,
                                     ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
 
                                 // ratio-tracking: only evaluate null scattering
-                                Float pr = T_maj[lambda.ChannelIdx()] * sigma_maj[lambda.ChannelIdx()];
+                                Float pr = T_maj[0] * sigma_maj[0];
                                 Tr *= T_maj * sigma_n / pr;
                                 inv_w *= T_maj * sigma_maj / pr;
 
@@ -403,8 +360,8 @@ SampledSpectrum Integrator::Tr(const Interaction &p0, const Interaction &p1,
 
                                 return true;
                             });
-            Tr *= T_maj / T_maj[lambda.ChannelIdx()];
-            inv_w *= T_maj / T_maj[lambda.ChannelIdx()];
+            Tr *= T_maj / T_maj[0];
+            inv_w *= T_maj / T_maj[0];
         }
 
         // Generate next ray segment or return final transmittance
@@ -438,7 +395,7 @@ SimplePathIntegrator::SimplePathIntegrator(int maxDepth, bool sampleLights,
       sampleBSDF(sampleBSDF),
       lightSampler(lights, Allocator()) {}
 
-SampledSpectrum SimplePathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
+SampledSpectrum SimplePathIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda,
                                          Sampler sampler, ScratchBuffer &scratchBuffer,
                                          VisibleSurface *) const {
     // Estimate radiance along ray using simple path tracing
@@ -666,7 +623,6 @@ std::unique_ptr<LightPathIntegrator> LightPathIntegrator::Create(
 
 STAT_PERCENT("Integrator/Zero-radiance paths", zeroRadiancePaths, totalPaths);
 STAT_PERCENT("Integrator/Regularized BSDFs", regularizedBSDFs, totalBSDFs);
-STAT_PERCENT("Integrator/Regularized BSDFs", regularizedPhases, totalPhases);
 STAT_INT_DISTRIBUTION("Integrator/Path length", pathLength);
 
 // PathIntegrator Method Definitions
@@ -678,7 +634,7 @@ PathIntegrator::PathIntegrator(int maxDepth, Camera camera, Sampler sampler,
       lightSampler(LightSampler::Create(lightSampleStrategy, lights, Allocator())),
       regularize(regularize) {}
 
-SampledSpectrum PathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
+SampledSpectrum PathIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda,
                                    Sampler sampler, ScratchBuffer &scratchBuffer,
                                    VisibleSurface *visibleSurf) const {
     // Declare local variables for _PathIntegrator::Li()_
@@ -688,9 +644,6 @@ SampledSpectrum PathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledW
     Float p_b, etaScale = 1;
     bool specularBounce = false, anyNonSpecularBounces = false;
     LightSampleContext prevIntrCtx;
-
-    Float regularizationGamma = 0.f;
-    Float accumulatedRoughness = 0.f;
 
     // Sample path from camera and accumulate radiance estimate
     while (true) {
@@ -767,7 +720,7 @@ SampledSpectrum PathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledW
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
+            bsdf.Regularize();
         }
 
         ++totalBSDFs;
@@ -791,8 +744,6 @@ SampledSpectrum PathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledW
         pstd::optional<BSDFSample> bs = bsdf.Sample_f(wo, u, sampler.Get2D());
         if (!bs)
             break;
-
-        accumulatedRoughness = bs->sampledRoughness;
         // Update path state variables after surface scattering
         beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
         p_b = bs->pdfIsProportional ? bsdf.PDF(wo, bs->wi) : bs->pdf;
@@ -889,7 +840,7 @@ SimpleVolPathIntegrator::SimpleVolPathIntegrator(int maxDepth, Camera camera,
     }
 }
 
-SampledSpectrum SimpleVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
+SampledSpectrum SimpleVolPathIntegrator::Li(RayDifferential ray,
                                             SampledWavelengths &lambda, Sampler sampler,
                                             ScratchBuffer &buf, VisibleSurface *) const {
     // Declare local variables for delta tracking integration
@@ -918,8 +869,8 @@ SampledSpectrum SimpleVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
                         [&](Point3f p, MediumProperties mp, SampledSpectrum sigma_maj,
                             SampledSpectrum T_maj) {
                             // Compute medium event probabilities for interaction
-                            Float pAbsorb = mp.sigma_a[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
-                            Float pScatter = mp.sigma_s[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
+                            Float pAbsorb = mp.sigma_a[0] / sigma_maj[0];
+                            Float pScatter = mp.sigma_s[0] / sigma_maj[0];
                             Float pNull = std::max<Float>(0, 1 - pAbsorb - pScatter);
 
                             // Randomly sample medium scattering event for delta tracking
@@ -1008,7 +959,7 @@ STAT_COUNTER("Integrator/Volume interactions", volumeInteractions);
 STAT_COUNTER("Integrator/Surface interactions", surfaceInteractions);
 
 // VolPathIntegrator Method Definitions
-SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
+SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda,
                                       Sampler sampler, ScratchBuffer &scratchBuffer,
                                       VisibleSurface *visibleSurf) const {
     // Declare state variables for volumetric path sampling
@@ -1016,9 +967,6 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
     bool specularBounce = false, anyNonSpecularBounces = false;
     int depth = 0;
     Float etaScale = 1;
-
-    Float regularizationGamma = 0.f;
-    Float accumulatedRoughness = 0.f;
 
     LightSampleContext prevIntrContext;
 
@@ -1050,7 +998,7 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
                     // Add emission from medium scattering event
                     if (depth < maxDepth && mp.Le) {
                         // Compute $\beta'$ at new path vertex
-                        Float pdf = sigma_maj[lambda.ChannelIdx()] * T_maj[lambda.ChannelIdx()];
+                        Float pdf = sigma_maj[0] * T_maj[0];
                         SampledSpectrum betap = beta * T_maj / pdf;
 
                         // Compute rescaled path probability for absorption at path vertex
@@ -1062,8 +1010,8 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
                     }
 
                     // Compute medium event probabilities for interaction
-                    Float pAbsorb = mp.sigma_a[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
-                    Float pScatter = mp.sigma_s[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
+                    Float pAbsorb = mp.sigma_a[0] / sigma_maj[0];
+                    Float pScatter = mp.sigma_s[0] / sigma_maj[0];
                     Float pNull = std::max<Float>(0, 1 - pAbsorb - pScatter);
 
                     CHECK_GE(1 - pAbsorb - pScatter, -1e-6);
@@ -1084,7 +1032,7 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
                         }
 
                         // Update _beta_ and _r_u_ for real-scattering event
-                        Float pdf = T_maj[lambda.ChannelIdx()] * mp.sigma_s[lambda.ChannelIdx()];
+                        Float pdf = T_maj[0] * mp.sigma_s[0];
                         beta *= T_maj * mp.sigma_s / pdf;
                         r_u *= T_maj * mp.sigma_s / pdf;
 
@@ -1092,13 +1040,6 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
                             // Sample direct lighting at volume-scattering event
                             MediumInteraction intr(p, -ray.d, ray.time, ray.medium,
                                                    mp.phase);
-                            if (regularize && anyNonSpecularBounces) {
-                                ++regularizedPhases;
-                                //intr.phase.Regularize(regularizationGamma, accumulatedRoughness);
-                            }
-
-                            ++totalPhases;
-                            
                             L += SampleLd(intr, nullptr, lambda, sampler, beta, r_u);
 
                             // Sample new direction at real-scattering event
@@ -1108,7 +1049,6 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
                             if (!ps || ps->pdf == 0)
                                 terminated = true;
                             else {
-                                accumulatedRoughness = ps->meanCosine;
                                 // Update ray path state for indirect volume scattering
                                 beta *= ps->p / ps->pdf;
                                 r_l = r_u / ps->pdf;
@@ -1126,7 +1066,7 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
                         // Handle null scattering along ray path
                         SampledSpectrum sigma_n =
                             ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
-                        Float pdf = T_maj[lambda.ChannelIdx()] * sigma_n[lambda.ChannelIdx()];
+                        Float pdf = T_maj[0] * sigma_n[0];
                         beta *= T_maj * sigma_n / pdf;
                         if (pdf == 0)
                             beta = SampledSpectrum(0.f);
@@ -1141,9 +1081,9 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
             if (scattered)
                 continue;
 
-            beta *= T_maj / T_maj[lambda.ChannelIdx()];
-            r_u *= T_maj / T_maj[lambda.ChannelIdx()];
-            r_l *= T_maj / T_maj[lambda.ChannelIdx()];
+            beta *= T_maj / T_maj[0];
+            r_u *= T_maj / T_maj[0];
+            r_l *= T_maj / T_maj[0];
         }
         // Handle surviving unscattered rays
         // Add emitted light at volume path vertex or from the environment
@@ -1219,7 +1159,7 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
+            bsdf.Regularize();
         }
 
         // Sample illumination from lights to find attenuated path contribution
@@ -1235,8 +1175,6 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
         pstd::optional<BSDFSample> bs = bsdf.Sample_f(wo, u, sampler.Get2D());
         if (!bs)
             break;
-
-        accumulatedRoughness = bs->sampledRoughness;
         // Update _beta_ and rescaled path probabilities for BSDF scattering
         beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
         if (bs->pdfIsProportional)
@@ -1304,7 +1242,7 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
             anyNonSpecularBounces = true;
             if (regularize) {
                 ++regularizedBSDFs;
-                Sw.Regularize(regularizationGamma, accumulatedRoughness);
+                Sw.Regularize();
             } else
                 ++totalBSDFs;
 
@@ -1316,8 +1254,6 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
             pstd::optional<BSDFSample> bs = Sw.Sample_f(pi.wo, u, sampler.Get2D());
             if (!bs)
                 break;
-            accumulatedRoughness = bs->sampledRoughness;
-
             beta *= bs->f * AbsDot(bs->wi, pi.shading.n) / bs->pdf;
             r_l = r_u / bs->pdf;
             // Don't increment depth this time...
@@ -1340,7 +1276,6 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
             beta /= 1 - q;
         }
     }
-    pathLength << depth; // vspg ??
     return L;
 }
 
@@ -1421,7 +1356,7 @@ SampledSpectrum VolPathIntegrator::SampleLd(const Interaction &intr, const BSDF 
                                 // Update _T_ray_ and PDFs using ratio-tracking estimator
                                 SampledSpectrum sigma_n =
                                     ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
-                                Float pdf = T_maj[lambda.ChannelIdx()] * sigma_maj[lambda.ChannelIdx()];
+                                Float pdf = T_maj[0] * sigma_maj[0];
                                 T_ray *= T_maj * sigma_n / pdf;
                                 r_l *= T_maj * sigma_maj / pdf;
                                 r_u *= T_maj * sigma_n / pdf;
@@ -1442,9 +1377,9 @@ SampledSpectrum VolPathIntegrator::SampleLd(const Interaction &intr, const BSDF 
                                 return true;
                             });
             // Update transmittance estimate for final segment
-            T_ray *= T_maj / T_maj[lambda.ChannelIdx()];
-            r_l *= T_maj / T_maj[lambda.ChannelIdx()];
-            r_u *= T_maj / T_maj[lambda.ChannelIdx()];
+            T_ray *= T_maj / T_maj[0];
+            r_l *= T_maj / T_maj[0];
+            r_u *= T_maj / T_maj[0];
         }
 
         // Generate next ray segment or return final transmittance
@@ -1489,7 +1424,7 @@ AOIntegrator::AOIntegrator(bool cosSample, Float maxDist, Camera camera, Sampler
       illuminant(illuminant),
       illumScale(1.f / SpectrumToPhotometric(illuminant)) {}
 
-SampledSpectrum AOIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
+SampledSpectrum AOIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda,
                                  Sampler sampler, ScratchBuffer &scratchBuffer,
                                  VisibleSurface *visibleSurface) const {
     // Intersect _ray_ with scene and store intersection in _isect_
@@ -2045,10 +1980,6 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
     int bounces = 0;
     bool anyNonSpecularBounces = false;
     Float pdfFwd = pdf;
-
-    Float regularizationGamma = 0.f;
-    Float accumulatedRoughness = 0.f;
-
     while (true) {
         // Attempt to create the next subpath vertex in _path_
         PBRT_DBG("%s\n", StringPrintf("Random walk. Bounces %d, beta %s, pdfFwd %f",
@@ -2070,9 +2001,8 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
                 [&](Point3f p, MediumProperties mp, SampledSpectrum sigma_maj,
                     SampledSpectrum T_maj) {
                     // Compute medium event probabilities for interaction
-#if defined(VOLUME_ABSORB)
-                    Float pAbsorb = mp.sigma_a[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
-                    Float pScatter = mp.sigma_s[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
+                    Float pAbsorb = mp.sigma_a[0] / sigma_maj[0];
+                    Float pScatter = mp.sigma_s[0] / sigma_maj[0];
                     Float pNull = std::max<Float>(0, 1 - pAbsorb - pScatter);
 
                     // Randomly sample medium event for _RandomRalk()_ ray
@@ -2084,24 +2014,8 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
                         return false;
 
                     } else if (mode == 1) {
-#else
-                    SampledSpectrum sigma_t = mp.sigma_s + mp.sigma_a;
-                    SampledSpectrum albedo = mp.sigma_s / sigma_t;
-                    Float pScatter = sigma_t[lambda.ChannelIdx()] / sigma_maj[lambda.ChannelIdx()];
-                    Float pNull = std::max<Float>(0, 1 - pScatter);
-
-                    CHECK_GE(1 - pScatter, -1e-6);
-                    // Sample medium scattering event type and update path
-                    Float um = rng.Uniform<Float>();
-                    int mode = SampleDiscrete({pScatter, pNull}, um);
-                    if (mode == 0) {
-#endif
                         // Handle scattering for _RandomWalk()_ ray
-#if defined(VOLUME_ABSORB)
-                        beta *= T_maj * mp.sigma_s / (T_maj[lambda.ChannelIdx()] * mp.sigma_s[lambda.ChannelIdx()]);
-#else
-                        beta *= T_maj * mp.sigma_s / (T_maj[lambda.ChannelIdx()] * sigma_t[lambda.ChannelIdx()]);
-#endif
+                        beta *= T_maj * mp.sigma_s / (T_maj[0] * mp.sigma_s[0]);
                         // Record medium interaction in _path_ and compute forward density
                         MediumInteraction intr(p, -ray.d, ray.time, ray.medium, mp.phase);
                         vertex = Vertex::CreateMedium(intr, beta, pdfFwd, prev);
@@ -2133,7 +2047,7 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
                         // Handle null scattering for _RandomWalk()_ ray
                         SampledSpectrum sigma_n =
                             ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
-                        Float pdf = T_maj[lambda.ChannelIdx()] * sigma_n[lambda.ChannelIdx()];
+                        Float pdf = T_maj[0] * sigma_n[0];
                         if (pdf == 0)
                             beta = SampledSpectrum(0.f);
                         else
@@ -2143,7 +2057,7 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
                 });
             // Update _beta_ for medium transmittance
             if (!scattered)
-                beta *= T_maj / T_maj[lambda.ChannelIdx()];
+                beta *= T_maj / T_maj[0];
         }
 
         if (terminated)
@@ -2173,7 +2087,7 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
+            bsdf.Regularize();
         }
 
         ++totalBSDFs;
@@ -2188,9 +2102,6 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
         pstd::optional<BSDFSample> bs = bsdf.Sample_f(wo, u, sampler.Get2D(), mode);
         if (!bs)
             break;
-
-        accumulatedRoughness = bs->sampledRoughness;
-
         pdfFwd = bs->pdfIsProportional ? bsdf.PDF(wo, bs->wi, mode) : bs->pdf;
         anyNonSpecularBounces |= !bs->IsSpecular();
         beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
@@ -2353,7 +2264,7 @@ void BDPTIntegrator::Render() {
     }
 }
 
-SampledSpectrum BDPTIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
+SampledSpectrum BDPTIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda,
                                    Sampler sampler, ScratchBuffer &scratchBuffer,
                                    VisibleSurface *) const {
     // Trace the camera and light subpaths
@@ -3013,6 +2924,7 @@ void SPPMIntegrator::Render() {
         Float uLambda =
             Options->disableWavelengthJitter ? Float(0.5) : RadicalInverse(1, iter);
         const SampledWavelengths passLambda = film.SampleWavelengths(uLambda);
+
         Float timeSample = RadicalInverse(2, iter);
 
         ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
@@ -3385,11 +3297,6 @@ void SPPMIntegrator::Render() {
             metadata.fullResolution = camera.GetFilm().FullResolution();
             metadata.colorSpace = colorSpace;
             camera.InitMetadata(&metadata);
-            // Bilateral filter...
-            if (applyBilateral) {
-                SPPMIntegrator::ApplyBilateralFilter(rgbImage);
-            }
-
             rgbImage.Write(camera.GetFilm().GetFilename(), metadata);
 
             // Write SPPM radius image, if requested
@@ -3429,79 +3336,6 @@ void SPPMIntegrator::Render() {
     }
     progress.Done();
     DisconnectFromDisplayServer();
-}
-
-
-void SPPMIntegrator::ApplyBilateralFilter(Image &image) {
-    LOG_VERBOSE("Applying bilateral filter to image");
-
-    Float sigmaSpatial = bilateralSigmaSpatial;
-    Float sigmaRange = bilateralSigmaRange;
-
-    Point2i res = image.Resolution();
-    std::vector<std::array<Float, 3>> filteredImage(res.x * res.y);
-
-    // Helper Function1: Get the pixel value at (x,y)
-    auto get = [&](int x, int y) { return image.GetChannels(Point2i(x, y)); };
-
-    // Helper Functoin2: Get the distance between two pixels squared
-    auto dist2 = [&](int x, int y, int x2, int y2) {
-        return (x - x2) * (x - x2) + (y - y2) * (y - y2);
-    };
-
-    // get the radius of the affected area of pixels
-    int kernelRadius = std::ceil(sigmaSpatial * 2);
-
-    // run the filter in parallel threads, breaking up the image into tiles
-    // each thread will process a tile of the image
-    ParallelFor2D(Bounds2i{{0, 0}, res}, [&](Bounds2i tile) {
-        // loop through pixels in a tile
-        for (int y = tile.pMin.y; y < tile.pMax.y; ++y) {
-            for (int x = tile.pMin.x; x < tile.pMax.x; ++x) {
-                auto center = get(x, y);               // pixel value at (x,y)
-                std::array<Float, 3> sum = {0, 0, 0};  // sum of pixelvalues
-                Float weightSum = 0;                   // sum of weights
-
-                // looping over each kernel neighborhood pixels
-                for (int dy = -kernelRadius; dy <= kernelRadius; ++dy) {
-                    for (int dx = -kernelRadius; dx <= kernelRadius; ++dx) {
-                        int nx = Clamp(x + dx, 0, res.x - 1);  // clamp x to image bounds
-                        int ny = Clamp(y + dy, 0, res.y - 1);  // clamp y to image bounds
-                        auto neighbor = get(nx, ny);
-
-                        // compute the spatial and range weights
-
-                        // spatial weight: nearer pixels have more weight
-                        float spatialW = std::exp(-dist2(x, y, nx, ny) /
-                                                  (2 * sigmaSpatial * sigmaSpatial));
-
-                        // range weight: similar color pixels have more weight
-                        float rangeW = std::exp(-(Sqr(neighbor[0] - center[0]) +
-                                                  Sqr(neighbor[1] - center[1]) +
-                                                  Sqr(neighbor[2] - center[2])) /
-                                                (2 * sigmaRange * sigmaRange));
-
-                        float w = spatialW * rangeW;
-                        // float w = spatialW;
-                        for (int c = 0; c < 3; ++c)
-                            sum[c] += neighbor[c] * w;
-
-                        weightSum += w;
-                    }
-                }
-
-                for (int c = 0; c < 3; ++c)
-                    sum[c] /= weightSum;
-
-                filteredImage[y * res.x + x] = sum;
-            }
-        }
-    });
-
-    // write the filtered image back to the original image
-    for (int y = 0; y < res.y; ++y)
-        for (int x = 0; x < res.x; ++x)
-            image.SetChannels(Point2i(x, y), filteredImage[y * res.x + x]);
 }
 
 SampledSpectrum SPPMIntegrator::SampleLd(const SurfaceInteraction &intr, const BSDF &b,
@@ -3563,15 +3397,9 @@ std::unique_ptr<SPPMIntegrator> SPPMIntegrator::Create(
     int photonsPerIter = parameters.GetOneInt("photonsperiteration", -1);
     Float radius = parameters.GetOneFloat("radius", 1.f);
     int seed = parameters.GetOneInt("seed", Options->seed);
-
-    // Apply bilateral Filter
-    bool useBilateralFilter = parameters.GetOneBool("bilateral", false);
-    Float sigma_spatial = parameters.GetOneFloat("bilateral_sigma_spatial", 2.0);
-    Float sigma_range = parameters.GetOneFloat("bilateral_sigma_range", 0.2);
-
     return std::make_unique<SPPMIntegrator>(camera, sampler, aggregate, lights,
                                             photonsPerIter, maxDepth, radius, seed,
-                                            colorSpace, useBilateralFilter, sigma_spatial, sigma_range);
+                                            colorSpace);
 }
 
 // FunctionIntegrator Method Definitions
@@ -3849,7 +3677,7 @@ void FunctionIntegrator::Render() {
                 }
             });
         }
-        
+
         // Compute average MSE/variance
         if (reportResult) {
             double sumSE = 0;
@@ -3901,17 +3729,6 @@ std::unique_ptr<Integrator> Integrator::Create(
     else if (name == "volpath")
         integrator = VolPathIntegrator::Create(parameters, camera, sampler, aggregate,
                                                lights, loc);
-#ifdef PBRT_WITH_PATH_GUIDING
-    else if (name == "guidedpath")
-        integrator = GuidedPathIntegrator::Create(parameters, colorSpace, camera, sampler,
-                                                  aggregate, lights, loc);
-    else if (name == "guidedvolpath")
-        integrator = GuidedVolPathIntegrator::Create(parameters, colorSpace, camera,
-                                                     sampler, aggregate, lights, loc);
-    else if (name == "guidedvolpathvspg")
-        integrator = GuidedVolPathVSPGIntegrator::Create(parameters, colorSpace, camera,
-                                                         sampler, aggregate, lights, loc);
-#endif
     else if (name == "bdpt")
         integrator =
             BDPTIntegrator::Create(parameters, camera, sampler, aggregate, lights, loc);

@@ -1,5 +1,4 @@
 // pbrt is Copyright(c) 1998-2020 Matt Pharr, Wenzel Jakob, and Greg Humphreys.
-// Modifications Copyright 2023 Intel Corporation.
 // The pbrt source code is licensed under the Apache License, Version 2.0.
 // SPDX: Apache-2.0
 
@@ -124,14 +123,11 @@ struct BSDFSample {
     BSDFSample() = default;
     PBRT_CPU_GPU
     BSDFSample(SampledSpectrum f, Vector3f wi, Float pdf, BxDFFlags flags,
-               Float sampledRoughness, Float eta = 1, bool pdfIsProportional = false)
+               Float eta = 1, bool pdfIsProportional = false)
         : f(f),
           wi(wi),
           pdf(pdf),
-          bsdfPdf(pdf),
-          misPdf(pdf),
           flags(flags),
-          sampledRoughness(sampledRoughness),
           eta(eta),
           pdfIsProportional(pdfIsProportional) {}
 
@@ -150,11 +146,8 @@ struct BSDFSample {
     SampledSpectrum f;
     Vector3f wi;
     Float pdf = 0;
-    Float bsdfPdf = 0;
-    Float misPdf = 0;
     BxDFFlags flags;
     Float eta = 1;
-    Float sampledRoughness = 1.0f;
     bool pdfIsProportional = false;
 };
 
@@ -166,15 +159,14 @@ class HairBxDF;
 class MeasuredBxDF;
 class ConductorBxDF;
 class NormalizedFresnelBxDF;
-class CookTorranceBxDF;
 class CoatedDiffuseBxDF;
 class CoatedConductorBxDF;
 
 // BxDF Definition
-class BxDF : public TaggedPointer<DiffuseTransmissionBxDF, DiffuseBxDF, CoatedDiffuseBxDF,
-                                  CoatedConductorBxDF, DielectricBxDF, ThinDielectricBxDF,
-                                  HairBxDF, MeasuredBxDF, ConductorBxDF,
-                                  NormalizedFresnelBxDF, CookTorranceBxDF> {
+class BxDF
+    : public TaggedPointer<DiffuseTransmissionBxDF, DiffuseBxDF, CoatedDiffuseBxDF,
+                           CoatedConductorBxDF, DielectricBxDF, ThinDielectricBxDF,
+                           HairBxDF, MeasuredBxDF, ConductorBxDF, NormalizedFresnelBxDF> {
   public:
     // BxDF Interface
     PBRT_CPU_GPU inline BxDFFlags Flags() const;
@@ -200,12 +192,7 @@ class BxDF : public TaggedPointer<DiffuseTransmissionBxDF, DiffuseBxDF, CoatedDi
     SampledSpectrum rho(pstd::span<const Point2f> u1, pstd::span<const Float> uc2,
                         pstd::span<const Point2f> u2) const;
 
-    PBRT_CPU_GPU inline void Regularize(const Float regularizationGamma,
-                                        const Float accumulatedRoughness);
-
-    PBRT_CPU_GPU Float GetEta() const;
-
-    PBRT_CPU_GPU Float GetRoughness() const;
+    PBRT_CPU_GPU inline void Regularize();
 };
 
 }  // namespace pbrt

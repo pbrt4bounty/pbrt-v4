@@ -484,7 +484,6 @@ STAT_MEMORY_COUNTER("Memory/Film pixels", filmPixelMemory);
 RGBFilm::RGBFilm(FilmBaseParameters p, const AnimatedTransform &outputFromRender,
                  bool applyInverse, const RGBColorSpace *colorSpace,
                  Float maxComponentValue, bool writeFP16, std::vector<int> aov_passes,
-                 bool useBilateralFilter, Float sigmaSpatial, Float sigmaRange,
                  Allocator alloc)
     : FilmBase(p),
       outputFromRender(outputFromRender),
@@ -493,20 +492,13 @@ RGBFilm::RGBFilm(FilmBaseParameters p, const AnimatedTransform &outputFromRender
       colorSpace(colorSpace),
       maxComponentValue(maxComponentValue),
       writeFP16(writeFP16),
-      aovPasses(aov_passes),
-      applyBilateral(useBilateralFilter),
-      bilateralSigmaSpatial(sigmaSpatial),
-      bilateralSigmaRange(sigmaRange) {
+      aovPasses(aov_passes) {
     filterIntegral = filter.Integral();
     CHECK(!pixelBounds.IsEmpty());
     CHECK(colorSpace);
     filmPixelMemory += pixelBounds.Area() * sizeof(Pixel);
     // Compute _outputRGBFromSensorRGB_ matrix
-#if !defined(PBRT_RGB_RENDERING)
     outputRGBFromSensorRGB = colorSpace->RGBFromXYZ * sensor->XYZFromSensorRGB;
-#else
-    outputRGBFromSensorRGB = SquareMatrix<3>::Diag(1.f, 1.f, 1.f);
-#endif
 }
 
 PBRT_CPU_GPU void RGBFilm::AddSplat(Point2f p, SampledSpectrum L, const SampledWavelengths &lambda) {
@@ -539,92 +531,9 @@ PBRT_CPU_GPU void RGBFilm::AddSplat(Point2f p, SampledSpectrum L, const SampledW
 
 void RGBFilm::WriteImage(ImageMetadata metadata, Float splatScale) {
     Image image = GetImage(&metadata, splatScale);
-
-    // Applying Bilateral Filter here
-    if(applyBilateral) {
-        ApplyBilateralFilter(image, bilateralSigmaSpatial, bilateralSigmaRange);
-    }
-
     LOG_VERBOSE("Writing image %s with bounds %s", filename, pixelBounds);
     image.Write(filename, metadata);
 }
-
-// Apply a bilateral Filter to the image
-void RGBFilm::ApplyBilateralFilter(Image &image, Float sigmaSpatial, Float sigmaRange) {
-    LOG_VERBOSE("Applying bilateral filter to image");
-
-    Point2i res = image.Resolution();
-    //std::vector<std::array<Float, 3>> filteredImage(res.x * res.y);
-    std::vector<std::vector<Float>> filteredImage(res.x * res.y);
-
-    // Helper Function1: Get the pixel value at (x,y)
-    auto get = [&](int x, int y) {
-        return image.GetChannels(Point2i(x,y));
-    };
-
-    // Helper Function2: Get the distance between two pixels squared
-    auto dist2 = [&](int x, int y, int x2, int y2) {
-        return (x - x2) * (x - x2) + (y - y2) * (y - y2);
-    };
-
-
-    // get the radius of the affected area of pixels
-    int kernelRadius = std::ceil(sigmaSpatial * 2);
-
-
-    // run the filter in parallel threads, breaking up the image into tiles
-    // each thread will process a tile of the image
-    ParallelFor2D(Bounds2i{{0,0}, res},[&](Bounds2i tile) {
-
-        // loop through pixels in a tile
-        for (int y = tile.pMin.y; y < tile.pMax.y; ++y) {
-            for (int x = tile.pMin.x; x < tile.pMax.x; ++x) {
-                
-                auto center = get(x, y); // pixel value at (x,y)
-                std::vector<Float> sum = {0, 0, 0}; // std::array<Float, 3> sum = {0, 0, 0};// sum of pixelvalues
-                Float weightSum = 0; // sum of weights
-
-                // looping over each kernel neighborhood pixels
-                for (int dy = -kernelRadius; dy <= kernelRadius; ++dy) {
-                    for (int dx = -kernelRadius; dx <= kernelRadius; ++dx) {
-                        int nx = Clamp(x + dx, 0, res.x - 1); // clamp x to image bounds
-                        int ny = Clamp(y + dy, 0, res.y - 1); // clamp y to image bounds
-                        auto neighbor = get(nx,ny);
-
-                        // compute the spatial and range weights
-
-                        // spatial weight: nearer pixels have more weight
-                        float spatialW = std::exp(-dist2(x, y, nx, ny) / (2 * sigmaSpatial * sigmaSpatial));
-
-                        // range weight: similar color pixels have more weight
-                        float rangeW = std::exp(
-                            -(Sqr(neighbor[0] - center[0]) +
-                              Sqr(neighbor[1] - center[1]) +
-                              Sqr(neighbor[2] - center[2])) / (2 * sigmaRange * sigmaRange));
-
-                        float w = spatialW * rangeW;
-                        // float w = spatialW;
-                        for (int c = 0; c < 3; ++c)
-                            sum[c] += neighbor[c] * w;
-
-                        weightSum += w;
-                    }
-                }
-
-                for (int c = 0; c < 3; ++c)
-                    sum[c] /= weightSum;
-
-                filteredImage[y * res.x + x] = sum;
-            }
-        }
-    });
-
-    // write the filtered image back to the original image
-    for(int y = 0; y < res.y; ++y)
-        for(int x = 0; x < res.x; ++x)
-            image.SetChannels(Point2i(x,y), filteredImage[y * res.x + x]);
-}
-
 
 Image RGBFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     // Convert image to RGB and compute final pixel values
@@ -717,11 +626,6 @@ RGBFilm *RGBFilm::Create(const ParameterDictionary &parameters, Float exposureTi
                          const CameraTransform &cameraTransform, Filter filter,
                          const RGBColorSpace *colorSpace, const FileLoc *loc,
                          Allocator alloc) {
-    // Bilateral Filter Parameters
-    bool useBilateralFilter = parameters.GetOneBool("bilateral", false);
-    Float sigma_spatial = parameters.GetOneFloat("bilateral_sigma_spatial", 2.0);
-    Float sigma_range = parameters.GetOneFloat("bilateral_sigma_range", 0.1);
-
     std::vector<int> aovPasses = parameters.GetIntArray("aovs");
     std::string coordinateSystem = parameters.GetOneString("coordinatesystem", "camera");
     AnimatedTransform outputFromRender;
@@ -746,7 +650,7 @@ RGBFilm *RGBFilm::Create(const ParameterDictionary &parameters, Float exposureTi
 
     return alloc.new_object<RGBFilm>(
         filmBaseParameters, outputFromRender, applyInverse, colorSpace, maxComponentValue,
-        writeFP16, aovPasses, useBilateralFilter, sigma_spatial, sigma_range, alloc);
+        writeFP16, aovPasses, alloc);
 }
 
 // GBufferFilm Method Definitions
@@ -820,11 +724,7 @@ GBufferFilm::GBufferFilm(FilmBaseParameters p, const AnimatedTransform &outputFr
       filterIntegral(filter.Integral()) {
     CHECK(!pixelBounds.IsEmpty());
     filmPixelMemory += pixelBounds.Area() * sizeof(Pixel);
-#if !defined(PBRT_RGB_RENDERING)
     outputRGBFromSensorRGB = colorSpace->RGBFromXYZ * sensor->XYZFromSensorRGB;
-#else
-    outputRGBFromSensorRGB = SquareMatrix<3>::Diag(1.f,1.f,1.f);
-#endif
 }
 
 PBRT_CPU_GPU void GBufferFilm::AddSplat(Point2f p, SampledSpectrum v,
@@ -1064,246 +964,6 @@ GBufferFilm *GBufferFilm::Create(const ParameterDictionary &parameters,
                                          maxComponentValue, writeFP16, alloc);
 }
 
-// GuidedGBufferFilm Method Definitions
-void GuidedGBufferFilm::AddSample(Point2i pFilm, SampledSpectrum L,
-                                  const SampledWavelengths &lambda,
-                                  const VisibleSurface *visibleSurface, Float weight) {
-    RGB rgb = sensor->ToSensorRGB(L, lambda);
-    Float m = std::max({rgb.r, rgb.g, rgb.b});
-    if (m > maxComponentValue)
-        rgb *= maxComponentValue / m;
-
-    Pixel &p = pixels[pFilm];
-    if (visibleSurface && *visibleSurface) {
-        p.gBufferWeightSum += weight;
-
-        if (applyInverse) {
-            p.nSum += weight * outputFromRender.ApplyInverse(visibleSurface->n,
-                                                             visibleSurface->time);
-        } else {
-            p.nSum += weight * outputFromRender(visibleSurface->n, visibleSurface->time);
-        }
-
-        p.guidingId = visibleSurface->guidingData.id;
-        // TO DO: We need an option to enable this process only when necessary
-        SampledSpectrum albedo =
-            visibleSurface->albedo * colorSpace->illuminant.Sample(lambda);
-        RGB albedoRGB = albedo.ToRGB(lambda, *colorSpace);
-        for (int c = 0; c < 3; ++c)
-            p.rgbAlbedoSum[c] += weight * albedoRGB[c];
-    }
-
-    for (int c = 0; c < 3; ++c)
-        p.rgbSum[c] += rgb[c] * weight;
-    p.weightSum += weight;
-}
-
-GuidedGBufferFilm::GuidedGBufferFilm(FilmBaseParameters p,
-                                     const AnimatedTransform &outputFromRender,
-                                     bool applyInverse, const RGBColorSpace *colorSpace,
-                                     std::vector<int> aovPasses, Float maxComponentValue,
-                                     bool writeFP16, Allocator alloc)
-    : FilmBase(p),
-      outputFromRender(outputFromRender),
-      applyInverse(applyInverse),
-      pixels(pixelBounds, alloc),
-      colorSpace(colorSpace),
-      aovPasses(aovPasses),
-      maxComponentValue(maxComponentValue),
-      writeFP16(writeFP16),
-      filterIntegral(filter.Integral()) {
-    CHECK(!pixelBounds.IsEmpty());
-    filmPixelMemory += pixelBounds.Area() * sizeof(Pixel);
-#if !defined(PBRT_RGB_RENDERING)
-    outputRGBFromSensorRGB = colorSpace->RGBFromXYZ * sensor->XYZFromSensorRGB;
-#else
-    outputRGBFromSensorRGB = SquareMatrix<3>::Diag(1.f, 1.f, 1.f);
-#endif
-}
-
-void GuidedGBufferFilm::AddSplat(Point2f p, SampledSpectrum v,
-                                 const SampledWavelengths &lambda) {
-    // NOTE: same code as RGBFilm::AddSplat()...
-    CHECK(!v.HasNaNs());
-    RGB rgb = sensor->ToSensorRGB(v, lambda);
-    Float m = std::max({rgb.r, rgb.g, rgb.b});
-    if (m > maxComponentValue)
-        rgb *= maxComponentValue / m;
-
-    Point2f pDiscrete = p + Vector2f(0.5, 0.5);
-    Bounds2i splatBounds(Point2i(Floor(pDiscrete - filter.Radius())),
-                         Point2i(Floor(pDiscrete + filter.Radius())) + Vector2i(1, 1));
-    splatBounds = Intersect(splatBounds, pixelBounds);
-    for (Point2i pi : splatBounds) {
-        Float wt = filter.Evaluate(Point2f(p - pi - Vector2f(0.5, 0.5)));
-        if (wt != 0) {
-            Pixel &pixel = pixels[pi];
-            for (int i = 0; i < 3; ++i)
-                pixel.rgbSplat[i].Add(wt * rgb[i]);
-        }
-    }
-}
-
-void GuidedGBufferFilm::WriteImage(ImageMetadata metadata, Float splatScale) {
-    Image image = GetImage(&metadata, splatScale);
-    LOG_VERBOSE("Writing image %s with bounds %s", filename, pixelBounds);
-    image.Write(filename, metadata);
-}
-
-Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
-    // Convert image to RGB and compute final pixel values
-    LOG_VERBOSE("Converting image to RGB and computing final weighted pixel values");
-    PixelFormat format = writeFP16 ? PixelFormat::Half : PixelFormat::Float;
-    pstd::vector<std::string> pass;
-
-    std::string rgbMain[3] = {"R", "G", "B"};
-    for (const int &p : aovPasses) {
-        if (p == 0 && getenv("PBRT4BLENDER")) {
-            rgbMain[0] = "Combined.R";
-            rgbMain[1] = "Combined.G";
-            rgbMain[2] = "Combined.B";
-        }
-        if (p == 1) {
-            pass.push_back("Albedo.R");
-            pass.push_back("Albedo.G");
-            pass.push_back("Albedo.B");
-        }
-        if (p == 4) {
-            pass.push_back("N.X");
-            pass.push_back("N.Y");
-            pass.push_back("N.Z");
-        }
-        if (p == 9) {
-            pass.push_back("GuideId.R");
-            pass.push_back("GuideId.G");
-            pass.push_back("GuideId.B");
-        }
-    }
-    pass.push_back(rgbMain[0]);
-    pass.push_back(rgbMain[1]);
-    pass.push_back(rgbMain[2]);
-
-    pstd::span<const std::string> aovs{pass};
-    Image image(format, Point2i(pixelBounds.Diagonal()), {aovs});
-
-    ImageChannelDesc rgbDesc = image.GetChannelDesc({rgbMain});
-    ImageChannelDesc albedoRgbDesc =
-        image.GetChannelDesc({"Albedo.R", "Albedo.G", "Albedo.B"});
-    ImageChannelDesc nDesc = image.GetChannelDesc({"N.X", "N.Y", "N.Z"});
-    ImageChannelDesc guideIdRgbDesc =
-        image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B"});
-
-    std::atomic<int> nClamped{0};
-    ParallelFor2D(pixelBounds, [&](Point2i p) {
-        Pixel &pixel = pixels[p];
-        RGB rgb(pixel.rgbSum[0], pixel.rgbSum[1], pixel.rgbSum[2]);
-        RGB albedoRgb(pixel.rgbAlbedoSum[0], pixel.rgbAlbedoSum[1],
-                      pixel.rgbAlbedoSum[2]);
-        RGB guideIdRgb(0.0, 0.0, 0.0);
-        if (pixel.guidingId != -1) {
-            IndependentSampler sampler(3, pixel.guidingId * pixel.guidingId);
-            sampler.StartPixelSample(Point2i(0, 0), 0, 0);
-            guideIdRgb = RGB(sampler.Get1D(), sampler.Get1D(), sampler.Get1D());
-        }
-
-        // Normalize pixel with weight sum
-        Float weightSum = pixel.weightSum, gBufferWeightSum = pixel.gBufferWeightSum;
-        if (weightSum != 0) {
-            rgb /= weightSum;
-            albedoRgb /= weightSum;
-        }
-
-        // Add splat value at pixel
-        for (int c = 0; c < 3; ++c)
-            rgb[c] += splatScale * pixel.rgbSplat[c] / filterIntegral;
-
-        rgb = outputRGBFromSensorRGB * rgb;
-
-        if (writeFP16 && std::max({rgb.r, rgb.g, rgb.b}) > 65504) {
-            if (rgb.r > 65504)
-                rgb.r = 65504;
-            if (rgb.g > 65504)
-                rgb.g = 65504;
-            if (rgb.b > 65504)
-                rgb.b = 65504;
-            ++nClamped;
-        }
-
-        Point2i pOffset(p.x - pixelBounds.pMin.x, p.y - pixelBounds.pMin.y);
-        image.SetChannels(pOffset, rgbDesc, {rgb[0], rgb[1], rgb[2]});
-
-        // Added albedo and normal channels for denoise
-        if ((int)albedoRgbDesc.size() > 0)
-            image.SetChannels(pOffset, albedoRgbDesc,
-                              {albedoRgb[0], albedoRgb[1], albedoRgb[2]});
-
-        if ((int)nDesc.size() > 0) {
-            Normal3f n =
-                LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);
-            image.SetChannels(pOffset, nDesc, {n.x, n.y, n.z});
-        }
-
-        if ((int)guideIdRgbDesc.size() > 0)
-            image.SetChannels(pOffset, guideIdRgbDesc,
-                              {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2]});
-    });
-
-    if (nClamped.load() > 0)
-        Warning("%d pixel values clamped to maximum fp16 value.", nClamped.load());
-
-    metadata->pixelBounds = pixelBounds;
-    metadata->fullResolution = fullResolution;
-    metadata->colorSpace = colorSpace;
-
-    return image;
-}
-
-std::string GuidedGBufferFilm::ToString() const {
-    return StringPrintf("[ GuidedGBufferFilm %s outputFromRender: %s applyInverse: %s "
-                        "colorSpace: %s maxComponentValue: %f writeFP16: %s ]",
-                        BaseToString(), outputFromRender, applyInverse, *colorSpace,
-                        maxComponentValue, writeFP16);
-}
-
-GuidedGBufferFilm *GuidedGBufferFilm::Create(const ParameterDictionary &parameters,
-                                             Float exposureTime,
-                                             const CameraTransform &cameraTransform,
-                                             Filter filter,
-                                             const RGBColorSpace *colorSpace,
-                                             const FileLoc *loc, Allocator alloc) {
-    Float maxComponentValue = parameters.GetOneFloat("maxcomponentvalue", Infinity);
-    bool writeFP16 = parameters.GetOneBool("savefp16", true);
-
-    PixelSensor *sensor =
-        PixelSensor::Create(parameters, colorSpace, exposureTime, loc, alloc);
-
-    FilmBaseParameters filmBaseParameters(parameters, filter, sensor, loc);
-
-    if (!HasExtension(filmBaseParameters.filename, "exr"))
-        ErrorExit(loc, "%s: EXR is the only format supported by the GuidedGBufferFilm.",
-                  filmBaseParameters.filename);
-
-    std::vector<int> aovPasses = parameters.GetIntArray("aovs");
-    std::string coordinateSystem = parameters.GetOneString("coordinatesystem", "camera");
-    AnimatedTransform outputFromRender;
-    bool applyInverse = false;
-    if (coordinateSystem == "camera") {
-        outputFromRender = cameraTransform.RenderFromCamera();
-        applyInverse = true;
-    } else if (coordinateSystem == "world")
-        outputFromRender = AnimatedTransform(cameraTransform.WorldFromRender());
-    else
-        ErrorExit(
-            loc,
-            "%s: unknown coordinate system for GuidedGBufferFilm. (Expecting \"camera\" "
-            "or \"world\".)",
-            coordinateSystem);
-
-    return alloc.new_object<GuidedGBufferFilm>(filmBaseParameters, outputFromRender,
-                                               applyInverse, colorSpace, aovPasses,
-                                               maxComponentValue, writeFP16, alloc);
-}
-
 // SpectralFilm Method Definitions
 SpectralFilm::SpectralFilm(FilmBaseParameters p, Float lambdaMin, Float lambdaMax,
                            int nBuckets, const RGBColorSpace *colorSpace,
@@ -1317,11 +977,7 @@ SpectralFilm::SpectralFilm(FilmBaseParameters p, Float lambdaMin, Float lambdaMa
       writeFP16(writeFP16),
       pixels(p.pixelBounds, alloc) {
     // Compute _outputRGBFromSensorRGB_ matrix
-#if !defined(PBRT_RGB_RENDERING)
     outputRGBFromSensorRGB = colorSpace->RGBFromXYZ * sensor->XYZFromSensorRGB;
-#else
-    outputRGBFromSensorRGB = SquareMatrix<3>::Diag(1.f,1.f,1.f);
-#endif
 
     filterIntegral = filter.Integral();
     CHECK(!pixelBounds.IsEmpty());
@@ -1543,9 +1199,6 @@ Film Film::Create(const std::string &name, const ParameterDictionary &parameters
                                parameters.ColorSpace(), loc, alloc);
     else if (name == "gbuffer")
         film = GBufferFilm::Create(parameters, exposureTime, cameraTransform, filter,
-                                   parameters.ColorSpace(), loc, alloc);
-    else if (name == "guidedgbuffer")
-        film = GuidedGBufferFilm::Create(parameters, exposureTime, cameraTransform, filter,
                                    parameters.ColorSpace(), loc, alloc);
     else if (name == "spectral")
         film = SpectralFilm::Create(parameters, exposureTime, filter,

@@ -128,30 +128,6 @@ if(PBRT_WITH_PROCEDURAL)
   list (APPEND PBRT_DEFINITIONS "PBRT_WITH_PROCEDURAL")
 endif()
 
-###########################################################################
-# path guiding (Open PGL)
-option(PBRT_WITH_PATH_GUIDING "Build PBRT with path guiding (Open PGL) support." OFF)
-
-if(PBRT_WITH_PATH_GUIDING)
-  list (APPEND PBRT_DEFINITIONS "PBRT_WITH_PATH_GUIDING")
-endif()
-
-###########################################################################
-# Enable OIDN (for Open Path Guiding only..?)
-option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." OFF)
-
-if(PBRT_WITH_OIDN)
-  list (APPEND PBRT_DEFINITIONS "PBRT_WITH_OIDN")
-endif()
-
-###########################################################################
-# Enable RGB mode
-option(PBRT_WITH_RGB "Enable RGB rendering in favor of spectral rendering." OFF)
-
-if(PBRT_WITH_RGB)
-  list (APPEND PBRT_DEFINITIONS "PBRT_RGB_RENDERING")
-endif()
-
 #######################################
 ## ext
 
@@ -663,7 +639,7 @@ set (PBRT_SOURCE_HEADERS
   src/pbrt/lights.h
   src/pbrt/materials.h
   src/pbrt/media.h
-  src/pbrt/media_sampleTMaj.h # VSPG implementation
+  #src/pbrt/media_sampleTMaj.h # VSPG implementation
   src/pbrt/options.h
   src/pbrt/paramdict.h
   src/pbrt/parser.h
@@ -679,7 +655,7 @@ set (PBRT_SOURCE_HEADERS
 SET (PBRT_CPU_SOURCE
   src/pbrt/cpu/aggregates.cpp
   src/pbrt/cpu/integrators.cpp
-  src/pbrt/cpu/guidingintegrators.cpp # path guiding implementation
+  #src/pbrt/cpu/guidingintegrators.cpp # path guiding implementation
   src/pbrt/cpu/primitive.cpp
   src/pbrt/cpu/render.cpp
 )
@@ -720,7 +696,7 @@ SET (PBRT_UTIL_SOURCE
   src/pbrt/util/check.cpp
   src/pbrt/util/color.cpp
   src/pbrt/util/colorspace.cpp
-  src/pbrt/denoiser.cpp
+  #src/pbrt/denoiser.cpp # OIDN denoiser..
   src/pbrt/util/display.cpp
   #src/pbrt/util/display_blender.cpp
   src/pbrt/util/error.cpp
@@ -975,15 +951,6 @@ target_include_directories (pbrt_lib PUBLIC
   ${GLAD_INCLUDE}
 )
 
-if (PBRT_WITH_PATH_GUIDING)
-  target_include_directories (pbrt_lib SYSTEM PUBLIC ${OPENPGL_INCLUDE_DIR})
-endif()
-
-if (PBRT_WITH_OIDN)
-  target_include_directories (pbrt_lib SYSTEM PUBLIC ${OIDN_INCLUDE_DIR})
-endif()
-
-
 if (PBRT_CUDA_ENABLED AND PBRT_OPTIX7_PATH)
     target_include_directories (pbrt_lib SYSTEM PUBLIC ${PBRT_OPTIX7_PATH}/include)
 endif ()
@@ -1013,25 +980,6 @@ set (ALL_PBRT_LIBS
   glad
   OpenGL::GL
 )
-
-link_directories(${CMAKE_INSTALL_PREFIX}/lib)
-link_directories(${CMAKE_INSTALL_PREFIX}/lib64)
-if(PBRT_WITH_PATH_GUIDING)
-  set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS}
-    ${OPENPGL_LIBRARIES})
-  if(OPENPGL_DEP)
-    add_dependencies(pbrt_lib OpenPGL)
-  endif()
-endif()
-
-if(PBRT_WITH_OIDN)
-  if(OIDN_FOUND)
-    set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS} ${OIDN_LIBRARIES})
-  else()
-    set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS} OpenImageDenoise)
-    add_dependencies(pbrt_lib OIDN)
-  endif()
-endif()
 
 if (PBRT_CUDA_ENABLED)
   set_property (TARGET pbrt_lib PROPERTY CUDA_SEPARABLE_COMPILATION ON)
@@ -1262,21 +1210,3 @@ else()
 endif()
 
 install (TARGETS pbrt_lib DESTINATION lib )
-
-if (APPLE AND PBRT_WITH_PATH_GUIDING)
-  install(FILES
-    ${CMAKE_INSTALL_PREFIX}/lib/libtbb.12.dylib
-    ${CMAKE_INSTALL_PREFIX}/lib/libtbb.12.17.dylib
-    ${CMAKE_INSTALL_PREFIX}/lib/libopenpgl.0.dylib
-    ${CMAKE_INSTALL_PREFIX}/lib/libopenpgl.0.8.0.dylib
-    DESTINATION bin)
-
-  if(PBRT_WITH_OIDN)
-    install(FILES
-      ${CMAKE_INSTALL_PREFIX}/lib/libOpenImageDenoise.2.dylib
-      ${CMAKE_INSTALL_PREFIX}/lib/libOpenImageDenoise.2.3.3.dylib
-      ${CMAKE_INSTALL_PREFIX}/lib/libOpenImageDenoise_core.2.3.3.dylib
-      ${CMAKE_INSTALL_PREFIX}/lib/libOpenImageDenoise_device_cpu.2.3.3.dylib
-      DESTINATION bin)
-  endif()
-endif()

@@ -65,25 +65,17 @@ std::string ToString(LightType lf) {
 }
 
 // LightBase Method Definitions
-#if !defined(PBRT_RGB_RENDERING)
 LightBase::LightBase(LightType type, const Transform &renderFromLight,
                      const MediumInterface &mediumInterface)
     : type(type), mediumInterface(mediumInterface), renderFromLight(renderFromLight) {
     ++numLights;
 }
-#else
-LightBase::LightBase(LightType type, const Transform &renderFromLight,
-                     const MediumInterface &mediumInterface, const RGBColorSpace *colorSpace)
-    : type(type), mediumInterface(mediumInterface), renderFromLight(renderFromLight), colorSpace(colorSpace) {
-    ++numLights;
-}
-#endif
 
 std::string LightBase::BaseToString() const {
     return StringPrintf("type: %s mediumInterface: %s renderFromLight: %s", type,
                         mediumInterface, renderFromLight);
 }
-#if !defined(PBRT_RGB_RENDERING)
+
 InternCache<DenselySampledSpectrum> *LightBase::spectrumCache;
 
 const DenselySampledSpectrum *LightBase::LookupSpectrum(Spectrum s) {
@@ -104,30 +96,6 @@ const DenselySampledSpectrum *LightBase::LookupSpectrum(Spectrum s) {
     };
     return spectrumCache->Lookup(DenselySampledSpectrum(s), create);
 }
-#else
-InternCache<RGBIlluminantSpectrum> *LightBase::spectrumCache;
-
-const RGBIlluminantSpectrum *LightBase::LookupSpectrum(Spectrum s) {
-  
-    // Initialize _spectrumCache_ on first call
-    static std::mutex mutex;
-    mutex.lock();
-    if (!spectrumCache)
-        spectrumCache = new InternCache<RGBIlluminantSpectrum>(
-#ifdef PBRT_BUILD_GPU_RENDERER
-            Options->useGPU ? Allocator(&CUDATrackedMemoryResource::singleton) :
-#endif
-                            Allocator{});
-    mutex.unlock();
-
-    // Return unique _DenselySampledSpectrum_ from intern cache for _s_
-    auto create = [](Allocator alloc, const RGBIlluminantSpectrum &s) {
-        return alloc.new_object<RGBIlluminantSpectrum>(s, alloc);
-    };
-    return spectrumCache->Lookup(s.ToRGBUnbounded(*colorSpace), create);
-}
-
-#endif
 
 std::string LightBounds::ToString() const {
     return StringPrintf("[ LightBounds bounds: %s w: %s phi: %f "
@@ -240,11 +208,8 @@ PointLight *PointLight::Create(const Transform &renderFromLight, Medium medium,
     Point3f from = parameters.GetOnePoint3f("from", Point3f(0, 0, 0));
     Transform tf = Translate(Vector3f(from.x, from.y, from.z));
     Transform finalRenderFromLight(renderFromLight * tf);
-#if !defined(PBRT_RGB_RENDERING)
+
     return alloc.new_object<PointLight>(finalRenderFromLight, medium, I, sc);
-#else
-    return alloc.new_object<PointLight>(finalRenderFromLight, medium, I, sc, colorSpace);
-#endif
 }
 
 // DistantLight Method Definitions
@@ -306,11 +271,8 @@ DistantLight *DistantLight::Create(const Transform &renderFromLight,
     Float E_v = parameters.GetOneFloat("illuminance", -1);
     if (E_v > 0)
         sc *= E_v;
-#if !defined(PBRT_RGB_RENDERING)
+
     return alloc.new_object<DistantLight>(finalRenderFromLight, L, sc);
-#else
-    return alloc.new_object<DistantLight>(finalRenderFromLight, L, sc, colorSpace);
-#endif
 }
 
 STAT_MEMORY_COUNTER("Memory/Light image and distributions", imageBytes);
@@ -320,11 +282,7 @@ ProjectionLight::ProjectionLight(Transform renderFromLight,
                                  MediumInterface mediumInterface, Image im,
                                  const RGBColorSpace *imageColorSpace, Float scale,
                                  Float fov, Allocator alloc)
-#if !defined(PBRT_RGB_RENDERING)
     : LightBase(LightType::DeltaPosition, renderFromLight, mediumInterface),
-#else
-    : LightBase(LightType::DeltaPosition, renderFromLight, mediumInterface, imageColorSpace),
-#endif
       image(std::move(im)),
       imageColorSpace(imageColorSpace),
       scale(scale),
@@ -560,17 +518,10 @@ ProjectionLight *ProjectionLight::Create(const Transform &renderFromLight, Mediu
 }
 
 // GoniometricLight Method Definitions
-#if !defined(PBRT_RGB_RENDERING)
 GoniometricLight::GoniometricLight(const Transform &renderFromLight,
                                    const MediumInterface &mediumInterface, Spectrum Iemit,
                                    Float scale, Image im, Allocator alloc)
     : LightBase(LightType::DeltaPosition, renderFromLight, mediumInterface),
-#else
-GoniometricLight::GoniometricLight(const Transform &renderFromLight,
-                                   const MediumInterface &mediumInterface, Spectrum Iemit,
-                                   Float scale, const RGBColorSpace *colorSpace, Image im, Allocator alloc)
-    : LightBase(LightType::DeltaPosition, renderFromLight, mediumInterface, colorSpace),
- #endif
       Iemit(LookupSpectrum(Iemit)),
       scale(scale),
       image(std::move(im)),
@@ -724,13 +675,9 @@ GoniometricLight *GoniometricLight::Create(const Transform &renderFromLight,
     const Float swapYZ[4][4] = {1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1};
     Transform t(swapYZ);
     Transform finalRenderFromLight = renderFromLight * t;
-#if !defined(PBRT_RGB_RENDERING)
+
     return alloc.new_object<GoniometricLight>(finalRenderFromLight, medium, I, sc,
                                               std::move(image), alloc);
-#else
-    return alloc.new_object<GoniometricLight>(finalRenderFromLight, medium, I, sc,
-                                              colorSpace, std::move(image), alloc);
-#endif
 }
 
 // DiffuseAreaLight Method Definitions
@@ -757,11 +704,7 @@ DiffuseAreaLight::DiffuseAreaLight(const Transform &renderFromLight,
                   return LightType::DeltaPosition;
               return LightType::Area;
           }(alpha),
-#if !defined(PBRT_RGB_RENDERING)
           renderFromLight, mediumInterface),
-#else
-          renderFromLight, mediumInterface, imageColorSpace),
-#endif
       shape(shape),
       alpha(type == LightType::Area ? alpha : nullptr),
       area(shape.Area()),
@@ -793,9 +736,10 @@ DiffuseAreaLight::DiffuseAreaLight(const Transform &renderFromLight,
                 "Proceed at your own risk; your image may have errors.");
 }
 
-PBRT_CPU_GPU pstd::optional<LightLiSample> DiffuseAreaLight::SampleLi(
-    LightSampleContext ctx, Point2f u, SampledWavelengths lambda,
-    bool allowIncompletePDF) const {
+PBRT_CPU_GPU pstd::optional<LightLiSample> DiffuseAreaLight::SampleLi(LightSampleContext ctx,
+                                                         Point2f u,
+                                                         SampledWavelengths lambda,
+                                                         bool allowIncompletePDF) const {
     // Sample point on shape for _DiffuseAreaLight_
     ShapeSampleContext shapeCtx(ctx.pi, ctx.n, ctx.ns, 0 /* time */);
     pstd::optional<ShapeSample> ss = shape.Sample(shapeCtx, u);
@@ -1018,19 +962,12 @@ DiffuseAreaLight *DiffuseAreaLight::Create(const Transform &renderFromLight,
 }
 
 // UniformInfiniteLight Method Definitions
-#if !defined(PBRT_RGB_RENDERING)
 UniformInfiniteLight::UniformInfiniteLight(const Transform &renderFromLight,
                                            Spectrum Lemit, Float scale)
     : LightBase(LightType::Infinite, renderFromLight, MediumInterface()),
       Lemit(LookupSpectrum(Lemit)),
       scale(scale) {}
-#else
-UniformInfiniteLight::UniformInfiniteLight(const Transform &renderFromLight,
-                                           Spectrum Lemit, Float scale, const RGBColorSpace *colorSpace)
-    : LightBase(LightType::Infinite, renderFromLight, MediumInterface(), colorSpace),
-      Lemit(LookupSpectrum(Lemit)),
-      scale(scale) {}
-#endif
+
 PBRT_CPU_GPU SampledSpectrum
 UniformInfiniteLight::Le(const Ray &ray, const SampledWavelengths &lambda) const {
     return scale * Lemit->Sample(lambda);
@@ -1088,18 +1025,10 @@ std::string UniformInfiniteLight::ToString() const {
 }
 
 // ImageInfiniteLight Method Definitions
-#if !defined(PBRT_RGB_RENDERING)
 ImageInfiniteLight::ImageInfiniteLight(Transform renderFromLight, Image im,
                                        const RGBColorSpace *imageColorSpace, Float scale,
                                        std::string filename, Allocator alloc)
     : LightBase(LightType::Infinite, renderFromLight, MediumInterface()),
-#else
-ImageInfiniteLight::ImageInfiniteLight(Transform renderFromLight, Image im,
-                                       const RGBColorSpace *imageColorSpace, Float scale,
-                                       const RGBColorSpace *colorSpace,
-                                       std::string filename, Allocator alloc)
-    : LightBase(LightType::Infinite, renderFromLight, MediumInterface(), colorSpace),
-#endif
       image(std::move(im)),
       imageColorSpace(imageColorSpace),
       scale(scale),
@@ -1198,19 +1127,11 @@ std::string ImageInfiniteLight::ToString() const {
 }
 
 // PortalImageInfiniteLight Method Definitions
-#if !defined(PBRT_RGB_RENDERING)
 PortalImageInfiniteLight::PortalImageInfiniteLight(
     const Transform &renderFromLight, Image equalAreaImage,
     const RGBColorSpace *imageColorSpace, Float scale, const std::string &filename,
     std::vector<Point3f> p, Allocator alloc)
     : LightBase(LightType::Infinite, renderFromLight, MediumInterface()),
-#else
-PortalImageInfiniteLight::PortalImageInfiniteLight(
-    const Transform &renderFromLight, Image equalAreaImage,
-    const RGBColorSpace *imageColorSpace, Float scale, const RGBColorSpace *colorSpace,
-    const std::string &filename, std::vector<Point3f> p, Allocator alloc)
-    : LightBase(LightType::Infinite, renderFromLight, MediumInterface(), colorSpace),
-#endif
       image(alloc),
       imageColorSpace(imageColorSpace),
       scale(scale),
@@ -1442,18 +1363,10 @@ std::string PortalImageInfiniteLight::ToString() const {
 }
 
 // SpotLight Method Definitions
-#if !defined(PBRT_RGB_RENDERING)
 SpotLight::SpotLight(const Transform &renderFromLight,
                      const MediumInterface &mediumInterface, Spectrum Iemit, Float scale,
                      Float totalWidth, Float falloffStart)
     : LightBase(LightType::DeltaPosition, renderFromLight, mediumInterface),
-#else
-SpotLight::SpotLight(const Transform &renderFromLight,
-                     const MediumInterface &mediumInterface, Spectrum Iemit, Float scale,
-                     const RGBColorSpace *colorSpace, Float totalWidth,
-                     Float falloffStart)
-    : LightBase(LightType::DeltaPosition, renderFromLight, mediumInterface, colorSpace),
-#endif
       Iemit(LookupSpectrum(Iemit)),
       scale(scale),
       cosFalloffEnd(std::cos(Radians(totalWidth))),
@@ -1566,13 +1479,9 @@ SpotLight *SpotLight::Create(const Transform &renderFromLight, Medium medium,
             2 * Pi * ((1 - cosFalloffStart) + (cosFalloffStart - cosFalloffEnd) / 2);
         sc *= phi_v / k_e;
     }
-#if !defined(PBRT_RGB_RENDERING)
+
     return alloc.new_object<SpotLight>(finalRenderFromLight, medium, I, sc, coneangle,
                                        coneangle - conedelta);
-#else
-    return alloc.new_object<SpotLight>(finalRenderFromLight, medium, I, sc, colorSpace,
-                                       coneangle, coneangle - conedelta);
-#endif
 }
 
 SampledSpectrum Light::Phi(SampledWavelengths lambda) const {
@@ -1657,13 +1566,8 @@ Light Light::Create(const std::string &name, const ParameterDictionary &paramete
             }
 
             // Default: color space's std illuminant
-#if !defined(PBRT_RGB_RENDERING)
             light = alloc.new_object<UniformInfiniteLight>(
                 renderFromLight, &colorSpace->illuminant, scale);
-#else
-            light = alloc.new_object<UniformInfiniteLight>(
-                renderFromLight, &colorSpace->illuminant, scale, colorSpace);
-#endif
         } else if (!L.empty() && portal.empty()) {
             if (!filename.empty())
                 ErrorExit(loc, "Can't specify both emission \"L\" and "
@@ -1679,12 +1583,7 @@ Light Light::Create(const std::string &name, const ParameterDictionary &paramete
                 Float k_e = Pi;
                 scale *= E_v / k_e;
             }
-#if !defined(PBRT_RGB_RENDERING)
             light = alloc.new_object<UniformInfiniteLight>(renderFromLight, L[0], scale);
-#else
-            light = alloc.new_object<UniformInfiniteLight>(renderFromLight, L[0], scale,
-                                                           colorSpace);
-#endif
         } else {
             // Either an image was provided or it's "L" with a portal.
             ImageAndMetadata imageAndMetadata;
@@ -1773,25 +1672,13 @@ Light Light::Create(const std::string &name, const ParameterDictionary &paramete
             if (!portal.empty()) {
                 for (Point3f &p : portal)
                     p = cameraTransform.RenderFromWorld(p);
-#if !defined(PBRT_RGB_RENDERING)
                 light = alloc.new_object<PortalImageInfiniteLight>(
                     renderFromLight, std::move(image), colorSpace, scale, filename,
                     portal, alloc);
-#else
-                light = alloc.new_object<PortalImageInfiniteLight>(
-                    renderFromLight, std::move(image), colorSpace, scale, colorSpace,
-                    filename, portal, alloc);
-#endif
             } else
-#if !defined(PBRT_RGB_RENDERING)
                 light = alloc.new_object<ImageInfiniteLight>(renderFromLight,
                                                              std::move(image), colorSpace,
                                                              scale, filename, alloc);
-#else
-                light = alloc.new_object<ImageInfiniteLight>(
-                    renderFromLight, std::move(image), colorSpace, scale, colorSpace,
-                    filename, alloc);
-#endif
         }
     } else
         ErrorExit(loc, "%s: light type unknown.", name);

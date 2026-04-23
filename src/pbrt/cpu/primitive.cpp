@@ -52,10 +52,7 @@ pstd::optional<ShapeIntersection> GeometricPrimitive::Intersect(const Ray &r,
     pstd::optional<ShapeIntersection> si = shape.Intersect(r, tMax);
     if (!si)
         return {};
-    if (!(std::isnan(si->tHit) && std::isinf(tMax)))
-        CHECK_LT(si->tHit, 1.001 * tMax);
-    else
-        return {};
+    CHECK_LT(si->tHit, 1.001 * tMax);
     // Test intersection against alpha texture, if present
     if (alpha) {
         if (Float a = alpha.Evaluate(si->intr); a < 1) {

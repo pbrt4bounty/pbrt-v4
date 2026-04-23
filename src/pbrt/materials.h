@@ -1,5 +1,4 @@
 // pbrt is Copyright(c) 1998-2020 Matt Pharr, Wenzel Jakob, and Greg Humphreys.
-// Modifications Copyright 2023 Intel Corporation.
 // The pbrt source code is licensed under the Apache License, Version 2.0.
 // SPDX: Apache-2.0
 
@@ -156,7 +155,7 @@ class DielectricMaterial {
           remapRoughness(remapRoughness) {}
 
     static const char *Name() { return "DielectricMaterial"; }
-// Modifications Copyright 2023 Intel Corporation.
+
     template <typename TextureEvaluator>
     PBRT_CPU_GPU bool CanEvaluateTextures(TextureEvaluator texEval) const {
         return texEval.CanEvaluate({uRoughness, vRoughness}, {});
@@ -548,65 +547,6 @@ class ConductorMaterial {
     Image *normalMap;
     SpectrumTexture eta, k, reflectance;
     FloatTexture uRoughness, vRoughness;
-    bool remapRoughness;
-};
-
-// CookTorranceMaterial Definition
-class CookTorranceMaterial {
-  public:
-    using BxDF = CookTorranceBxDF;
-    using BSSRDF = void;
-    // CookTorranceMaterial Public Methods
-    CookTorranceMaterial(SpectrumTexture reflectance, FloatTexture uRoughness,
-                          FloatTexture vRoughness, SpectrumTexture albedo, 
-                          Spectrum eta, FloatTexture displacement, Image *normalMap,
-                          bool remapRoughness)
-        : displacement(displacement),
-          normalMap(normalMap),
-          reflectance(reflectance),
-          uRoughness(uRoughness),
-          vRoughness(vRoughness),
-          albedo(albedo),
-          eta(eta),
-          remapRoughness(remapRoughness) {}
-
-    static const char *Name() { return "CookTorranceMaterial"; }
-
-    template <typename TextureEvaluator>
-    PBRT_CPU_GPU bool CanEvaluateTextures(TextureEvaluator texEval) const {
-        return texEval.CanEvaluate({uRoughness, vRoughness},
-                                   {reflectance, albedo});
-    }
-
-    template <typename TextureEvaluator>
-    PBRT_CPU_GPU CookTorranceBxDF GetBxDF(TextureEvaluator texEval,
-                                           const MaterialEvalContext &ctx,
-                                           SampledWavelengths &lambda) const;
-
-    PBRT_CPU_GPU
-    FloatTexture GetDisplacement() const { return displacement; }
-    PBRT_CPU_GPU
-    const Image *GetNormalMap() const { return normalMap; }
-
-    static CookTorranceMaterial *Create(const TextureParameterDictionary &parameters,
-                                         Image *normalMap, const FileLoc *loc,
-                                         Allocator alloc);
-
-    template <typename TextureEvaluator>
-    PBRT_CPU_GPU void GetBSSRDF(TextureEvaluator texEval, const MaterialEvalContext &ctx,
-                                SampledWavelengths &lambda) const {}
-
-    PBRT_CPU_GPU static constexpr bool HasSubsurfaceScattering() { return false; }
-
-    std::string ToString() const;
-
-  private:
-    // CookTorranceMaterial Private Members
-    FloatTexture displacement;
-    Image *normalMap;
-    SpectrumTexture reflectance, albedo;
-    FloatTexture uRoughness, vRoughness;
-    Spectrum eta;
     bool remapRoughness;
 };
 

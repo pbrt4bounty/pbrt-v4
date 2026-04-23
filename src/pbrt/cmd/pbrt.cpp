@@ -112,10 +112,6 @@ Reformatting options:
   --upgrade                     Upgrade a pbrt-v3 file to pbrt-v4's format.
 
 Experimental options:
-  --time <n>                    Render for (approximately) the specified amount of time in seconds.
-                                This ignore the 'spp' value, both from the scene file or command line.
-  --volMajScale                 Majorant scaling factor of the volumes in the scene.
-                                Used for rendering experiments on the server.
   --version                     Print the compiled version in string format.
 )",
             NSpectrumSamples);
@@ -226,9 +222,6 @@ int main(int argc, char *argv[]) {
             ParseArg(&iter, args.end(), "wavefront", &options.wavefront, onError) ||
             ParseArg(&iter, args.end(), "write-partial-images",
                      &options.writePartialImages, onError) ||
-            ParseArg(&iter, args.end(), "time", &options.timeBudgetInSeconds, onError) ||
-            ParseArg(&iter, args.end(), "volMajScale", &options.volumeMajorantScale,
-                     onError) ||
             ParseArg(&iter, args.end(), "upgrade", &options.upgrade, onError)) {
             // success
         } else if (*iter == "--help" || *iter == "-help" || *iter == "-h") {

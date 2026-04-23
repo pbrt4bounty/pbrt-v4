@@ -1,5 +1,4 @@
 // pbrt is Copyright(c) 1998-2020 Matt Pharr, Wenzel Jakob, and Greg Humphreys.
-// Modifications Copyright 2023 Intel Corporation.
 // The pbrt source code is licensed under the Apache License, Version 2.0.
 // SPDX: Apache-2.0
 
@@ -204,31 +203,11 @@ class TrowbridgeReitzDistribution {
     }
 
     PBRT_CPU_GPU
-    Float MinAlpha() const { return std::min(alpha_x, alpha_y); }
-
-    PBRT_CPU_GPU
-    void Regularize(const Float regularizationGamma, const Float accumulatedRoughness) {
-#if defined(PBRT_MASTER_BRANCH)
-            // Original PBRT regularization
-            if (alpha_x < 0.3f)
-                alpha_x = Clamp(2 * alpha_x, 0.1f, 0.3f);
-            if (alpha_y < 0.3f)
-                alpha_y = Clamp(2 * alpha_y, 0.1f, 0.3f);
-#else
-            // Naive implementation of "Optimized Path Space Regularization" (Eq 11.)
-            Float _accumulatedRoughness =
-                accumulatedRoughness > 0.f ? std::sqrt(accumulatedRoughness) : 0.f;
-            Float _alpha_x = alpha_x > 0.f ? std::sqrt(alpha_x) : 0.f;
-            Float _alpha_y = alpha_y > 0.f ? std::sqrt(alpha_y) : 0.f;
-
-            _alpha_x = (1.f - ((1.f - _alpha_x) *
-                               (1.f - regularizationGamma * _accumulatedRoughness)));
-            _alpha_y = (1.f - ((1.f - _alpha_y) *
-                               (1.f - regularizationGamma * _accumulatedRoughness)));
-
-            alpha_x = _alpha_x * _alpha_x;
-            alpha_y = _alpha_y * _alpha_y;
-#endif
+    void Regularize() {
+        if (alpha_x < 0.3f)
+            alpha_x = Clamp(2 * alpha_x, 0.1f, 0.3f);
+        if (alpha_y < 0.3f)
+            alpha_y = Clamp(2 * alpha_y, 0.1f, 0.3f);
     }
 
   private:
