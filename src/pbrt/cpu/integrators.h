@@ -275,11 +275,9 @@ class VolPathIntegrator : public RayIntegrator {
         Primitive aggregate, std::vector<Light> lights, const FileLoc *loc);
 
     std::string ToString() const;
-#if !defined(PBRT_WITH_UNDERWATER)
+
   private:
-#else
-  protected:
-#endif
+
     // VolPathIntegrator Private Methods
     SampledSpectrum SampleLd(const Interaction &intr, const BSDF *bsdf,
                              SampledWavelengths &lambda, Sampler sampler,
@@ -501,7 +499,7 @@ class FunctionIntegrator : public Integrator {
 #if defined(PBRT_WITH_UNDERWATER)
 enum class ExponentialType { Fast, Classic };
 
-class UnderwaterIntegrator : public VolPathIntegrator {
+class UnderwaterIntegrator : public RayIntegrator {
   public:
     // UnderwaterIntegrator Public Methods
     UnderwaterIntegrator(int maxDepth, Camera camera, Sampler sampler,
@@ -509,8 +507,10 @@ class UnderwaterIntegrator : public VolPathIntegrator {
                          std::vector<Light> lights, Light sunLight = nullptr,
                          const std::string &lightSampleStrategy = "bvh",
                          bool regularize = false)
-        : VolPathIntegrator(maxDepth, camera, sampler, aggregate, lights,
-                            lightSampleStrategy, regularize),
+        : RayIntegrator(camera, sampler, aggregate, lights),
+          maxDepth(maxDepth),
+          lightSampler(LightSampler::Create(lightSampleStrategy, lights, Allocator())),
+          regularize(regularize),
           sun(sunLight),
           volumeUniformDistance(samplingVolume.at(0)),
           volumeUniformSPP(samplingVolume.at(1)),
@@ -547,7 +547,7 @@ class UnderwaterIntegrator : public VolPathIntegrator {
 
     std::string ToString() const;
 
-  protected:
+  private:
     // UnderwaterIntegrator Protected Methods
     SampledSpectrum SampleLdUnderwater(
         const Interaction &intr, const BSDF *bsdf, SampledWavelengths &lambda,
@@ -582,6 +582,9 @@ class UnderwaterIntegrator : public VolPathIntegrator {
                              const Float &tToSurface, const Float &time = 1.f);
 
     // UnderwaterIntegrator Protected Members
+    int maxDepth;
+    LightSampler lightSampler;
+    bool regularize;
     Float waterDepth;
     Medium waterMedium;
     ShapeIntersection siWaterBoundary;

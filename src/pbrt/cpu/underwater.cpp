@@ -658,7 +658,7 @@ SampledSpectrum UnderwaterIntegrator::Li(RayDifferential ray, SampledWavelengths
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize();//1.0f, 1.0f);
+            bsdf.Regularize();
         }
 
         // Sample illumination from lights to find attenuated path contribution
@@ -742,7 +742,7 @@ SampledSpectrum UnderwaterIntegrator::Li(RayDifferential ray, SampledWavelengths
             anyNonSpecularBounces = true;
             if (regularize) {
                 ++regularizedBSDFs;
-                Sw.Regularize();//1.0f, 1.0f);
+                Sw.Regularize();
             } else
                 ++totalBSDFs;
 
