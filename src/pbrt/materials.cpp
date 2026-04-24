@@ -709,7 +709,16 @@ std::string WaterBoundaryMaterial::ToString() const {
 WaterBoundaryMaterial *WaterBoundaryMaterial::Create(
     const TextureParameterDictionary &parameters, Image *normalMap, const FileLoc *loc,
     Allocator alloc) {
-    Spectrum eta = alloc.new_object<ConstantSpectrum>(1.f);
+    // bounty: test to expose _eta_ parameter
+    Spectrum eta;
+    if (!parameters.GetFloatArray("eta").empty())
+        eta = alloc.new_object<ConstantSpectrum>(parameters.GetFloatArray("eta")[0]);
+    else
+        eta = parameters.GetOneSpectrum("eta", nullptr, SpectrumType::Unbounded, alloc);
+    if (!eta)
+        eta = alloc.new_object<ConstantSpectrum>(1.f);
+    // end
+    //Spectrum eta = alloc.new_object<ConstantSpectrum>(1.f);
 
     FloatTexture displacement = parameters.GetFloatTextureOrNull("displacement", alloc);
 

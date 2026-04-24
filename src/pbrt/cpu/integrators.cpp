@@ -45,15 +45,6 @@
 #include <algorithm>
 #include <iostream>
 
-#ifdef PBRT_WITH_UNDERWATER // bounty: need to review
-#include <vector>
-#include <numeric>
-#include <cmath>
-#include <map>
-#include <iomanip>
-#include <fstream>
-#endif
-
 namespace pbrt {
 
 STAT_COUNTER("Integrator/Camera rays traced", nCameraRays);

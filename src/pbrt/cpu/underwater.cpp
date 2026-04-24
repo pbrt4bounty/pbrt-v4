@@ -94,49 +94,82 @@ STAT_PERCENT("Integrator/Regularized BSDFs", regularizedBSDFs, totalBSDFs);
 std::unique_ptr<UnderwaterIntegrator> UnderwaterIntegrator::Create(
     const ParameterDictionary &parameters, Camera camera, Sampler sampler,
     Primitive aggregate, std::vector<Light> lights, const FileLoc *loc) {
+    // Settings struct
+    underWaterSettings settings;
     // Parser phase
     int maxDepth = parameters.GetOneInt("maxdepth", 5);
     std::string lightStrategy = parameters.GetOneString("lightsampler", "bvh");
     bool regularize = parameters.GetOneBool("regularize", false);
     // int rayMarchingStepsTemp = parameters.GetOneInt("raymarchingsteps", 16);
-    Float volumeUniformDistance = parameters.GetOneFloat("volume-uniform-distance", 7.f);
-    int volumeUniformSPP = parameters.GetOneInt("volume-uniform-spp", 16);
-    int volumeVariableSPP = parameters.GetOneInt("volume-variable-spp", 8);
-    Float causticsTime = parameters.GetOneFloat("caustics-time", 0.f);
+    Float volumeUniformDistance = parameters.GetOneFloat("volumeuniformdistance", 7.f);
+    settings.volume_uniform_distance =
+        volumeUniformDistance < 0.f ? 7.f : volumeUniformDistance;
 
-    if (volumeUniformDistance < 0.f) {
-        volumeUniformDistance = 7.f;
-    }
-    if (volumeUniformSPP < 0) {
-        volumeUniformSPP = 16;
-    }
-    if (volumeVariableSPP < 0) {
-        volumeVariableSPP = 8;
-    }
-    if (causticsTime < 0.f) {
-        causticsTime = 0.f;
-    }
+    int volumeUniformSPP = parameters.GetOneInt("volumeuniformspp", 16);
+    settings.volume_uniform_spp = volumeUniformSPP < 0 ? 16 : volumeUniformSPP;
 
-    std::array<Float, 4> samplingVolume = {
-        volumeUniformDistance, static_cast<Float>(volumeUniformSPP),
-        static_cast<Float>(volumeVariableSPP), causticsTime};
+    int volumeVariableSPP = parameters.GetOneInt("volumevariablespp", 8);
+    settings.volume_variable_spp = volumeVariableSPP < 0 ? 8 : volumeVariableSPP;
+    // Caustics
+    // Don't evaluates the direct light with the caustic shader.
+    settings.disableCaustics = parameters.GetOneBool("disablecaustics", false);
 
-    if (Options->samplingVolume) {
-        samplingVolume.at(0) = Options->samplingVolume->x >= 0.f
-                                   ? Options->samplingVolume->x
-                                   : samplingVolume.at(0);
-        samplingVolume.at(1) = Options->samplingVolume->y >= 0.f
-                                   ? Options->samplingVolume->y
-                                   : samplingVolume.at(1);
-        samplingVolume.at(2) = Options->samplingVolume->z >= 0.f
-                                   ? Options->samplingVolume->z
-                                   : samplingVolume.at(2);
-    }
+    // If not disabled, the time for the caustics in float; this will change their position.
+    Float causticsTime = parameters.GetOneFloat("causticstime", 0.f);
+    settings.caustics_time = std::max<Float>(0.f, causticsTime);
+    // Floor
+    // Don't evaluates the floor reflectance in multiple scattering.
+    settings.disableFloorReflectanceInMS = parameters.GetOneBool("disablefloor", false);
+    // Don't evaluates the floor reflectance with bsdf in multiple scattering.
+    settings.disableFloorBsdfReflectanceInMS =
+        parameters.GetOneBool("disablefloorbsdf", false);
 
-    if (Options->causticsTime) {
-        samplingVolume.at(3) =
-            *Options->causticsTime >= 0.f ? *Options->causticsTime : samplingVolume.at(3);
+    // Multiple Scattering
+    // Don't evaluates the multiple scattering light contribution.
+    settings.disableMultipleScattering = parameters.GetOneBool("disablems", false);
+    // Evaluate only the multiple scattering. ??
+    if (settings.disableMultipleScattering)
+        settings.onlyMultipleScattering = false;
+    else
+        settings.onlyMultipleScattering = parameters.GetOneBool("enableonlyms", false);
+
+    // Single Scattering
+    // Don't evaluates the single scattering light based on the surface contribution.
+    settings.disableSingleScatteringSurface =
+        parameters.GetOneBool("disablesurfss", false);
+
+    // Don't evaluates the single scattering light based on the uniform volume contribution
+    if (volumeUniformDistance == 0.f || volumeUniformSPP == 0)
+        settings.disableSingleScatteringVolumeUniform = true;
+    else
+        settings.disableSingleScatteringVolumeUniform =
+            parameters.GetOneBool("disablevolssuniform", false);
+
+    // Don't evaluates the single scattering light based on the volume contribution
+    if (volumeVariableSPP == 0) {
+        settings.disableSingleScatteringVolumeVariable = true;
+    } else {
+        settings.disableSingleScatteringVolumeVariable =
+            parameters.GetOneBool("disablevolssvariable", false);
     }
+    // disable global SingleScatteringVolume based in Uniform and Variable state
+    if (settings.disableSingleScatteringVolumeUniform &&
+        settings.disableSingleScatteringVolumeVariable) {
+        settings.disableSingleScatteringVolume = true;
+    } else {
+        // Don't evaluates the single scattering light based on the volume contribution.
+        settings.disableSingleScatteringVolume =
+            parameters.GetOneBool("disablevolss", false);
+    }
+    // Evaluate light only using FastExp.
+    settings.fastExponentialOnly = parameters.GetOneBool("enablefastexp", false);
+
+    // Evaluates single scattering volume in all bounces of the ray.
+    if (settings.disableSingleScatteringVolume)
+        settings.singleScatteringVolumeAlways = false;
+    else
+        settings.singleScatteringVolumeAlways =
+            parameters.GetOneBool("enablevolssalways", false);
 
     // Sun selection phase
     std::vector<Light> lightsExceptSun = lights;
@@ -154,7 +187,7 @@ std::unique_ptr<UnderwaterIntegrator> UnderwaterIntegrator::Create(
                 "capabilities, it is recommended to specify a light of this type. ]\n\n");
     }
     return std::make_unique<UnderwaterIntegrator>(maxDepth, camera, sampler, aggregate,
-                                                  samplingVolume, lights, sunLight,
+                                                  settings, lights, sunLight,
                                                   lightStrategy, regularize);
 }
 
@@ -200,15 +233,14 @@ void UnderwaterIntegrator::Render() {
     ProgressReporter progress(int64_t(spp) * pixelBounds.Area(), "Rendering",
                               Options->quiet);
 
-    // UNDER_WATER | INSERTION |~~~~~~ ><(((º> ~~~~~~~ ><(((º> ~~~~~~~ ><(((º> ~~~~~~~
-    // --- CUSTOM MODIFICATION START: Setup Statistics ---
+    // UNDER_WATER INSERTION: Setup Statistics
     std::vector<double> perSampleTimes;
     Timer totalProcessTimer;  // Timer for the whole process
     int width = pixelBounds.Diagonal().x;
     int height = pixelBounds.Diagonal().y;  // Unused variable warning fix
 
     // Only allocate memory if statistics are enabled to save RAM
-    bool enableStats = Options->timeStatistics;
+    bool enableStats = water.timeStatistics;
 
     if (enableStats) {
         size_t totalSamples =
@@ -216,8 +248,7 @@ void UnderwaterIntegrator::Render() {
         // Pre-allocate to allow thread-safe random access without locking
         perSampleTimes.resize(totalSamples, 0.0);
     }
-    // --- CUSTOM MODIFICATION END ---
-    // UNDER_WATER | INSERTION-END |~~ ><(((º> ~~~~~~~ ><(((º> ~~~~~~~ ><(((º> ~~~~~~~
+    // UNDER_WATER INSERTION-END
     
     int waveStart = 0, waveEnd = 1, nextWaveSize = 1;
 
@@ -426,7 +457,7 @@ SampledSpectrum UnderwaterIntegrator::Li(RayDifferential ray, SampledWavelengths
             // UNDER_WATER | VOLUMETRIC MULTIPLE SCATTERING (Kd apparent optical property
             // applied)
             // ===================================================================================
-            if (!Options->disableMultipleScattering) {
+            if (!water.disableMultipleScattering) {
                 Float uStep = sampler.Get1D();
                 uStep = uStep > 0.95f ? 0.95f : uStep;
                 Point3f sampleRayPath = ray(uStep * distance);
@@ -452,7 +483,7 @@ SampledSpectrum UnderwaterIntegrator::Li(RayDifferential ray, SampledWavelengths
 
                 L += multipleScatteringL;
 
-                if (Options->onlyMultipleScattering) {
+                if (water.onlyMultipleScattering) {
                     break;
                 }
             }
@@ -461,8 +492,8 @@ SampledSpectrum UnderwaterIntegrator::Li(RayDifferential ray, SampledWavelengths
         // =========================================================================
         // UNDER_WATER | VOLUMETRIC SINGLE SCATTERING (Ray Marching)
         // =========================================================================
-        if ((bounce == 0 || Options->singleScatteringVolumeAlways) &&
-            !Options->disableSingleScatteringVolume) {
+        if ((bounce == 0 || water.singleScatteringVolumeAlways) &&
+            !water.disableSingleScatteringVolume) {
             if (distance > 0) {
                 Float uniformStepSize = 0.f;
                 Float variableStepSize = 0.f;
@@ -513,11 +544,11 @@ SampledSpectrum UnderwaterIntegrator::Li(RayDifferential ray, SampledWavelengths
                     }
                 };
 
-                if (!Options->disableSingleScatteringVolumeUniform) {
+                if (!water.disableSingleScatteringVolumeUniform) {
                     volumeEvaluation(uniformStepSize, distance, volumeUniformSPP);
                 }
 
-                if (!Options->disableSingleScatteringVolumeVariable) {
+                if (!water.disableSingleScatteringVolumeVariable) {
                     volumeEvaluation(variableStepSize, distance, volumeVariableSPP);
                 }
 
@@ -574,7 +605,7 @@ SampledSpectrum UnderwaterIntegrator::Li(RayDifferential ray, SampledWavelengths
             }
         }
 
-        if (Options->disableSingleScatteringSurface) {
+        if (water.disableSingleScatteringSurface) {
             break;
         }
 
@@ -867,11 +898,13 @@ SampledSpectrum UnderwaterIntegrator::SampleLdUnderwater(
     if (light.Type() == LightType::DeltaDirection) {
         // Calculating the parameter t that reaches the waterBoundary
         Vector3f normalizedVecToSun = Normalize(vecToLight);
-        // TODO-UNDER_WATER: Delete the Nestor way?
-        intrDistToLight = GetTParamIntersectPlaneWater(intr.p(), normalizedVecToSun,
-                                                       waterDepth);  // My way
-        // intrDistToLight = GetTParamIntersectPlaneWater(intr.p(), normalizedVecToSun,
-        // waterDepth/2.5f);  // Nestor way
+#ifdef NESTOR_WAY  // org. paper author Nestor code
+        intrDistToLight =
+            GetTParamIntersectPlaneWater(intr.p(), normalizedVecToSun, waterDepth / 2.5f);
+#else  // Angelo Felipe way..?
+        intrDistToLight =
+            GetTParamIntersectPlaneWater(intr.p(), normalizedVecToSun, waterDepth);
+#endif
         if (intrDistToLight == Infinity) {
             intrDistToLight = waterDepth;
         }
@@ -891,7 +924,7 @@ SampledSpectrum UnderwaterIntegrator::SampleLdUnderwater(
         // Kd donwelling coefficient (vertical, from surface to interaction).
         Float depth = waterDepth - intr.p().y;
         T_ray = FastExp(-depth * mediumKd);
-        if (!Options->disableCaustics) {
+        if (!water.disableCaustics) {
             // Caustic settings from Gutierrez
             Float normalY = intr.AsSurface().shading.n.y;
             Float diffuseAmbient = SafeSqrt(Clamp(0.5f + 0.5f * normalY, 0.f, 1.f));
@@ -905,7 +938,7 @@ SampledSpectrum UnderwaterIntegrator::SampleLdUnderwater(
         // If the interaction is with a medium, the transmittance will be related to the
         // extinction coefficient (sigma_t).
         T_ray = FastExp(-intrDistToLight * mediumExtinction);
-        if (!Options->disableCaustics) {
+        if (!water.disableCaustics) {
             // Caustic settings from Gutierrez
             // Apply the Godray sharpening power
             Float scaledCaustic = 0.2f * causticIntensity;
@@ -1047,9 +1080,8 @@ SampledSpectrum UnderwaterIntegrator::MultipleScatteringLight(
     const Float woDotWi =
         -ray.d.y;  // Dot(invNormal, ray.d). Cosine with respect to the Vector3f(0.f,
                    // -1.f, 0.f) [invNormal] which is the normal used.
-    const Float distance =
-        Length(ray.o - si.intr.p());  // Distance between the origin of the ray and the
-                                      // point of interaction.
+    // Distance between the origin of the ray and the point of interaction.
+    const Float distance = Length(ray.o - si.intr.p());
     const SampledSpectrum &sigmaS = mediumProps.sigma_s;
     const SampledSpectrum &sigmaT = mediumProps.sigma_t;
     const SampledSpectrum &kd = mediumProps.kd;
@@ -1058,7 +1090,7 @@ SampledSpectrum UnderwaterIntegrator::MultipleScatteringLight(
 
     // Choosing between Exp and FastExp
     ExponentialType expType =
-        Options->fastExponentialOnly ? ExponentialType::Fast : ExponentialType::Classic;
+        water.fastExponentialOnly ? ExponentialType::Fast : ExponentialType::Classic;
     auto IfExp = [&](SampledSpectrum spectrum) -> SampledSpectrum {
         if (expType == ExponentialType::Classic) {
             return Exp(spectrum);
@@ -1102,8 +1134,8 @@ SampledSpectrum UnderwaterIntegrator::MultipleScatteringLight(
     }
 
     SampledSpectrum floorContribution;
-    if (!Options->disableFloorReflectanceInMS) {
-        if (bsdfFloorReflectance && !Options->disableFloorBsdfReflectanceInMS) {
+    if (!water.disableFloorReflectanceInMS) {
+        if (bsdfFloorReflectance && !water.disableFloorBsdfReflectanceInMS) {
             floorContribution =
                 (*bsdfFloorReflectance / Pi) * IfExp(-kd * (2 * waterDepth - rayDepth));
         } else {

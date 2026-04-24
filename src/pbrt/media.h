@@ -278,36 +278,40 @@ struct UnderwaterMediumProperties {
 };
 
 // HomogeneousMedium Definition
-class UnderwaterHomogeneousMedium: public HomogeneousMedium {
-    public:
-        // UnderwaterHomogeneousMedium Public Methods
-        UnderwaterHomogeneousMedium(Spectrum sigma_a, Spectrum sigma_s, Spectrum kd, Float sigmaScale, Spectrum Le,
-                          Float LeScale, Float g, Allocator alloc)
-        : HomogeneousMedium(sigma_a, sigma_s, sigmaScale, Le,
-                            LeScale, g, alloc), kd_spec(kd, alloc) {
-            kd_spec.Scale(sigmaScale);
-        }
+class UnderwaterHomogeneousMedium : public HomogeneousMedium {
+  public:
+    // UnderwaterHomogeneousMedium Public Methods
+    UnderwaterHomogeneousMedium(Spectrum sigma_a, Spectrum sigma_s, Spectrum kd,
+                                Float sigmaScale, Spectrum Le, Float LeScale, Float g,
+                                Allocator alloc)
+        : HomogeneousMedium(sigma_a, sigma_s, sigmaScale, Le, LeScale, g, alloc),
+          kd_spec(kd, alloc) {
+        kd_spec.Scale(sigmaScale);
+    }
 
-        static UnderwaterHomogeneousMedium *Create(const ParameterDictionary &parameters,
-                                 const FileLoc *loc, Allocator alloc);
+    static UnderwaterHomogeneousMedium *Create(const ParameterDictionary &parameters,
+                                               const FileLoc *loc, Allocator alloc);
 
-        std::string ToString() const;
+    std::string ToString() const;
 
-        PBRT_CPU_GPU
-        UnderwaterMediumProperties SampleUnderwaterHomogeneousMedium(const SampledWavelengths &lambda) const {
-            SampledSpectrum sigma_a = sigma_a_spec.Sample(lambda);
-            SampledSpectrum sigma_s = sigma_s_spec.Sample(lambda);
-            SampledSpectrum sigma_t = sigma_a + sigma_s;
-            SampledSpectrum kd = kd_spec.Sample(lambda);
-            SampledSpectrum Le = Le_spec.Sample(lambda);
-            return UnderwaterMediumProperties{sigma_a, sigma_s, sigma_t, kd, &phase, Le};
-        }
+    PBRT_CPU_GPU
+    UnderwaterMediumProperties SampleUnderwaterHomogeneousMedium(
+        const SampledWavelengths &lambda) const {
+        SampledSpectrum sigma_a = sigma_a_spec.Sample(lambda);
+        SampledSpectrum sigma_s = sigma_s_spec.Sample(lambda);
+        SampledSpectrum sigma_t = sigma_a + sigma_s;
+        SampledSpectrum kd = kd_spec.Sample(lambda);
+        SampledSpectrum Le = Le_spec.Sample(lambda);
+        return UnderwaterMediumProperties{sigma_a, sigma_s, sigma_t, kd, &phase, Le};
+    }
 
-    PBRT_CPU_GPU inline Float GetGAsymmetryParam() const { return phase.GetGAsymmetryParam(); }
+    PBRT_CPU_GPU inline Float GetGAsymmetryParam() const {
+        return phase.GetGAsymmetryParam();
+    }
 
-    private:
-        // UnderwaterHomogeneousMedium Private Data
-        DenselySampledSpectrum kd_spec;
+  private:
+    // UnderwaterHomogeneousMedium Private Data
+    DenselySampledSpectrum kd_spec;
 };
 
 #endif // PBRT_WITH_UNDERWATER
@@ -780,8 +784,8 @@ inline RayMajorantIterator Medium::SampleRay(Ray ray, Float tMax,
 }
 
 #if defined(PBRT_WITH_UNDERWATER)
-PBRT_CPU_GPU inline
-pstd::optional<UnderwaterMediumProperties> Medium::SampleUnderwaterHomogeneousMedium(const SampledWavelengths &lambda) const {
+PBRT_CPU_GPU inline pstd::optional<UnderwaterMediumProperties>
+Medium::SampleUnderwaterHomogeneousMedium(const SampledWavelengths &lambda) const {
     auto sample = [&](auto ptr) -> pstd::optional<UnderwaterMediumProperties> {
         using Type = std::decay_t<decltype(*ptr)>;
 

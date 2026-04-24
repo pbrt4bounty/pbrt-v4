@@ -502,8 +502,28 @@ enum class ExponentialType { Fast, Classic };
 class UnderwaterIntegrator : public RayIntegrator {
   public:
     // UnderwaterIntegrator Public Methods
+    struct underWaterSettings {
+        bool disableCaustics{false};
+        bool disableFloorBsdfReflectanceInMS{false};
+        bool disableFloorReflectanceInMS{false};
+        bool disableMultipleScattering{false};
+        bool disableSingleScatteringSurface{false};
+        bool disableSingleScatteringVolume{false};
+        bool disableSingleScatteringVolumeUniform{false};
+        bool disableSingleScatteringVolumeVariable{false};
+        bool fastExponentialOnly{false};
+        bool onlyMultipleScattering{false};
+        bool singleScatteringVolumeAlways{false};
+        bool timeStatistics{false};
+        // replace samplingVolume
+        Float volume_uniform_distance{7.0f};
+        int volume_uniform_spp{16};
+        int volume_variable_spp{8};
+        Float caustics_time{0.0f};
+    };
+
     UnderwaterIntegrator(int maxDepth, Camera camera, Sampler sampler,
-                         Primitive aggregate, const std::array<Float, 4> samplingVolume,
+                         Primitive aggregate, const underWaterSettings settings,
                          std::vector<Light> lights, Light sunLight = nullptr,
                          const std::string &lightSampleStrategy = "bvh",
                          bool regularize = false)
@@ -512,27 +532,15 @@ class UnderwaterIntegrator : public RayIntegrator {
           lightSampler(LightSampler::Create(lightSampleStrategy, lights, Allocator())),
           regularize(regularize),
           sun(sunLight),
-          volumeUniformDistance(samplingVolume.at(0)),
-          volumeUniformSPP(samplingVolume.at(1)),
-          volumeVariableSPP(samplingVolume.at(2)),
-          causticsTime(samplingVolume.at(3)) {
+          volumeUniformDistance(settings.volume_uniform_distance),
+          volumeUniformSPP(settings.volume_uniform_spp),
+          volumeVariableSPP(settings.volume_variable_spp),
+          causticsTime(settings.caustics_time),
+          water(settings) {
         LOG_VERBOSE("\n\nUnderwaterIntegrator created\n\n");
-        SetOnePixelToRender();  // To use in development in this way: if
-                                // (onePixelToRender) { Printf("[ waterDepth: %f ]\n\n",
-                                // waterDepth); }
+        SetOnePixelToRender();
         settingWaterDepthAndMedium();
         LOG_VERBOSE("[ waterDepth: %f ]\n\n", waterDepth);
-
-        if (volumeUniformDistance == 0.f || volumeUniformSPP == 0) {
-            Options->disableSingleScatteringVolumeUniform = true;
-        }
-        if (volumeVariableSPP == 0) {
-            Options->disableSingleScatteringVolumeVariable = true;
-        }
-        if (Options->disableSingleScatteringVolumeUniform &&
-            Options->disableSingleScatteringVolumeVariable) {
-            Options->disableSingleScatteringVolume = true;
-        }
     };
 
     SampledSpectrum Li(RayDifferential ray, SampledWavelengths &lambda, Sampler sampler,
@@ -595,6 +603,7 @@ class UnderwaterIntegrator : public RayIntegrator {
     const Float volumeUniformDistance;
     const int volumeUniformSPP;
     const int volumeVariableSPP;
+    underWaterSettings water{};
 };
 #endif // PBRT_WITH_UNDERWATER
 

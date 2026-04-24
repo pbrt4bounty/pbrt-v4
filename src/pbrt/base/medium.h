@@ -113,12 +113,11 @@ class Medium
 
 #if defined(PBRT_WITH_UNDERWATER)
     PBRT_CPU_GPU
-    pstd::optional<UnderwaterMediumProperties> SampleUnderwaterHomogeneousMedium(const SampledWavelengths &lambda) const;
+    pstd::optional<UnderwaterMediumProperties> SampleUnderwaterHomogeneousMedium(
+        const SampledWavelengths &lambda) const;
 
-    PBRT_CPU_GPU inline
-    Float GetGAsymmetryParam() const;
+    PBRT_CPU_GPU inline Float GetGAsymmetryParam() const;
 #endif
-
 };
 
 // MediumInterface Definition
