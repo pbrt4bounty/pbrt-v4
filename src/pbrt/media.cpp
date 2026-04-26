@@ -208,8 +208,8 @@ std::string HomogeneousMedium::ToString() const {
 
 #if defined(PBRT_WITH_UNDERWATER)
 // UnderwaterHomogeneousMedium Method Definitions
-UnderwaterHomogeneousMedium *UnderwaterHomogeneousMedium::Create(const ParameterDictionary &parameters,
-                                             const FileLoc *loc, Allocator alloc) {
+UnderwaterHomogeneousMedium *UnderwaterHomogeneousMedium::Create(
+    const ParameterDictionary &parameters, const FileLoc *loc, Allocator alloc) {
     Spectrum sig_a = nullptr, sig_s = nullptr, kd = nullptr;
     std::string preset = parameters.GetOneString("preset", "");
     if (!preset.empty()) {
@@ -229,11 +229,11 @@ UnderwaterHomogeneousMedium *UnderwaterHomogeneousMedium::Create(const Parameter
             sig_s = alloc.new_object<ConstantSpectrum>(1.f);
     }
 
-    kd =
-            parameters.GetOneSpectrum("sigma_kd", nullptr, SpectrumType::Unbounded, alloc);
+    kd = parameters.GetOneSpectrum("sigma_kd", nullptr, SpectrumType::Unbounded, alloc);
     if (!kd) {
-        Warning("No sigma_kd coefficient was provided in the file for UnderwaterHomogeneousMedium,"
-                    " initializing values as 0.f, but the rendering will not match reality.");
+        Warning("No sigma_kd coefficient was provided in the file for "
+                "UnderwaterHomogeneousMedium,"
+                " initializing values as 0.f, but the rendering will not match reality.");
         kd = alloc.new_object<ConstantSpectrum>(0.f);
     }
 
@@ -248,14 +248,14 @@ UnderwaterHomogeneousMedium *UnderwaterHomogeneousMedium::Create(const Parameter
     Float sigmaScale = parameters.GetOneFloat("scale", 1.f);
     Float g = parameters.GetOneFloat("g", 0.0f);
 
-    return alloc.new_object<UnderwaterHomogeneousMedium>(sig_a, sig_s, kd, sigmaScale, Le, LeScale, g,
-                                               alloc);
+    return alloc.new_object<UnderwaterHomogeneousMedium>(sig_a, sig_s, kd, sigmaScale, Le,
+                                                         LeScale, g, alloc);
 }
 
 std::string UnderwaterHomogeneousMedium::ToString() const {
-    return StringPrintf(
-        "[ Homogeneous medium sigma_a_spec: %s sigma_s_spec: %s kd_spec: %s Le_spec: %s phase: %s ]",
-        sigma_a_spec, sigma_s_spec, kd_spec, Le_spec, phase);
+    return StringPrintf("[ Homogeneous medium sigma_a_spec: %s sigma_s_spec: %s kd_spec: "
+                        "%s Le_spec: %s phase: %s ]",
+                        sigma_a_spec, sigma_s_spec, kd_spec, Le_spec, phase);
 }
 #endif // PBRT_WITH_UNDERWATER
 
