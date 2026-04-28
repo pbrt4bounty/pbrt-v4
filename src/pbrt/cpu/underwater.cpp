@@ -46,11 +46,9 @@
 #include <pbrt/util/spectrum.h>
 #include <pbrt/util/stats.h>
 #include <pbrt/util/string.h>
-//
 #include <pbrt/util/gui.h>
 
 #include <algorithm>
-
 #include <iostream>
 
 // explicit underwater headers additions
@@ -63,31 +61,6 @@
 
 namespace pbrt {
 
-namespace {
-// #ifdef PBRT_IS_GPU_CODE
-//
-// #define CausticIters 4.f;
-// #define CausticPower 9.0f;
-// #define CausticSpeed 1.1f;
-// #define CausticFreq 1.2f;  // spatial freq of caustics
-// #define Inten 0.005f;
-// #define SSCausticsMult 10.0f; // 1.0f;
-// #define Tau Float(2 * Pi);
-//
-// #elseif
-
-constexpr int CausticIters = 4;
-constexpr Float CausticPower = 9.0f;
-constexpr Float CausticSpeed = 1.1f;
-constexpr Float CausticFreq = 1.2f;  // spatial freq of caustics
-constexpr Float Inten = 0.005f;
-constexpr Float SSCausticsMult = 10.0f;  // 1.0f;
-constexpr Float Tau = 2 * Pi;
-
-// #endif
-}
-
-
 STAT_COUNTER("Integrator/Surface interactions", surfaceInteractions);
 STAT_PERCENT("Integrator/Regularized BSDFs", regularizedBSDFs, totalBSDFs);
 
@@ -95,7 +68,7 @@ std::unique_ptr<UnderwaterIntegrator> UnderwaterIntegrator::Create(
     const ParameterDictionary &parameters, Camera camera, Sampler sampler,
     Primitive aggregate, std::vector<Light> lights, const FileLoc *loc) {
     // Settings struct
-    underWaterSettings settings;
+    UnderWaterSettings settings;
     // Parser phase
     int maxDepth = parameters.GetOneInt("maxdepth", 5);
     std::string lightStrategy = parameters.GetOneString("lightsampler", "bvh");
@@ -110,13 +83,6 @@ std::unique_ptr<UnderwaterIntegrator> UnderwaterIntegrator::Create(
 
     int volumeVariableSPP = parameters.GetOneInt("volumevariablespp", 8);
     settings.volume_variable_spp = volumeVariableSPP < 0 ? 8 : volumeVariableSPP;
-    // Caustics
-    // Don't evaluates the direct light with the caustic shader.
-    settings.disableCaustics = parameters.GetOneBool("disablecaustics", false);
-
-    // If not disabled, the time for the caustics in float; this will change their position.
-    Float causticsTime = parameters.GetOneFloat("causticstime", 0.f);
-    settings.caustics_time = std::max<Float>(0.f, causticsTime);
     // Floor
     // Don't evaluates the floor reflectance in multiple scattering.
     settings.disableFloorReflectanceInMS = parameters.GetOneBool("disablefloor", false);
@@ -170,7 +136,21 @@ std::unique_ptr<UnderwaterIntegrator> UnderwaterIntegrator::Create(
     else
         settings.singleScatteringVolumeAlways =
             parameters.GetOneBool("enablevolssalways", false);
-
+    // bounty: we expose some parameters here to make them user configurable
+    // instead of using 'constexpr' fixed values.
+    // TO DO: investigate the most suitable values and reasonable limits for each
+    // parameter
+    // Caustics:
+    // Don't evaluates the direct light with the caustic shader.
+    settings.disableCaustics = parameters.GetOneBool("disablecaustics", false);
+    // If enabled, the time for the caustics in float; this will change their position.
+    Float causticsTime = parameters.GetOneFloat("causticstime", 0.f);
+    settings.caustics_time = Clamp(causticsTime, 0.f, 1.f);
+    Float causticsFreq = parameters.GetOneFloat("causticsfreq", 1.2f);
+    settings.causticsFreq = causticsFreq;
+    Float causticsPower = parameters.GetOneFloat("causticspower", 9.0f);
+    settings.causticsPower = Clamp(causticsPower, 1.f, 30.f);
+    
     // Sun selection phase
     std::vector<Light> lightsExceptSun = lights;
     Light sunLight = nullptr;
@@ -509,11 +489,10 @@ SampledSpectrum UnderwaterIntegrator::Li(RayDifferential ray, SampledWavelengths
                 SampledSpectrum directLight;
                 SampledSpectrum singleScatteringL(0.f);
 
-                PhaseFunction phaseToUse = mediumProps.phase;
-                // Float g = 0.8f; // TODO-UNDER_WATER: Replace this with mediumProps.g or
-                // waterMedium.g
-                // TODO_UNDERWATER: Test if ti modification work.
+                // bounty: both methods are return the same value.
+                // Float g = mediumProps.phase.GetGAsymmetryParam();
                 Float g = waterMedium.GetGAsymmetryParam();
+                // TODO_UNDERWATER: Test if 'g' param affect the render result.
                 HGPhaseFunction hGPhaseFunction(g);
 
                 int stepsActuallyCounted = 0;
@@ -910,7 +889,7 @@ SampledSpectrum UnderwaterIntegrator::SampleLdUnderwater(
         }
         // Calculating caustics using already stored information.
         causticIntensity =
-            GetCaustics(intr.p(), normalizedVecToSun, intrDistToLight, causticsTime);
+            GetCaustics(intr.p(), normalizedVecToSun, intrDistToLight, water, causticsTime);
     }
 
     // Separating the properties for greater clarity.
@@ -942,7 +921,7 @@ SampledSpectrum UnderwaterIntegrator::SampleLdUnderwater(
             // Caustic settings from Gutierrez
             // Apply the Godray sharpening power
             Float scaledCaustic = 0.2f * causticIntensity;
-            causticIntensity = SSCausticsMult * std::pow(scaledCaustic, 5.0f);
+            causticIntensity = water.ssCausticsMult * std::pow(scaledCaustic, 5.0f);
         }
     } else {
         T_ray = FastExp(-intrDistToLight * mediumExtinction);
@@ -1045,14 +1024,13 @@ pstd::optional<LightLiSample> UnderwaterIntegrator::GetSunProps(
     const SampledWavelengths &lambda) const {
     if (sun) {
         LightSampleContext ctx = LightSampleContext(siWaterBoundary.intr);
-        Point2f uLight = Point2f(
-            5.f,
-            5.f);  // Never used by the DistantLight, no need to real use of the Sampler
+        // Never used by the DistantLight, no need to real use of the Sampler
+        Point2f uLight = Point2f(5.f, 5.f);
         pstd::optional<LightLiSample> ls = sun.SampleLi(ctx, uLight, lambda, true);
         if (ls && ls->L) {
-            sunIrradiance =
-                ls->L;  // * Inv4Pi; // TODO-UNDER_WATER: Multiply it by Inv4Pi turn it so
-                        // small in the other method? Verify after.
+            // TODO-UNDER_WATER: Multiply it by Inv4Pi turn it so`small in the other
+            // method? Verify after.
+            sunIrradiance = ls->L;  // * Inv4Pi;
             dirToSun = Normalize(ls->pLight.p() - ctx.p());
             return ls;
         } else {
@@ -1076,10 +1054,11 @@ SampledSpectrum UnderwaterIntegrator::MultipleScatteringLight(
     // https://www.shadertoy.com/view/4cVGD3 Original Name in Demo: integrate_L_anim
 
     // Setting variables to calculate ambient light
-    const Float rayDepth = waterDepth - ray.o.y;  // Ray origin depth for this bounce.
-    const Float woDotWi =
-        -ray.d.y;  // Dot(invNormal, ray.d). Cosine with respect to the Vector3f(0.f,
-                   // -1.f, 0.f) [invNormal] which is the normal used.
+    // Ray origin depth for this bounce.
+    const Float rayDepth = waterDepth - ray.o.y;
+    // Dot(invNormal, ray.d). Cosine with respect to the Vector3f(0.f, -1.f, 0.f)
+    // [invNormal] which is the normal used.
+    const Float woDotWi = -ray.d.y;
     // Distance between the origin of the ray and the point of interaction.
     const Float distance = Length(ray.o - si.intr.p());
     const SampledSpectrum &sigmaS = mediumProps.sigma_s;
@@ -1176,21 +1155,22 @@ Float UnderwaterIntegrator::GetTParamIntersectPlaneWater(const Point3f &origin,
 
 // Very nice tileable caustics
 // from @DaveHoskins https://www.shadertoy.com/view/MdlXz8
-Float UnderwaterIntegrator::CausticPattern(const Point2f &p, const Float &time) {
+Float UnderwaterIntegrator::CausticPattern(const Point2f &p, const Float &time,
+                                           const UnderWaterSettings &water) {
     Float tMod = time * 0.5f + 23.0f;
 
     Point2f i = p;
     Float c = 1.0f;
 
-    for (int n = 0; n < CausticIters; n++) {
+    for (int n = 0; n < water.causticsIters; n++) {
         Float t = tMod * (1.0f - (3.5f / Float(n + 1)));
 
         Float newX = p.x + std::cos(t - i.x) + std::sin(t + i.y);
         Float newY = p.y + std::sin(t - i.y) + std::cos(t + i.x);
         i = Point2f(newX, newY);
 
-        Vector2f divVec(p.x / (std::sin(i.x + t) / Inten),
-                        p.y / (std::cos(i.y + t) / Inten));
+        Vector2f divVec(p.x / (std::sin(i.x + t) / water.Inten),
+                        p.y / (std::cos(i.y + t) / water.Inten));
 
         // Safety check to avoid division by zero if length is extremely small
         Float len = Length(divVec);
@@ -1200,20 +1180,23 @@ Float UnderwaterIntegrator::CausticPattern(const Point2f &p, const Float &time) 
             c += 1.0f;  // Fallback
     }
 
-    c /= Float(CausticIters);
+    c /= Float(water.causticsIters);
     c = 1.17f - std::pow(c, 1.4f);
 
     return std::pow(std::abs(c), 8.0f);
 }
 
 Float UnderwaterIntegrator::GetCaustics(const Point3f &p, const Vector3f &sunDir,
-                                        const Float &tToSurface, const Float &time) {
+                                        const Float &tToSurface,
+                                        const UnderWaterSettings &water,
+                                        const Float &time) {
     // UNDER_WATER | ASSUMPTION: We assume tToSurface is valid (checked by the caller
     // logic) Calculate the point on the water surface
     Point3f pSurf = p + sunDir * tToSurface;
-
+    // bounty: moved here..
+    Float Tau = 2 * Pi;
     // Apply frequency scaling
-    pSurf *= (0.11f * CausticFreq);
+    pSurf *= (0.11f * water.causticsFreq);
 
     // Mapping 3D (xz) to 2D
     Point2f pXZ(pSurf.x, pSurf.z);
@@ -1227,17 +1210,17 @@ Float UnderwaterIntegrator::GetCaustics(const Point3f &p, const Vector3f &sunDir
     Point2f uv(uvX, uvY);
 
     // First layer
-    Float c = CausticPattern(uv, time * CausticSpeed);
+    Float c = CausticPattern(uv, time * water.causticsSpeed, water);
 
     // Second layer (Simulating #if CAUSTICS > 1)
     Float uv2X = std::fmod(-0.4f * time + uvArg.x * 0.56f, Tau) - 250.0f;
     Float uv2Y = std::fmod(-0.7f * time + uvArg.y * 0.56f, Tau) - 250.0f;
     Point2f uv2(uv2X, uv2Y);
 
-    c += 1.1f * CausticPattern(uv2, time * CausticSpeed * 1.1f);
+    c += 1.1f * CausticPattern(uv2, time * water.causticsSpeed * 1.1f, water);
 
     // Final power curve (Simulating #if CAUSTICS > 2)
-    Float finalCaustic = c * CausticPower;
+    Float finalCaustic = c * water.causticsPower;
 
     return finalCaustic;
 }

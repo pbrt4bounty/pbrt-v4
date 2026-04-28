@@ -502,8 +502,7 @@ enum class ExponentialType { Fast, Classic };
 class UnderwaterIntegrator : public RayIntegrator {
   public:
     // UnderwaterIntegrator Public Methods
-    struct underWaterSettings {
-        bool disableCaustics{false};
+    struct UnderWaterSettings {
         bool disableFloorBsdfReflectanceInMS{false};
         bool disableFloorReflectanceInMS{false};
         bool disableMultipleScattering{false};
@@ -515,15 +514,23 @@ class UnderwaterIntegrator : public RayIntegrator {
         bool onlyMultipleScattering{false};
         bool singleScatteringVolumeAlways{false};
         bool timeStatistics{false};
+        bool disableCaustics{false};
         // replace samplingVolume
         Float volume_uniform_distance{7.0f};
         int volume_uniform_spp{16};
         int volume_variable_spp{8};
         Float caustics_time{0.0f};
+        int causticsIters{4};
+        // from constexpr..
+        Float causticsPower{9.0f};
+        Float causticsSpeed{1.1f};
+        Float causticsFreq{1.2f};     // spatial freq of caustics
+        Float Inten{0.005f};          // bounty: more descriptive name..?
+        Float ssCausticsMult{10.0f};  // 1.0f;
     };
 
     UnderwaterIntegrator(int maxDepth, Camera camera, Sampler sampler,
-                         Primitive aggregate, const underWaterSettings settings,
+                         Primitive aggregate, const UnderWaterSettings settings,
                          std::vector<Light> lights, Light sunLight = nullptr,
                          const std::string &lightSampleStrategy = "bvh",
                          bool regularize = false)
@@ -556,7 +563,7 @@ class UnderwaterIntegrator : public RayIntegrator {
     std::string ToString() const;
 
   private:
-    // UnderwaterIntegrator Protected Methods
+    // UnderwaterIntegrator Private Methods
     SampledSpectrum SampleLdUnderwater(
         const Interaction &intr, const BSDF *bsdf, SampledWavelengths &lambda,
         Sampler sampler, SampledSpectrum beta, SampledSpectrum inv_w_u,
@@ -584,12 +591,14 @@ class UnderwaterIntegrator : public RayIntegrator {
                                               const Vector3f &direction,
                                               const Float &planeWater);
 
-    static Float CausticPattern(const Point2f &p, const Float &time);
+    static Float CausticPattern(const Point2f &p, const Float &time,
+                                const UnderWaterSettings &water);
 
     static Float GetCaustics(const Point3f &p, const Vector3f &sunDir,
-                             const Float &tToSurface, const Float &time = 1.f);
+                             const Float &tToSurface, const UnderWaterSettings &water,
+                             const Float &time = 1.f);
 
-    // UnderwaterIntegrator Protected Members
+    // UnderwaterIntegrator Private Members
     int maxDepth;
     LightSampler lightSampler;
     bool regularize;
@@ -603,7 +612,7 @@ class UnderwaterIntegrator : public RayIntegrator {
     const Float volumeUniformDistance;
     const int volumeUniformSPP;
     const int volumeVariableSPP;
-    underWaterSettings water{};
+    UnderWaterSettings water{};
 };
 #endif // PBRT_WITH_UNDERWATER
 
