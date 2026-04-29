@@ -70,82 +70,79 @@ std::unique_ptr<UnderwaterIntegrator> UnderwaterIntegrator::Create(
     // Settings struct
     UnderWaterSettings settings;
     // Parser phase
+    // Policy: command line overrides the scene settings
     int maxDepth = parameters.GetOneInt("maxdepth", 5);
     std::string lightStrategy = parameters.GetOneString("lightsampler", "bvh");
     bool regularize = parameters.GetOneBool("regularize", false);
     // int rayMarchingStepsTemp = parameters.GetOneInt("raymarchingsteps", 16);
     Float volumeUniformDistance = parameters.GetOneFloat("volumeuniformdistance", 7.f);
-    settings.volume_uniform_distance =
+    settings.volumeUniformDistance =
         volumeUniformDistance < 0.f ? 7.f : volumeUniformDistance;
 
     int volumeUniformSPP = parameters.GetOneInt("volumeuniformspp", 16);
-    settings.volume_uniform_spp = volumeUniformSPP < 0 ? 16 : volumeUniformSPP;
+    settings.volumeUniformSPP = volumeUniformSPP < 0 ? 16 : volumeUniformSPP;
 
     int volumeVariableSPP = parameters.GetOneInt("volumevariablespp", 8);
-    settings.volume_variable_spp = volumeVariableSPP < 0 ? 8 : volumeVariableSPP;
-    // Floor
-    // Don't evaluates the floor reflectance in multiple scattering.
-    settings.disableFloorReflectanceInMS = parameters.GetOneBool("disablefloor", false);
-    // Don't evaluates the floor reflectance with bsdf in multiple scattering.
-    settings.disableFloorBsdfReflectanceInMS =
-        parameters.GetOneBool("disablefloorbsdf", false);
+    settings.volumeVariableSPP = volumeVariableSPP < 0 ? 8 : volumeVariableSPP;
 
     // Multiple Scattering
     // Don't evaluates the multiple scattering light contribution.
-    settings.disableMultipleScattering = parameters.GetOneBool("disablems", false);
-    // Evaluate only the multiple scattering. ??
-    if (settings.disableMultipleScattering)
-        settings.onlyMultipleScattering = false;
-    else
-        settings.onlyMultipleScattering = parameters.GetOneBool("enableonlyms", false);
+    settings.disableMultipleScattering = Options->disableMultipleScattering
+                                             ? true
+                                             : parameters.GetOneBool("disablems", false);
+    // Floor
+    // Don't evaluates the floor reflectance in multiple scattering.
+    settings.disableFloorReflectanceInMS =
+        settings.disableMultipleScattering ? true
+                                           : parameters.GetOneBool("disablefloor", false);
+    // Don't evaluates the floor reflectance with bsdf in multiple scattering.
+    settings.disableFloorBsdfReflectanceInMS =
+        settings.disableMultipleScattering
+            ? true
+            : parameters.GetOneBool("disablefloorbsdf", false);
 
     // Single Scattering
     // Don't evaluates the single scattering light based on the surface contribution.
     settings.disableSingleScatteringSurface =
-        parameters.GetOneBool("disablesurfss", false);
+        Options->disableSingleScatteringSurface
+            ? true
+            : parameters.GetOneBool("disablesssurface", false);
 
-    // Don't evaluates the single scattering light based on the uniform volume contribution
-    if (volumeUniformDistance == 0.f || volumeUniformSPP == 0)
+    // Don't evaluates the single scattering light contribution
+    settings.disableSingleScatteringVolume =
+        Options->disableSingleScatteringVolume
+            ? true
+            : parameters.GetOneBool("disablessvolume", false);
+
+    if (volumeUniformDistance == 0.f || volumeUniformSPP == 0 ||
+        settings.disableSingleScatteringVolume)
         settings.disableSingleScatteringVolumeUniform = true;
     else
         settings.disableSingleScatteringVolumeUniform =
-            parameters.GetOneBool("disablevolssuniform", false);
+            parameters.GetOneBool("disablessvolumeuniform", false);
 
     // Don't evaluates the single scattering light based on the volume contribution
-    if (volumeVariableSPP == 0) {
+    if (volumeVariableSPP == 0 || settings.disableSingleScatteringVolume) {
         settings.disableSingleScatteringVolumeVariable = true;
     } else {
         settings.disableSingleScatteringVolumeVariable =
-            parameters.GetOneBool("disablevolssvariable", false);
+            parameters.GetOneBool("disablessvolumevariable", false);
     }
-    // disable global SingleScatteringVolume based in Uniform and Variable state
-    if (settings.disableSingleScatteringVolumeUniform &&
-        settings.disableSingleScatteringVolumeVariable) {
-        settings.disableSingleScatteringVolume = true;
-    } else {
-        // Don't evaluates the single scattering light based on the volume contribution.
-        settings.disableSingleScatteringVolume =
-            parameters.GetOneBool("disablevolss", false);
-    }
-    // Evaluate light only using FastExp.
-    settings.fastExponentialOnly = parameters.GetOneBool("enablefastexp", false);
-
-    // Evaluates single scattering volume in all bounces of the ray.
-    if (settings.disableSingleScatteringVolume)
-        settings.singleScatteringVolumeAlways = false;
-    else
-        settings.singleScatteringVolumeAlways =
-            parameters.GetOneBool("enablevolssalways", false);
+    
+    // Evaluate light using only FastExp.
+    settings.fastExponentialOnly = Options->fastExponentialOnly
+                                       ? true
+                                       : parameters.GetOneBool("enablefastexp", false);
     // bounty: we expose some parameters here to make them user configurable
     // instead of using 'constexpr' fixed values.
-    // TO DO: investigate the most suitable values and reasonable limits for each
-    // parameter
+    // TO DO: investigate the most suitable values and reasonable limits.
     // Caustics:
     // Don't evaluates the direct light with the caustic shader.
-    settings.disableCaustics = parameters.GetOneBool("disablecaustics", false);
+    settings.disableCaustics =
+        Options->disableCaustics ? true : parameters.GetOneBool("disablecaustics", false);
     // If enabled, the time for the caustics in float; this will change their position.
     Float causticsTime = parameters.GetOneFloat("causticstime", 0.f);
-    settings.caustics_time = Clamp(causticsTime, 0.f, 1.f);
+    settings.causticsTime = Clamp(causticsTime, 0.f, 1.f);
     Float causticsFreq = parameters.GetOneFloat("causticsfreq", 1.2f);
     settings.causticsFreq = causticsFreq;
     Float causticsPower = parameters.GetOneFloat("causticspower", 9.0f);
@@ -463,26 +460,26 @@ SampledSpectrum UnderwaterIntegrator::Li(RayDifferential ray, SampledWavelengths
 
                 L += multipleScatteringL;
 
-                if (water.onlyMultipleScattering) {
+                if (water.disableSingleScatteringVolume)
                     break;
-                }
+                //if (water.onlyMultipleScattering) { break; }
             }
         }
 
         // =========================================================================
         // UNDER_WATER | VOLUMETRIC SINGLE SCATTERING (Ray Marching)
         // =========================================================================
-        if ((bounce == 0 || water.singleScatteringVolumeAlways) &&
-            !water.disableSingleScatteringVolume) {
+        // if ((bounce == 0 || water.singleScatteringVolumeAlways) && !water.disableSingleScatteringVolume)
+        if ((bounce == 0 && !water.disableSingleScatteringVolume)) {
             if (distance > 0) {
                 Float uniformStepSize = 0.f;
                 Float variableStepSize = 0.f;
 
-                if (volumeUniformSPP > 0) {
-                    uniformStepSize = volumeUniformDistance / volumeUniformSPP;
+                if (water.volumeUniformSPP > 0) {
+                    uniformStepSize = water.volumeUniformDistance / water.volumeUniformSPP;
                 }
-                if (volumeVariableSPP > 0) {
-                    variableStepSize = distance / volumeVariableSPP;
+                if (water.volumeVariableSPP > 0) {
+                    variableStepSize = distance / water.volumeVariableSPP;
                 }
 
                 Interaction newIntr;
@@ -524,11 +521,11 @@ SampledSpectrum UnderwaterIntegrator::Li(RayDifferential ray, SampledWavelengths
                 };
 
                 if (!water.disableSingleScatteringVolumeUniform) {
-                    volumeEvaluation(uniformStepSize, distance, volumeUniformSPP);
+                    volumeEvaluation(uniformStepSize, distance, water.volumeUniformSPP);
                 }
 
                 if (!water.disableSingleScatteringVolumeVariable) {
-                    volumeEvaluation(variableStepSize, distance, volumeVariableSPP);
+                    volumeEvaluation(variableStepSize, distance, water.volumeVariableSPP);
                 }
 
                 // int nRayMarchingSteps2 = 1000;
@@ -837,13 +834,12 @@ SampledSpectrum UnderwaterIntegrator::SampleLdUnderwater(
     } else {
         // Update _f_hat_ and _scatterPDF_ accounting for the phase function
         CHECK(intr.IsMediumInteraction());
-        // TODO-UNDER_WATER: Understand why this access to phase is corrupting the
-        // process...
-        PhaseFunction phase = intr.AsMedium().phase;
-        // f_hat = SampledSpectrum(phase.p(wo, wi));
-        f_hat = SampledSpectrum(Inv4Pi);
-        // scatterPDF = phase.PDF(wo, wi);
-        scatterPDF = Inv4Pi;
+        // bounty: Seems that now, this access to _phase_ is OK..
+        PhaseFunction phase = intr.AsMedium().phase; // set but unused in orig.
+        f_hat = SampledSpectrum(phase.p(wo, wi));    // commented in orig.
+        scatterPDF = phase.PDF(wo, wi);              // commented in orig.
+        // f_hat = SampledSpectrum(Inv4Pi);          // used in org.
+        // scatterPDF = Inv4Pi;                      // used in org.
     }
     if (!f_hat)
         return SampledSpectrum(0.f);
@@ -888,8 +884,8 @@ SampledSpectrum UnderwaterIntegrator::SampleLdUnderwater(
             intrDistToLight = waterDepth;
         }
         // Calculating caustics using already stored information.
-        causticIntensity =
-            GetCaustics(intr.p(), normalizedVecToSun, intrDistToLight, water, causticsTime);
+        causticIntensity = GetCaustics(intr.p(), normalizedVecToSun, intrDistToLight,
+                                       water);
     }
 
     // Separating the properties for greater clarity.
@@ -946,7 +942,7 @@ std::string UnderwaterIntegrator::ToString() const {
         lightSampler, regularize);
 }
 
-void UnderwaterIntegrator::settingWaterDepthAndMedium() {
+void UnderwaterIntegrator::SettingWaterDepthAndMedium() {
     Point3f pos = Point3f(0.f, 0.f, 0.f);
     Vector3f dir = Vector3f(0.f, 1.f, 0.f);
     Ray ray{pos, dir};
@@ -964,22 +960,22 @@ void UnderwaterIntegrator::settingWaterDepthAndMedium() {
             waterMedium = waterIntr.mediumInterface->inside;
             this->siWaterBoundary = *siWaterBoundary;
         } else {
-            ErrorExit("[ [ UnderwaterIntegrator ] Hit WaterBoundary but it has inside "
-                      "Medium different of the type \"underwaterhomogeneous\" (class "
-                      "UnderwaterHomogeneousMedium)! ]");
+            ErrorExit(
+                "[ UnderwaterIntegrator ]\n"
+                "[ Hit WaterBoundary but it has inside Medium different of the type"
+                " \"underwaterhomogeneous\" (class UnderwaterHomogeneousMedium)! ]");
         }
 
     } else {
         ErrorExit(
             "[ UnderwaterIntegrator ]\n"
             "[ The constructor of the UnderwaterIntegrator didn't discover the water "
-            "boundary material. ]\n"
-            "[ The ray with global origin in (0 0 0) and direction to (0 1 0) should "
-            "achieve a plymesh/Shape with material of the class WaterBounderyMaterial. "
-            "]\n"
-            "[ This plymesh/Shape should contain your MediumInterface with the inside "
-            "Medium of the type \"underwaterhomogeneous\" (outside is air: \"\"). ]\n"
-            "[ Your scene should have a large box containing \"waterboundary\" material "
+            "boundary material.\n"
+            "The ray with global origin in (0 0 0) and direction to (0 1 0) should "
+            "achieve a object with material of the class WaterBoundaryMaterial.\n"
+            "This object should contain your MediumInterface with the inside Medium "
+            "of the type \"underwaterhomogeneous\" (outside is air: \"\").\n"
+            "Your scene should have a large box containing \"waterboundary\" material "
             "that holds the entire scene. ]\n\n");
     }
 }
@@ -1188,13 +1184,13 @@ Float UnderwaterIntegrator::CausticPattern(const Point2f &p, const Float &time,
 
 Float UnderwaterIntegrator::GetCaustics(const Point3f &p, const Vector3f &sunDir,
                                         const Float &tToSurface,
-                                        const UnderWaterSettings &water,
-                                        const Float &time) {
+                                        const UnderWaterSettings &water) {
     // UNDER_WATER | ASSUMPTION: We assume tToSurface is valid (checked by the caller
     // logic) Calculate the point on the water surface
     Point3f pSurf = p + sunDir * tToSurface;
-    // bounty: moved here..
+
     Float Tau = 2 * Pi;
+    Float time = water.causticsTime;
     // Apply frequency scaling
     pSurf *= (0.11f * water.causticsFreq);
 
@@ -1210,14 +1206,15 @@ Float UnderwaterIntegrator::GetCaustics(const Point3f &p, const Vector3f &sunDir
     Point2f uv(uvX, uvY);
 
     // First layer
-    Float c = CausticPattern(uv, time * water.causticsSpeed, water);
+    Float speed = time * water.causticsSpeed;
+    Float c = CausticPattern(uv, speed, water);
 
     // Second layer (Simulating #if CAUSTICS > 1)
     Float uv2X = std::fmod(-0.4f * time + uvArg.x * 0.56f, Tau) - 250.0f;
     Float uv2Y = std::fmod(-0.7f * time + uvArg.y * 0.56f, Tau) - 250.0f;
     Point2f uv2(uv2X, uv2Y);
 
-    c += 1.1f * CausticPattern(uv2, time * water.causticsSpeed * 1.1f, water);
+    c += 1.1f * CausticPattern(uv2, speed * 1.1f, water);
 
     // Final power curve (Simulating #if CAUSTICS > 2)
     Float finalCaustic = c * water.causticsPower;

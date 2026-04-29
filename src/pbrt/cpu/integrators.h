@@ -499,36 +499,34 @@ class FunctionIntegrator : public Integrator {
 #if defined(PBRT_WITH_UNDERWATER)
 enum class ExponentialType { Fast, Classic };
 
+struct UnderWaterSettings {
+    bool disableFloorBsdfReflectanceInMS{false};
+    bool disableFloorReflectanceInMS{false};
+    bool disableMultipleScattering{false};
+    bool disableSingleScatteringSurface{false};
+    bool disableSingleScatteringVolume{false};
+    bool disableSingleScatteringVolumeUniform{false};
+    bool disableSingleScatteringVolumeVariable{false};
+    bool fastExponentialOnly{false};
+    bool timeStatistics{false};
+    bool disableCaustics{false};
+    // replace samplingVolume
+    Float volumeUniformDistance{7.0f};
+    int volumeUniformSPP{16};
+    int volumeVariableSPP{8};
+    Float causticsTime{0.0f};
+    int causticsIters{4};
+    // from constexpr..
+    Float causticsPower{9.0f};
+    Float causticsSpeed{1.1f};
+    Float causticsFreq{1.2f};     // spatial freq of caustics
+    Float Inten{0.005f};          // bounty: more descriptive name..?
+    Float ssCausticsMult{10.0f};  // 1.0f;
+};
+
 class UnderwaterIntegrator : public RayIntegrator {
   public:
     // UnderwaterIntegrator Public Methods
-    struct UnderWaterSettings {
-        bool disableFloorBsdfReflectanceInMS{false};
-        bool disableFloorReflectanceInMS{false};
-        bool disableMultipleScattering{false};
-        bool disableSingleScatteringSurface{false};
-        bool disableSingleScatteringVolume{false};
-        bool disableSingleScatteringVolumeUniform{false};
-        bool disableSingleScatteringVolumeVariable{false};
-        bool fastExponentialOnly{false};
-        bool onlyMultipleScattering{false};
-        bool singleScatteringVolumeAlways{false};
-        bool timeStatistics{false};
-        bool disableCaustics{false};
-        // replace samplingVolume
-        Float volume_uniform_distance{7.0f};
-        int volume_uniform_spp{16};
-        int volume_variable_spp{8};
-        Float caustics_time{0.0f};
-        int causticsIters{4};
-        // from constexpr..
-        Float causticsPower{9.0f};
-        Float causticsSpeed{1.1f};
-        Float causticsFreq{1.2f};     // spatial freq of caustics
-        Float Inten{0.005f};          // bounty: more descriptive name..?
-        Float ssCausticsMult{10.0f};  // 1.0f;
-    };
-
     UnderwaterIntegrator(int maxDepth, Camera camera, Sampler sampler,
                          Primitive aggregate, const UnderWaterSettings settings,
                          std::vector<Light> lights, Light sunLight = nullptr,
@@ -539,14 +537,10 @@ class UnderwaterIntegrator : public RayIntegrator {
           lightSampler(LightSampler::Create(lightSampleStrategy, lights, Allocator())),
           regularize(regularize),
           sun(sunLight),
-          volumeUniformDistance(settings.volume_uniform_distance),
-          volumeUniformSPP(settings.volume_uniform_spp),
-          volumeVariableSPP(settings.volume_variable_spp),
-          causticsTime(settings.caustics_time),
           water(settings) {
         LOG_VERBOSE("\n\nUnderwaterIntegrator created\n\n");
         SetOnePixelToRender();
-        settingWaterDepthAndMedium();
+        SettingWaterDepthAndMedium();
         LOG_VERBOSE("[ waterDepth: %f ]\n\n", waterDepth);
     };
 
@@ -569,7 +563,7 @@ class UnderwaterIntegrator : public RayIntegrator {
         Sampler sampler, SampledSpectrum beta, SampledSpectrum inv_w_u,
         const UnderwaterMediumProperties &mediumProperties) const;
 
-    void settingWaterDepthAndMedium();
+    void SettingWaterDepthAndMedium();
 
     pstd::optional<ShapeIntersection> IntersectWaterBoundary(Ray ray) const;
 
@@ -595,8 +589,7 @@ class UnderwaterIntegrator : public RayIntegrator {
                                 const UnderWaterSettings &water);
 
     static Float GetCaustics(const Point3f &p, const Vector3f &sunDir,
-                             const Float &tToSurface, const UnderWaterSettings &water,
-                             const Float &time = 1.f);
+                             const Float &tToSurface, const UnderWaterSettings &water);
 
     // UnderwaterIntegrator Private Members
     int maxDepth;
@@ -607,11 +600,6 @@ class UnderwaterIntegrator : public RayIntegrator {
     ShapeIntersection siWaterBoundary;
     bool onePixelToRender;
     Light sun;
-    Float causticsTime;
-
-    const Float volumeUniformDistance;
-    const int volumeUniformSPP;
-    const int volumeVariableSPP;
     UnderWaterSettings water{};
 };
 #endif // PBRT_WITH_UNDERWATER

@@ -54,22 +54,15 @@ struct PBRTOptions : BasicPBRTOptions {
     pstd::optional<Bounds2i> pixelBounds;
     pstd::optional<Point2i> pixelMaterial;
     Float displacementEdgeScale = 1;
-#if defined(PBRT_WITH_UNDERWATER) 
+#if defined(PBRT_WITH_UNDERWATER)
     pstd::optional<Float> causticsTime;
     bool disableCaustics = false;
-    bool disableFloorBsdfReflectanceInMS = false;
-    bool disableFloorReflectanceInMS = false;
     bool disableMultipleScattering = false;
     bool disableSingleScatteringSurface = false;
     bool disableSingleScatteringVolume = false;
-    bool disableSingleScatteringVolumeUniform = false;
-    bool disableSingleScatteringVolumeVariable = false;
     bool fastExponentialOnly = false;
-    bool onlyMultipleScattering = false;
-    pstd::optional<Point3f> samplingVolume;
-    bool singleScatteringVolumeAlways = false;
     bool timeStatistics = false;
-#endif // PBRT_WITH_UNDERWATER
+#endif
 
     std::string ToString() const;
 };
