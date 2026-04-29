@@ -75,6 +75,32 @@ std::unique_ptr<UnderwaterIntegrator> UnderwaterIntegrator::Create(
     std::string lightStrategy = parameters.GetOneString("lightsampler", "bvh");
     bool regularize = parameters.GetOneBool("regularize", false);
     // int rayMarchingStepsTemp = parameters.GetOneInt("raymarchingsteps", 16);
+
+    // Multiple Scattering
+    // Don't evaluates the multiple scattering light contribution.
+    bool disableMS = parameters.GetOneBool("disablems", false);
+    settings.disableMultipleScattering =
+        Options->disableMultipleScattering ? true : disableMS;
+    // Floor
+    // Don't evaluates the floor reflectance in multiple scattering.
+    bool disableFloor = parameters.GetOneBool("disablefloor", false);
+    settings.disableFloorReflectanceInMS =
+        settings.disableMultipleScattering ? true : disableFloor;
+    // Don't evaluates the floor reflectance with bsdf in multiple scattering.
+    bool disableFloorBsdf = parameters.GetOneBool("disablefloorbsdf", false);
+    settings.disableFloorBsdfReflectanceInMS = disableMS ? true : disableFloorBsdf;
+
+    // Single Scattering
+    // Don't evaluates the single scattering light based on the surface contribution.
+    bool disableSSSurface = parameters.GetOneBool("disablesssurface", false);
+    settings.disableSingleScatteringSurface =
+        Options->disableSingleScatteringSurface ? true : disableSSSurface;
+
+    // Don't evaluates the single scattering light contribution
+    bool disableSSVolume = parameters.GetOneBool("disablessvolume", false);
+    settings.disableSingleScatteringVolume =
+        Options->disableSingleScatteringVolume ? true : disableSSVolume;
+
     Float volumeUniformDistance = parameters.GetOneFloat("volumeuniformdistance", 7.f);
     settings.volumeUniformDistance =
         volumeUniformDistance < 0.f ? 7.f : volumeUniformDistance;
@@ -84,70 +110,37 @@ std::unique_ptr<UnderwaterIntegrator> UnderwaterIntegrator::Create(
 
     int volumeVariableSPP = parameters.GetOneInt("volumevariablespp", 8);
     settings.volumeVariableSPP = volumeVariableSPP < 0 ? 8 : volumeVariableSPP;
-
-    // Multiple Scattering
-    // Don't evaluates the multiple scattering light contribution.
-    settings.disableMultipleScattering = Options->disableMultipleScattering
-                                             ? true
-                                             : parameters.GetOneBool("disablems", false);
-    // Floor
-    // Don't evaluates the floor reflectance in multiple scattering.
-    settings.disableFloorReflectanceInMS =
-        settings.disableMultipleScattering ? true
-                                           : parameters.GetOneBool("disablefloor", false);
-    // Don't evaluates the floor reflectance with bsdf in multiple scattering.
-    settings.disableFloorBsdfReflectanceInMS =
-        settings.disableMultipleScattering
-            ? true
-            : parameters.GetOneBool("disablefloorbsdf", false);
-
-    // Single Scattering
-    // Don't evaluates the single scattering light based on the surface contribution.
-    settings.disableSingleScatteringSurface =
-        Options->disableSingleScatteringSurface
-            ? true
-            : parameters.GetOneBool("disablesssurface", false);
-
-    // Don't evaluates the single scattering light contribution
-    settings.disableSingleScatteringVolume =
-        Options->disableSingleScatteringVolume
-            ? true
-            : parameters.GetOneBool("disablessvolume", false);
-
-    if (volumeUniformDistance == 0.f || volumeUniformSPP == 0 ||
+    //
+    bool disableSSVolumeUniform = parameters.GetOneBool("disablessvolumeuniform", false);
+    if (settings.volumeUniformDistance == 0.f || settings.volumeUniformSPP == 0 ||
         settings.disableSingleScatteringVolume)
-        settings.disableSingleScatteringVolumeUniform = true;
-    else
-        settings.disableSingleScatteringVolumeUniform =
-            parameters.GetOneBool("disablessvolumeuniform", false);
+        disableSSVolumeUniform = true;
+    settings.disableSingleScatteringVolumeUniform = disableSSVolumeUniform;
 
     // Don't evaluates the single scattering light based on the volume contribution
-    if (volumeVariableSPP == 0 || settings.disableSingleScatteringVolume) {
-        settings.disableSingleScatteringVolumeVariable = true;
-    } else {
-        settings.disableSingleScatteringVolumeVariable =
-            parameters.GetOneBool("disablessvolumevariable", false);
-    }
-    
+    bool disableSSVolumeVariable = parameters.GetOneBool("disablessvolumevariable", false);
+    if (settings.volumeVariableSPP == 0 || settings.disableSingleScatteringVolume)
+        disableSSVolumeVariable = true;
+    settings.disableSingleScatteringVolumeVariable = disableSSVolumeVariable;
+
     // Evaluate light using only FastExp.
-    settings.fastExponentialOnly = Options->fastExponentialOnly
-                                       ? true
-                                       : parameters.GetOneBool("enablefastexp", false);
+    bool fastExp = parameters.GetOneBool("enablefastexp", false);
+    settings.fastExponentialOnly = Options->fastExponentialOnly ? true : fastExp;
     // bounty: we expose some parameters here to make them user configurable
     // instead of using 'constexpr' fixed values.
     // TO DO: investigate the most suitable values and reasonable limits.
     // Caustics:
     // Don't evaluates the direct light with the caustic shader.
-    settings.disableCaustics =
-        Options->disableCaustics ? true : parameters.GetOneBool("disablecaustics", false);
+    bool disableCaustics = parameters.GetOneBool("disablecaustics", false);
+    settings.disableCaustics = Options->disableCaustics ? true : disableCaustics;
     // If enabled, the time for the caustics in float; this will change their position.
     Float causticsTime = parameters.GetOneFloat("causticstime", 0.f);
-    settings.causticsTime = Clamp(causticsTime, 0.f, 1.f);
+    settings.causticsTime = Clamp(causticsTime, 0.f, 10.f);
     Float causticsFreq = parameters.GetOneFloat("causticsfreq", 1.2f);
     settings.causticsFreq = causticsFreq;
     Float causticsPower = parameters.GetOneFloat("causticspower", 9.0f);
     settings.causticsPower = Clamp(causticsPower, 1.f, 30.f);
-    
+
     // Sun selection phase
     std::vector<Light> lightsExceptSun = lights;
     Light sunLight = nullptr;
@@ -835,9 +828,9 @@ SampledSpectrum UnderwaterIntegrator::SampleLdUnderwater(
         // Update _f_hat_ and _scatterPDF_ accounting for the phase function
         CHECK(intr.IsMediumInteraction());
         // bounty: Seems that now, this access to _phase_ is OK..
-        PhaseFunction phase = intr.AsMedium().phase; // set but unused in orig.
-        f_hat = SampledSpectrum(phase.p(wo, wi));    // commented in orig.
-        scatterPDF = phase.PDF(wo, wi);              // commented in orig.
+        PhaseFunction phase = intr.AsMedium().phase;  // set but unused in orig.
+        f_hat = SampledSpectrum(phase.p(wo, wi));     // commented in orig.
+        scatterPDF = phase.PDF(wo, wi);               // commented in orig.
         // f_hat = SampledSpectrum(Inv4Pi);          // used in org.
         // scatterPDF = Inv4Pi;                      // used in org.
     }
@@ -884,8 +877,8 @@ SampledSpectrum UnderwaterIntegrator::SampleLdUnderwater(
             intrDistToLight = waterDepth;
         }
         // Calculating caustics using already stored information.
-        causticIntensity = GetCaustics(intr.p(), normalizedVecToSun, intrDistToLight,
-                                       water);
+        causticIntensity =
+            GetCaustics(intr.p(), normalizedVecToSun, intrDistToLight, water);
     }
 
     // Separating the properties for greater clarity.
@@ -1024,7 +1017,7 @@ pstd::optional<LightLiSample> UnderwaterIntegrator::GetSunProps(
         Point2f uLight = Point2f(5.f, 5.f);
         pstd::optional<LightLiSample> ls = sun.SampleLi(ctx, uLight, lambda, true);
         if (ls && ls->L) {
-            // TODO-UNDER_WATER: Multiply it by Inv4Pi turn it so`small in the other
+            // TODO-UNDER_WATER: Multiply it by Inv4Pi turn it so small in the other
             // method? Verify after.
             sunIrradiance = ls->L;  // * Inv4Pi;
             dirToSun = Normalize(ls->pLight.p() - ctx.p());
