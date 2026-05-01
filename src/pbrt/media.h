@@ -298,13 +298,18 @@ class UnderwaterHomogeneousMedium {
 
     PBRT_CPU_GPU
     MediumProperties SamplePoint(Point3f p, const SampledWavelengths &lambda) const {
-        return MediumProperties{};
+        SampledSpectrum sigma_a = sigma_a_spec.Sample(lambda);
+        SampledSpectrum sigma_s = sigma_s_spec.Sample(lambda);
+        SampledSpectrum Le = Le_spec.Sample(lambda);
+        return MediumProperties{sigma_a, sigma_s, &phase, Le};
     }
 
     PBRT_CPU_GPU
     HomogeneousMajorantIterator SampleRay(Ray ray, Float tMax,
                                           const SampledWavelengths &lambda) const {
-        return HomogeneousMajorantIterator{};
+        SampledSpectrum sigma_a = sigma_a_spec.Sample(lambda);
+        SampledSpectrum sigma_s = sigma_s_spec.Sample(lambda);
+        return HomogeneousMajorantIterator(0, tMax, sigma_a + sigma_s);
     }
 
     static UnderwaterHomogeneousMedium *Create(const ParameterDictionary &parameters,
@@ -320,8 +325,7 @@ class UnderwaterHomogeneousMedium {
         SampledSpectrum sigma_t = sigma_a + sigma_s;
         SampledSpectrum kd = kd_spec.Sample(lambda);
         SampledSpectrum Le = Le_spec.Sample(lambda);
-        return UnderwaterMediumProperties{
-            sigma_a, sigma_s, sigma_t, kd, phase, Le};
+        return UnderwaterMediumProperties{sigma_a, sigma_s, sigma_t, kd, phase, Le};
     }
 
     PBRT_CPU_GPU inline Float GetGAsymmetryParam() const {
