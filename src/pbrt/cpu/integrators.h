@@ -508,20 +508,20 @@ struct UnderWaterSettings {
     bool disableSingleScatteringVolumeUniform{false};
     bool disableSingleScatteringVolumeVariable{false};
     bool fastExponentialOnly{false};
-    bool timeStatistics{false};
+    bool timeStatistics{false};  // to remove.. and use pbrt statistics?
     bool disableCaustics{false};
     // replace samplingVolume
     Float volumeUniformDistance{7.0f};
     int volumeUniformSPP{16};
     int volumeVariableSPP{8};
     Float causticsTime{0.0f};
-    int causticsIters{4};
+    int causticsIterations{4};
     // from constexpr..
     Float causticsPower{9.0f};
-    Float causticsSpeed{1.1f};
-    Float causticsFreq{1.2f};     // spatial freq of caustics
-    Float Inten{0.005f};          // bounty: more descriptive name..?
-    Float ssCausticsMult{10.0f};  // 1.0f;
+    Float causticsSpeed{1.1f};        // still don't exposed..
+    Float causticsFrequency{1.2f};    // spatial freq of caustics
+    Float Intensity{0.005f};          // intensity..?
+    Float ssCausticsMultiply{10.0f};  // 1.0f;
 };
 
 class UnderwaterIntegrator : public RayIntegrator {
