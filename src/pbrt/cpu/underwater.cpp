@@ -448,7 +448,8 @@ SampledSpectrum UnderwaterIntegrator::Li(RayDifferential ray, SampledWavelengths
                 // SurfaceInteraction *intrGround = nullptr;
                 BSDF bsdfGround;
                 BSDF *bsdfGroundPointer = nullptr;
-                if (siGround && !siGround->intr.material.Is<ThinDielectricMaterial>()) {
+                if (siGround && !(siGround->intr.material.Is<ThinDielectricMaterial>() ||
+                                  siGround->intr.material.Is<DielectricMaterial>())) {
                     // intrGround = &siGround->intr;
                     // if (/*!intrGround->*/ ) {
                     bsdfGround = siGround->intr.GetBSDF(rayToGround, lambda, camera,
@@ -594,7 +595,8 @@ SampledSpectrum UnderwaterIntegrator::Li(RayDifferential ray, SampledWavelengths
 
         // && !Options->disableSingleScatteringSurface
         // UNDER_WATER | ASSUMPTION: No one object beyond the boundary (e.g.: birds).
-        if (isect.material.Is<ThinDielectricMaterial>()) {
+        if (isect.material && (isect.material.Is<ThinDielectricMaterial>() ||
+                               isect.material.Is<DielectricMaterial>())) {
             // Accumulate contributions from infinite light sources
             for (const auto &light : infiniteLights) {
                 if (SampledSpectrum Le = light.Le(ray, lambda); Le) {
@@ -856,7 +858,9 @@ SampledSpectrum UnderwaterIntegrator::SampleLdUnderwater(
         pstd::optional<ShapeIntersection> si = Intersect(lightRay, 1 - ShadowEpsilon);
 
         // Handle opaque surface along ray's path
-        if (si && si->intr.material && !si->intr.material.Is<ThinDielectricMaterial>()) {
+        if (si && si->intr.material &&
+            !(si->intr.material.Is<ThinDielectricMaterial>() ||
+              si->intr.material.Is<DielectricMaterial>())) {
             return SampledSpectrum(0.f);
         }
 
@@ -991,7 +995,8 @@ pstd::optional<ShapeIntersection> UnderwaterIntegrator::IntersectWaterBoundary(
             return {};
 
         const SurfaceInteraction &intr = si->intr;
-        if (intr.material && intr.material.Is<ThinDielectricMaterial>()) {
+        if (intr.material && (intr.material.Is<ThinDielectricMaterial>() ||
+                              intr.material.Is<DielectricMaterial>())) {
             ShapeIntersection siCopy = *si;
             return siCopy;
         }
