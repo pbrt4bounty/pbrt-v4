@@ -32,7 +32,6 @@ class ThinDielectricMaterial;
 class MixMaterial;
 
 #if defined(PBRT_WITH_UNDERWATER)
-class WaterBoundaryMaterial;
 class WaterSurfaceMaterial;
 #endif
 
@@ -44,7 +43,7 @@ class Material
           MeasuredMaterial, SubsurfaceMaterial, ThinDielectricMaterial, MixMaterial
 #if defined(PBRT_WITH_UNDERWATER)
           ,
-          WaterBoundaryMaterial, WaterSurfaceMaterial
+          WaterSurfaceMaterial
 #endif
           > {
   public:

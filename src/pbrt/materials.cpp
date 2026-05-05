@@ -682,8 +682,6 @@ Material Material::Create(const std::string &name,
         material = MixMaterial::Create(materials, parameters, loc, alloc);
     }
 #if defined(PBRT_WITH_UNDERWATER)
-    else if (name == "waterboundary")
-        material = WaterBoundaryMaterial::Create(parameters, normalMap, loc, alloc);
     else if (name == "watersurface")
         material = WaterSurfaceMaterial::Create(parameters, normalMap, loc, alloc);
 #endif
@@ -698,31 +696,4 @@ Material Material::Create(const std::string &name,
     return material;
 }
 
-#if defined(PBRT_WITH_UNDERWATER)
-// WaterBoundaryMaterial Method Definitions
-std::string WaterBoundaryMaterial::ToString() const {
-    return StringPrintf(
-        "[ WaterBoundaryMaterial displacement: %s normalMap: %s eta: %s ]", displacement,
-        normalMap ? normalMap->ToString() : std::string("(nullptr)"), eta);
-}
-
-WaterBoundaryMaterial *WaterBoundaryMaterial::Create(
-    const TextureParameterDictionary &parameters, Image *normalMap, const FileLoc *loc,
-    Allocator alloc) {
-    // bounty: test to expose _eta_ parameter
-    Spectrum eta;
-    if (!parameters.GetFloatArray("eta").empty())
-        eta = alloc.new_object<ConstantSpectrum>(parameters.GetFloatArray("eta")[0]);
-    else
-        eta = parameters.GetOneSpectrum("eta", nullptr, SpectrumType::Unbounded, alloc);
-    if (!eta)
-        eta = alloc.new_object<ConstantSpectrum>(1.f);
-    // end
-    //Spectrum eta = alloc.new_object<ConstantSpectrum>(1.f);
-
-    FloatTexture displacement = parameters.GetFloatTextureOrNull("displacement", alloc);
-
-    return alloc.new_object<WaterBoundaryMaterial>(eta, displacement, normalMap);
-}
-#endif
 }  // namespace pbrt

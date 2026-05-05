@@ -261,11 +261,7 @@ class ThinDielectricMaterial {
 
     std::string ToString() const;
 
-#if !defined(PBRT_WITH_UNDERWATER)
   private:
-#else
-  protected:
-#endif
     // ThinDielectricMaterial Private Data
     FloatTexture displacement;
     Image *normalMap;
@@ -896,22 +892,6 @@ class MeasuredMaterial {
 };
 
 #if defined(PBRT_WITH_UNDERWATER)
-
-// WaterBoundaryMaterial Definition
-class WaterBoundaryMaterial : public ThinDielectricMaterial {
-    public:
-        WaterBoundaryMaterial(Spectrum eta, FloatTexture displacement, Image *normalMap)
-            : ThinDielectricMaterial(eta, displacement, normalMap) {}
-
-        static const char *Name() { return "WaterBoundaryMaterial"; }
-
-        static WaterBoundaryMaterial *Create(const TextureParameterDictionary &parameters,
-                                  Image *normalMap, const FileLoc *loc,
-                                  Allocator alloc);
-
-        std::string ToString() const;
-};
-
 // WaterSurfaceMaterial Definition
 // Class not yet used
 class WaterSurfaceMaterial {
