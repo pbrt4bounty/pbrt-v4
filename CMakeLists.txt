@@ -26,7 +26,7 @@ option (PBRT_DBG_LOGGING "Enable (very verbose!) debug logging" OFF)
 option (PBRT_NVTX "Insert NVTX annotations for NVIDIA Profiling and Debugging Tools" OFF)
 option (PBRT_NVML "Use NVML for GPU performance measurement" OFF)
 option (PBRT_USE_PREGENERATED_RGB_TO_SPECTRUM_TABLES "Use pregenerated rgbspectrum_*.cpp files rather than running rgb2spec_opt to generate them at build time" OFF)
-set (PBRT_OPTIX7_PATH $ENV{PBRT_OPTIX7_PATH} CACHE PATH "Path to OptiX 7 SDK")
+set (PBRT_OPTIX_PATH $ENV{PBRT_OPTIX_PATH} CACHE PATH "Path to OptiX 7 SDK")
 set (PBRT_GPU_SHADER_MODEL "" CACHE STRING "")
 set (PBRT_CUDA_TOOL_KIT "" CACHE STRING "")
 
@@ -205,6 +205,7 @@ add_library (pbrt_warnings INTERFACE)
 target_compile_options (
     pbrt_warnings
     INTERFACE
+        "$<$<CXX_COMPILER_ID:MSVC>:$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcompiler >/Zc:preprocessor>"
         "$<$<CXX_COMPILER_ID:MSVC>:$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcompiler >/wd4244>" # int -> float conversion
         "$<$<CXX_COMPILER_ID:MSVC>:$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcompiler >/wd4267>" # size_t -> int conversion
         "$<$<CXX_COMPILER_ID:MSVC>:$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcompiler >/wd4305>" # double constant assigned to float
@@ -268,8 +269,8 @@ if (CMAKE_CUDA_COMPILER)
       message (SEND_ERROR "Unfortunately, pbrt-v4 triggers an internal compiler error in CUDA 11.3.0. Please either use CUDA 11.0-11.2 or 11.3.1 or later.")
     endif ()
 
-    if ("${PBRT_OPTIX7_PATH}" STREQUAL "")
-        message (WARNING "Found CUDA but PBRT_OPTIX7_PATH is not set. Disabling GPU compilation.")
+    if ("${PBRT_OPTIX_PATH}" STREQUAL "")
+        message (WARNING "Found CUDA but PBRT_OPTIX_PATH is not set. Disabling GPU compilation.")
     else ()
         enable_language (CUDA)
         list (APPEND PBRT_DEFINITIONS "PBRT_BUILD_GPU_RENDERER")
@@ -296,7 +297,7 @@ if (CMAKE_CUDA_COMPILER)
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=186>" # pointless comparison of unsigned integer with zero
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=550>" # variable was set but never used
                 # WAR invalid warnings about this with "if constexpr"
-                "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=20011>" # calling a __host__ function is not allowed
+                #"$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=20011>" # calling a __host__ function is not allowed
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=20014>" # calling a __host__ function from a __host__ __device__ function is not allowed
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=implicit_return_from_non_void_function>"
         )
@@ -348,7 +349,7 @@ if (CMAKE_CUDA_COMPILER)
         set (PBRT_CUDA_LIB cuda)
         # optix
         # FIXME
-        include_directories (${PBRT_OPTIX7_PATH}/include)
+        include_directories (${PBRT_OPTIX_PATH}/include)
 
         # find CUDA's bin2c executable
         get_filename_component (cuda_compiler_bin "${CMAKE_CUDA_COMPILER}" DIRECTORY)
@@ -962,8 +963,8 @@ target_include_directories (pbrt_lib PUBLIC
   ${GLAD_INCLUDE}
 )
 
-if (PBRT_CUDA_ENABLED AND PBRT_OPTIX7_PATH)
-    target_include_directories (pbrt_lib SYSTEM PUBLIC ${PBRT_OPTIX7_PATH}/include)
+if (PBRT_CUDA_ENABLED AND PBRT_OPTIX_PATH)
+    target_include_directories (pbrt_lib SYSTEM PUBLIC ${PBRT_OPTIX_PATH}/include)
 endif ()
 
 target_compile_options (pbrt_lib PUBLIC ${PBRT_CXX_FLAGS})
