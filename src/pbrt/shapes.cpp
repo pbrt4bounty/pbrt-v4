@@ -162,7 +162,7 @@ void Triangle::Init(Allocator alloc) {
 #if defined(PBRT_BUILD_GPU_RENDERER)
     if (Options->useGPU)
         CUDA_CHECK(cudaMemcpyToSymbol((const void *)&allTriangleMeshesGPU,
-                                      (const void *)&allMeshes, sizeof(allMeshes)));
+                                     (const void *)&allMeshes, sizeof(allMeshes)));
 #endif
 }
 
@@ -748,7 +748,7 @@ PBRT_CPU_GPU Float Curve::PDF(const Interaction &) const {
 }
 
 PBRT_CPU_GPU pstd::optional<ShapeSample> Curve::Sample(const ShapeSampleContext &ctx,
-                                                       Point2f u) const {
+                                          Point2f u) const {
     LOG_FATAL("Curve::Sample not implemented.");
     return {};
 }
@@ -1133,7 +1133,7 @@ PBRT_CPU_GPU DirectionCone BilinearPatch::NormalBounds() const {
 
     // Compute average normal and return normal bounds for patch
     Vector3f n = Normalize(n00 + n10 + n01 + n11);
-    Float cosTheta = std::min({Dot(n, n00), Dot(n, n01), Dot(n, n10), Dot(n, n11)});
+    Float cosTheta = std::min(std::min(Dot(n, n00), Dot(n, n01)), std::min(Dot(n, n10), Dot(n, n11)));
     return DirectionCone(n, Clamp(cosTheta, -1, 1));
 }
 

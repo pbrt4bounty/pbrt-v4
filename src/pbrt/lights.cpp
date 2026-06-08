@@ -385,8 +385,9 @@ pstd::optional<LightBounds> ProjectionLight::Bounds() const {
     Float sum = 0;
     for (int v = 0; v < image.Resolution().y; ++v)
         for (int u = 0; u < image.Resolution().x; ++u)
-            sum += std::max({image.GetChannel({u, v}, 0), image.GetChannel({u, v}, 1),
-                             image.GetChannel({u, v}, 2)});
+            sum += std::max(image.GetChannel({u, v}, 0),
+                            std::max(image.GetChannel({u, v}, 1),
+                                     image.GetChannel({u, v}, 2)));
     Float phi = scale * sum / (image.Resolution().x * image.Resolution().y);
 
     Point3f pCorner(screenBounds.pMax.x, screenBounds.pMax.y, 0);
@@ -761,7 +762,7 @@ PBRT_CPU_GPU pstd::optional<LightLiSample> DiffuseAreaLight::SampleLi(LightSampl
 }
 
 PBRT_CPU_GPU Float DiffuseAreaLight::PDF_Li(LightSampleContext ctx, Vector3f wi,
-                                            bool allowIncompletePDF) const {
+                               bool allowIncompletePDF) const {
     ShapeSampleContext shapeCtx(ctx.pi, ctx.n, ctx.ns, 0 /* time */);
     return shape.PDF(shapeCtx, wi);
 }
@@ -901,11 +902,11 @@ DiffuseAreaLight *DiffuseAreaLight::Create(const Transform &renderFromLight,
                     loc,
                     "%s: image has not-a-number pixel values and so is not suitable as "
                     "a light.",
-                    filename);
+                      filename);
 
-            ImageChannelDesc channelDesc = im.image.GetChannelDesc({"R", "G", "B"});
-            if (!channelDesc)
-                ErrorExit(loc,
+        ImageChannelDesc channelDesc = im.image.GetChannelDesc({"R", "G", "B"});
+        if (!channelDesc)
+            ErrorExit(loc,
                           "%s: Image provided to \"diffuse\" area light must have "
                           "R, G, and B channels.",
                           filename);
@@ -986,7 +987,7 @@ PBRT_CPU_GPU pstd::optional<LightLiSample> UniformInfiniteLight::SampleLi(
 }
 
 PBRT_CPU_GPU Float UniformInfiniteLight::PDF_Li(LightSampleContext ctx, Vector3f w,
-                                                bool allowIncompletePDF) const {
+                                   bool allowIncompletePDF) const {
     if (allowIncompletePDF)
         return 0;
     return UniformSpherePDF();
@@ -1061,7 +1062,7 @@ ImageInfiniteLight::ImageInfiniteLight(Transform renderFromLight, Image im,
 }
 
 PBRT_CPU_GPU Float ImageInfiniteLight::PDF_Li(LightSampleContext ctx, Vector3f w,
-                                              bool allowIncompletePDF) const {
+                                 bool allowIncompletePDF) const {
     Vector3f wLight = renderFromLight.ApplyInverse(w);
     Point2f uv = EqualAreaSphereToSquare(wLight);
     Float pdf = 0;
@@ -1271,7 +1272,7 @@ PBRT_CPU_GPU pstd::optional<LightLiSample> PortalImageInfiniteLight::SampleLi(
 }
 
 PBRT_CPU_GPU Float PortalImageInfiniteLight::PDF_Li(LightSampleContext ctx, Vector3f w,
-                                                    bool allowIncompletePDF) const {
+                                       bool allowIncompletePDF) const {
     // Find image $(u,v)$ coordinates corresponding to direction _w_
     Float duv_dw;
     pstd::optional<Point2f> uv = ImageFromRender(w, &duv_dw);
@@ -1332,7 +1333,7 @@ PBRT_CPU_GPU pstd::optional<LightLeSample> PortalImageInfiniteLight::SampleLe(
 }
 
 PBRT_CPU_GPU void PortalImageInfiniteLight::PDF_Le(const Ray &ray, Float *pdfPos,
-                                                   Float *pdfDir) const {
+                                      Float *pdfDir) const {
     // TODO: negate here or???
     Vector3f w = -Normalize(ray.d);
     Float duv_dw;
@@ -1401,8 +1402,8 @@ pstd::optional<LightBounds> SpotLight::Bounds() const {
 }
 
 PBRT_CPU_GPU pstd::optional<LightLeSample> SpotLight::SampleLe(Point2f u1, Point2f u2,
-                                                               SampledWavelengths &lambda,
-                                                               Float time) const {
+                                                  SampledWavelengths &lambda,
+                                                  Float time) const {
     // Choose whether to sample spotlight center cone or falloff region
     Float p[2] = {1 - cosFalloffStart, (cosFalloffStart - cosFalloffEnd) / 2};
     Float sectionPDF;
@@ -1495,8 +1496,8 @@ void Light::Preprocess(const Bounds3f &sceneBounds) {
 }
 
 PBRT_CPU_GPU pstd::optional<LightLeSample> Light::SampleLe(Point2f u1, Point2f u2,
-                                                           SampledWavelengths &lambda,
-                                                           Float time) const {
+                                              SampledWavelengths &lambda,
+                                              Float time) const {
     auto sample = [&](auto ptr) { return ptr->SampleLe(u1, u2, lambda, time); };
     return Dispatch(sample);
 }
@@ -1520,7 +1521,7 @@ std::string Light::ToString() const {
 }
 
 PBRT_CPU_GPU void Light::PDF_Le(const Interaction &intr, Vector3f w, Float *pdfPos,
-                                Float *pdfDir) const {
+                   Float *pdfDir) const {
     auto pdf = [&](auto ptr) { return ptr->PDF_Le(intr, w, pdfPos, pdfDir); };
     return Dispatch(pdf);
 }
