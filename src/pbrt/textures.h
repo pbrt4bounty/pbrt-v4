@@ -282,6 +282,30 @@ class FloatConstantTexture {
     Float value;
 };
 
+#if defined(PBRT_WITH_OSL)
+struct OSLTextureState; 
+
+class OSLFloatTexture {
+  public:
+    OSLFloatTexture() = default; 
+    OSLFloatTexture(const std::string &shaderName, const TextureParameterDictionary &parameters);
+
+    PBRT_CPU_GPU
+    Float Evaluate(TextureEvalContext ctx) const
+
+#if defined(__CUDA_ARCH__)
+    { return 0.f; }
+#else
+    ;
+#endif
+
+    std::string ToString() const; 
+
+  private:
+    OSLTextureState *state = nullptr;
+};
+#endif
+
 // SpectrumConstantTexture Definition
 class SpectrumConstantTexture {
   public:
@@ -302,6 +326,29 @@ class SpectrumConstantTexture {
   private:
     Spectrum value;
 };
+
+#if defined(PBRT_WITH_OSL)
+class OSLSpectrumTexture {
+  public:
+    OSLSpectrumTexture() = default;
+    OSLSpectrumTexture(const std::string &shaderName, const TextureParameterDictionary &parameters, SpectrumType spectrumType);
+
+    PBRT_CPU_GPU
+    SampledSpectrum Evaluate(TextureEvalContext ctx, SampledWavelengths lambda) const
+
+#if defined(__CUDA_ARCH__)
+    { return SampledSpectrum(0.f); }
+#else
+    ;
+#endif
+
+    std::string ToString() const;
+
+  private:
+    OSLTextureState *state = nullptr;
+    SpectrumType spectrumType;
+};
+#endif
 
 // FloatBilerpTexture Definition
 class FloatBilerpTexture {
@@ -1164,13 +1211,21 @@ class BasicTextureEvaluator {
         // Return _false_ if any _FloatTexture_s cannot be evaluated
         for (FloatTexture f : ftex)
             if (f && !f.Is<FloatConstantTexture>() && !f.Is<FloatImageTexture>() &&
-                !f.Is<GPUFloatPtexTexture>() && !f.Is<GPUFloatImageTexture>())
+                !f.Is<GPUFloatPtexTexture>() && !f.Is<GPUFloatImageTexture>()
+#if defined(PBRT_WITH_OSL)
+                && !f.Is<OSLFloatTexture>()
+#endif
+            )
                 return false;
 
         // Return _false_ if any _SpectrumTexture_s cannot be evaluated
         for (SpectrumTexture s : stex)
             if (s && !s.Is<SpectrumConstantTexture>() && !s.Is<SpectrumImageTexture>() &&
-                !s.Is<GPUSpectrumPtexTexture>() && !s.Is<GPUSpectrumImageTexture>())
+                !s.Is<GPUSpectrumPtexTexture>() && !s.Is<GPUSpectrumImageTexture>()
+#if defined(PBRT_WITH_OSL)
+                && !s.Is<OSLSpectrumTexture>()
+#endif
+            )
                 return false;
 
         return true;
@@ -1186,6 +1241,10 @@ class BasicTextureEvaluator {
             return tex.Cast<GPUFloatImageTexture>()->Evaluate(ctx);
         else if (tex.Is<GPUFloatPtexTexture>())
             return tex.Cast<GPUFloatPtexTexture>()->Evaluate(ctx);
+#if defined(PBRT_WITH_OSL)
+        else if (tex.Is<OSLFloatTexture>())
+            return tex.Cast<OSLFloatTexture>()->Evaluate(ctx);
+#endif
         else {
             if (tex)
                 LOG_FATAL("BasicTextureEvaluator::operator() called with %s", tex);
@@ -1204,6 +1263,10 @@ class BasicTextureEvaluator {
             return tex.Cast<GPUSpectrumImageTexture>()->Evaluate(ctx, lambda);
         else if (tex.Is<GPUSpectrumPtexTexture>())
             return tex.Cast<GPUSpectrumPtexTexture>()->Evaluate(ctx, lambda);
+#if defined(PBRT_WITH_OSL)
+        else if (tex.Is<OSLSpectrumTexture>())
+            return tex.Cast<OSLSpectrumTexture>()->Evaluate(ctx, lambda);
+#endif
         else {
             if (tex)
                 LOG_FATAL("BasicTextureEvaluator::operator() called with %s", tex);

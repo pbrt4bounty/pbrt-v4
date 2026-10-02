@@ -830,6 +830,9 @@ class Quaternion {
     Quaternion() = default;
 
     PBRT_CPU_GPU
+    Quaternion(Vector3f v, Float w) : v(v), w(w) {}
+
+    PBRT_CPU_GPU
     Quaternion &operator+=(Quaternion q) {
         v += q.v;
         w += q.w;

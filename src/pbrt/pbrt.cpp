@@ -34,6 +34,10 @@
 #endif  // PBRT_IS_WINDOWS
 
 namespace pbrt {
+#if defined(PBRT_WITH_OSL)
+void InitOSL();
+void CleanupOSL();
+#endif
 
 #ifdef PBRT_IS_WINDOWS
 static LONG WINAPI handleExceptions(PEXCEPTION_POINTERS info) {
@@ -126,6 +130,9 @@ void InitPBRT(const PBRTOptions &opt) {
     }
 
     InitBufferCaches();
+#if defined(PBRT_WITH_OSL)
+    InitOSL();
+#endif
 
     if (Options->interactive) {
         GUI::Initialize();
@@ -153,6 +160,9 @@ void CleanupPBRT() {
 
     // API Cleanup
     ParallelCleanup();
+#if defined(PBRT_WITH_OSL)
+    CleanupOSL();
+#endif
 
     ShutdownLogging();
 

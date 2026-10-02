@@ -907,7 +907,7 @@ FloatTexture FloatScaledTexture::Create(const Transform &renderFromTexture,
                 imageCopy->MultiplyScale(cs);
                 return imageCopy;
             }
-#if defined(PBRT_BUILD_GPU_RENDERER)
+#if defined(PBRT_BUILD_GPU_RENDERER) && defined(__NVCC__)
             else if (GPUFloatImageTexture *gimage =
                          tex.CastOrNullptr<GPUFloatImageTexture>()) {
                 GPUFloatImageTexture *gimageCopy =
@@ -942,7 +942,7 @@ SpectrumTexture SpectrumScaledTexture::Create(
             imageCopy->MultiplyScale(cs);
             return imageCopy;
         }
-#if defined(PBRT_BUILD_GPU_RENDERER)
+#if defined(PBRT_BUILD_GPU_RENDERER) && defined(__NVCC__)
         else if (GPUSpectrumImageTexture *gimage =
                      tex.CastOrNullptr<GPUSpectrumImageTexture>()) {
             GPUSpectrumImageTexture *gimageCopy =
@@ -987,7 +987,7 @@ WrinkledTexture *WrinkledTexture::Create(const Transform &renderFromTexture,
                                              parameters.GetOneFloat("roughness", .5f));
 }
 
-#if defined(PBRT_BUILD_GPU_RENDERER)
+#if defined(PBRT_BUILD_GPU_RENDERER) && defined(__NVCC__)
 
 struct LuminanceTextureCacheItem {
     cudaMipmappedArray_t mipArray;
@@ -1493,7 +1493,17 @@ FloatTexture FloatTexture::Create(const std::string &name,
             tex = GPUFloatPtexTexture::Create(renderFromTexture, parameters, loc, alloc);
         else
             tex = FloatPtexTexture::Create(renderFromTexture, parameters, loc, alloc);
-    } else
+    }
+#if defined(PBRT_WITH_OSL)
+    else if (name == "osl") {
+        std::string filename = parameters.GetOneString("filename", "");
+        if (filename.empty()) {
+            ErrorExit(loc, "OSL texture requires a \"filename\" string parameter.");
+        }
+        tex = alloc.new_object<OSLFloatTexture>(filename, parameters);
+    }
+#endif
+    else
         ErrorExit(loc, "%s: float texture type unknown.", name);
 
     if (!tex)
@@ -1548,7 +1558,17 @@ SpectrumTexture SpectrumTexture::Create(const std::string &name,
         else
             tex = SpectrumPtexTexture::Create(renderFromTexture, parameters, spectrumType,
                                               loc, alloc);
-    } else
+    }
+#if defined(PBRT_WITH_OSL)
+    else if (name == "osl") {
+        std::string filename = parameters.GetOneString("filename", "");
+        if (filename.empty()) {
+            ErrorExit(loc, "OSL texture requires a \"filename\" string parameter.");
+        }
+        tex = alloc.new_object<OSLSpectrumTexture>(filename, parameters, spectrumType);
+    }
+#endif
+    else
         ErrorExit(loc, "%s: spectrum texture type unknown.", name);
 
     if (!tex)

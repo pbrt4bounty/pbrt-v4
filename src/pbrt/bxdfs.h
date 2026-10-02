@@ -1200,6 +1200,185 @@ class NormalizedFresnelBxDF {
   private:
     Float eta;
 };
+#if defined(PBRT_WITH_OSL)
+// OSLBxDF Definition
+class OSLBxDF {
+public:
+    enum Type { DIFFUSE, DIELECTRIC, CONDUCTOR };
+
+    // Holds the physics engines inline to prevent heap allocations
+    struct Component {
+        Type type;
+        SampledSpectrum weight;
+        DiffuseBxDF diffuse;
+        DielectricBxDF dielectric;
+        ConductorBxDF conductor;
+        
+        PBRT_CPU_GPU
+        Component() : type(DIFFUSE), weight(0.f), diffuse(SampledSpectrum(0.f)), 
+                      dielectric(1.f, TrowbridgeReitzDistribution(0,0)), 
+                      conductor(TrowbridgeReitzDistribution(0,0), SampledSpectrum(1.f), SampledSpectrum(1.f)) {}
+    };
+
+    static constexpr int MaxClosures = 8;
+    Component closures[MaxClosures];
+    int numClosures = 0;
+
+    PBRT_CPU_GPU 
+    OSLBxDF() = default;
+
+    PBRT_CPU_GPU 
+    static constexpr const char *Name() { return "OSLBxDF"; }
+    
+    std::string ToString() const { return "[ OSLBxDF ]"; }
+
+    PBRT_CPU_GPU
+    void AddDiffuse(const SampledSpectrum& weight, const DiffuseBxDF& bxdf) {
+        if (numClosures < MaxClosures) {
+            closures[numClosures].type = DIFFUSE;
+            closures[numClosures].weight = weight;
+            closures[numClosures].diffuse = bxdf;
+            numClosures++;
+        }
+    }
+    
+    PBRT_CPU_GPU
+    void AddDielectric(const SampledSpectrum& weight, const DielectricBxDF& bxdf) {
+        if (numClosures < MaxClosures) {
+            closures[numClosures].type = DIELECTRIC;
+            closures[numClosures].weight = weight;
+            closures[numClosures].dielectric = bxdf;
+            numClosures++;
+        }
+    }
+
+    PBRT_CPU_GPU
+    void AddConductor(const SampledSpectrum& weight, const ConductorBxDF& bxdf) {
+        if (numClosures < MaxClosures) {
+            closures[numClosures].type = CONDUCTOR;
+            closures[numClosures].weight = weight;
+            closures[numClosures].conductor = bxdf;
+            numClosures++;
+        }
+    }
+
+    // --- Core PBRT Interface Methods ---
+    PBRT_CPU_GPU
+    BxDFFlags Flags() const {
+        BxDFFlags flags = BxDFFlags::Unset;
+        for (int i = 0; i < numClosures; ++i) {
+            if (closures[i].type == DIFFUSE) flags |= closures[i].diffuse.Flags();
+            else if (closures[i].type == DIELECTRIC) flags |= closures[i].dielectric.Flags();
+            else if (closures[i].type == CONDUCTOR) flags |= closures[i].conductor.Flags();
+        }
+        return flags;
+    }
+
+    PBRT_CPU_GPU
+    void Regularize() {
+        for (int i = 0; i < numClosures; ++i) {
+            if (closures[i].type == DIFFUSE) closures[i].diffuse.Regularize();
+            else if (closures[i].type == DIELECTRIC) closures[i].dielectric.Regularize();
+            else if (closures[i].type == CONDUCTOR) closures[i].conductor.Regularize();
+        }
+    }
+
+    PBRT_CPU_GPU
+    SampledSpectrum f(Vector3f wo, Vector3f wi, TransportMode mode) const {
+        SampledSpectrum result(0.f);
+        for (int i = 0; i < numClosures; ++i) {
+            SampledSpectrum val(0.f);
+            if (closures[i].type == DIFFUSE) val = closures[i].diffuse.f(wo, wi, mode);
+            else if (closures[i].type == DIELECTRIC) val = closures[i].dielectric.f(wo, wi, mode);
+            else if (closures[i].type == CONDUCTOR) val = closures[i].conductor.f(wo, wi, mode);
+            if (IsNaN(val.MaxComponentValue())) continue;
+            result += closures[i].weight * val;
+        }
+        return result;
+    }
+
+    PBRT_CPU_GPU
+    Float PDF(Vector3f wo, Vector3f wi, TransportMode mode, BxDFReflTransFlags sampleFlags = BxDFReflTransFlags::All) const {
+        if (numClosures == 0) return 0.f;
+        Float sumWeights = 0.f;
+        Float p[MaxClosures];
+        for (int i = 0; i < numClosures; ++i) {
+            p[i] = closures[i].weight.MaxComponentValue();
+            sumWeights += p[i];
+        }
+        if (sumWeights == 0.f) return 0.f;
+
+        Float pdf = 0.f;
+        for (int i = 0; i < numClosures; ++i) {
+            Float val = 0.f;
+            if (closures[i].type == DIFFUSE) val = closures[i].diffuse.PDF(wo, wi, mode, sampleFlags);
+            else if (closures[i].type == DIELECTRIC) val = closures[i].dielectric.PDF(wo, wi, mode, sampleFlags);
+            else if (closures[i].type == CONDUCTOR) val = closures[i].conductor.PDF(wo, wi, mode, sampleFlags);
+            pdf += (p[i] / sumWeights) * val;
+        }
+        return pdf;
+    }
+
+    PBRT_CPU_GPU
+    pstd::optional<BSDFSample> Sample_f(Vector3f wo, Float u, Point2f u2, TransportMode mode, BxDFReflTransFlags sampleFlags = BxDFReflTransFlags::All) const {
+        if (numClosures == 0) return {};
+        
+        // 1. Calculate selection probabilities
+        Float sumWeights = 0.f;
+        Float p[MaxClosures];
+        for (int i = 0; i < numClosures; ++i) {
+            p[i] = closures[i].weight.MaxComponentValue();
+            sumWeights += p[i];
+        }
+        if (sumWeights == 0.f) return {};
+        for (int i = 0; i < numClosures; ++i) p[i] /= sumWeights;
+
+        // 2. Select a closure based on random float 'u'
+        int comp = 0;
+        Float sumP = 0.f;
+        for (int i = 0; i < numClosures; ++i) {
+            sumP += p[i];
+            if (u < sumP || i == numClosures - 1) {
+                comp = i;
+                // Safely remap u for the chosen closure's internal sampling
+                if (p[i] > 0.f) {
+                    u = Clamp((u - (sumP - p[i])) / p[i], 0.f, 1.f);
+                } else {
+                    u = 0.5f;  // Safe fallback if precision forces a 0-weight hit
+                }
+                break;
+            }
+        }
+
+        // 3. Sample the chosen closure
+        pstd::optional<BSDFSample> bs;
+        if (closures[comp].type == DIFFUSE) bs = closures[comp].diffuse.Sample_f(wo, u, u2, mode, sampleFlags);
+        else if (closures[comp].type == DIELECTRIC) bs = closures[comp].dielectric.Sample_f(wo, u, u2, mode, sampleFlags);
+        else if (closures[comp].type == CONDUCTOR) bs = closures[comp].conductor.Sample_f(wo, u, u2, mode, sampleFlags);
+
+        if (!bs || !bs->f || bs->pdf == 0.f) return {};
+        if (IsNaN(bs->pdf) || bs->pdf <= 0.f)
+            return {};
+        if (IsNaN(bs->f.MaxComponentValue()))
+            return {};
+
+        // 4. Calculate final blended weights
+        if (!bs->IsSpecular()) {  // Blurry/Diffuse reflection
+            bs->f = f(wo, bs->wi, mode);
+            bs->pdf = PDF(wo, bs->wi, mode, sampleFlags);
+        } else {                  // Perfect mirror/glass reflection (Delta Distribution)
+            bs->f *= closures[comp].weight;
+            bs->pdf *= p[comp];
+        }
+        
+        if (IsNaN(bs->pdf) || bs->pdf <= 0.f)
+            return {};
+        if (IsNaN(bs->f.MaxComponentValue()))
+            return {};
+        return bs;
+    }
+};
+#endif
 
 PBRT_CPU_GPU inline SampledSpectrum BxDF::f(Vector3f wo, Vector3f wi, TransportMode mode) const {
     auto f = [&](auto ptr) -> SampledSpectrum { return ptr->f(wo, wi, mode); };

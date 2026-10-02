@@ -164,6 +164,9 @@ class CoatedConductorBxDF;
 #if defined(PBRT_WITH_UNDERWATER)
 class WaterSurfaceBxDF;
 #endif
+#if defined(PBRT_WITH_OSL)
+class OSLBxDF;
+#endif
 
 // BxDF Definition
 class BxDF
@@ -173,6 +176,10 @@ class BxDF
 #if defined(PBRT_WITH_UNDERWATER)
                            ,
                            WaterSurfaceBxDF
+#endif
+#if defined(PBRT_WITH_OSL)
+                           ,
+                           OSLBxDF
 #endif
                            > {
   public:

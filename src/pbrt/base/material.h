@@ -34,6 +34,9 @@ class MixMaterial;
 #if defined(PBRT_WITH_UNDERWATER)
 class WaterSurfaceMaterial;
 #endif
+#if defined(PBRT_WITH_OSL)
+class OSLMaterial;
+#endif
 
 // Material Definition
 class Material
@@ -44,6 +47,10 @@ class Material
 #if defined(PBRT_WITH_UNDERWATER)
           ,
           WaterSurfaceMaterial
+#endif
+#if defined(PBRT_WITH_OSL)
+          ,
+          OSLMaterial
 #endif
           > {
   public:

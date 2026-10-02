@@ -30,6 +30,10 @@ class FloatScaledTexture;
 class WindyTexture;
 class WrinkledTexture;
 
+#if defined(PBRT_WITH_OSL)
+class OSLFloatTexture;
+#endif
+
 // FloatTexture Definition
 class FloatTexture
     : public TaggedPointer<  // FloatTextures
@@ -37,7 +41,10 @@ class FloatTexture
           FloatDirectionMixTexture, FloatScaledTexture, FloatConstantTexture,
           FloatBilerpTexture, FloatCheckerboardTexture, FloatDotsTexture, FBmTexture,
           FloatPtexTexture, GPUFloatPtexTexture, WindyTexture, WrinkledTexture
-
+#if defined(PBRT_WITH_OSL)
+          ,
+          OSLFloatTexture
+#endif
           > {
   public:
     // FloatTexture Interface
@@ -68,6 +75,10 @@ class SpectrumPtexTexture;
 class GPUSpectrumPtexTexture;
 class SpectrumScaledTexture;
 
+#if defined(PBRT_WITH_OSL)
+class OSLSpectrumTexture;
+#endif
+
 // SpectrumTexture Definition
 class SpectrumTexture
     : public TaggedPointer<  // SpectrumTextures
@@ -75,7 +86,10 @@ class SpectrumTexture
           SpectrumDirectionMixTexture, SpectrumScaledTexture, SpectrumConstantTexture,
           SpectrumBilerpTexture, SpectrumCheckerboardTexture, MarbleTexture,
           SpectrumDotsTexture, SpectrumPtexTexture, GPUSpectrumPtexTexture
-
+#if defined(PBRT_WITH_OSL)
+          ,
+          OSLSpectrumTexture
+#endif
           > {
   public:
     // SpectrumTexture Interface

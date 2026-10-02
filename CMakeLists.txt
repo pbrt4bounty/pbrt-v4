@@ -137,6 +137,14 @@ if(PBRT_WITH_UNDERWATER)
 endif()
 
 #######################################
+# OSL..
+option(PBRT_WITH_OSL "Build PBRT with experimental OSL support." OFF)
+
+if(PBRT_WITH_OSL)
+  list (APPEND PBRT_DEFINITIONS "PBRT_WITH_OSL")
+endif()
+
+#######################################
 ## ext
 
 set (BUILD_SHARED_LIBS OFF)
@@ -186,7 +194,7 @@ else ()
   message (SEND_ERROR "Unknown system name: " + CMAKE_SYSTEM_NAME)
 endif()
 if (CMAKE_SYSTEM_NAME STREQUAL Darwin)
-  add_definitions(-Wno-deprecated-declarations -Wno-deprecated-non-prototype) # silent deprecated 'snprintf' message
+  add_definitions(-Wno-deprecated-declarations -Wno-deprecated-non-prototype) # silent deprecated 'snprintf' message under MacOS arm64
 endif()
 # libgoogle-perftools-dev
 find_library (PROFILE_LIB profiler)
@@ -298,6 +306,7 @@ if (CMAKE_CUDA_COMPILER)
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=550>" # variable was set but never used
                 # WAR invalid warnings about this with "if constexpr"
                 #"$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=20011>" # calling a __host__ function is not allowed
+                #"$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=20012>" # for OSL?
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=20014>" # calling a __host__ function from a __host__ __device__ function is not allowed
                 "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcudafe --diag_suppress=implicit_return_from_non_void_function>"
         )
@@ -597,6 +606,10 @@ endif()
 
 ###########################################################################
 # On to pbrt...
+if (PBRT_WITH_OSL)
+  set (PBRT_OSL_SOURCE src/pbrt/osl.cpp)
+endif()
+
 
 set (PBRT_SOURCE
   src/pbrt/bsdf.cpp
@@ -621,7 +634,9 @@ set (PBRT_SOURCE
   src/pbrt/textures.cpp
 
   src/pbrt/cmd/pspec_gpu.cpp
+  ${PBRT_OSL_SOURCE}
   )
+
 if (PBRT_WITH_PROCEDURAL)
   set (PBRT_SOURCE ${PBRT_SOURCE}
     src/pbrt/pcgUtil/pbrt_exporter.cpp
@@ -805,6 +820,7 @@ if (PBRT_CUDA_ENABLED)
   set (PBRT_GPU_SOURCE
     src/pbrt/gpu/optix/aggregate.cpp
     src/pbrt/gpu/optix/denoiser.cpp
+    #src/pbrt/gpu/optix/scaler.cpp
     src/pbrt/gpu/memory.cpp
     src/pbrt/gpu/util.cpp
   )
@@ -812,6 +828,7 @@ if (PBRT_CUDA_ENABLED)
     src/pbrt/gpu/optix/aggregate.h
     src/pbrt/gpu/cudagl.h
     src/pbrt/gpu/optix/denoiser.h
+    #src/pbrt/gpu/optix/scaler.h
     src/pbrt/gpu/memory.h
     src/pbrt/gpu/optix/optix.h
     src/pbrt/gpu/util.h
@@ -856,12 +873,13 @@ if (PBRT_CUDA_ENABLED)
    src/pbrt/util/transform.cpp
    src/pbrt/util/vecmath.cpp
 
-    ${PBRT_WAVEFRONT_SOURCE}
-    ${PBRT_GPU_SOURCE}
+   ${PBRT_WAVEFRONT_SOURCE}
+   ${PBRT_GPU_SOURCE}
+   ${PBRT_OSL_SOURCE}
 
-    src/pbrt/cmd/pspec_gpu.cpp
+   src/pbrt/cmd/pspec_gpu.cpp
 
-    PROPERTIES LANGUAGE CUDA
+   PROPERTIES LANGUAGE CUDA
   )
 
   cuda_compile_and_embed (PBRT_EMBEDDED_PTX src/pbrt/gpu/optix/optix.cu optix.cu)
@@ -961,6 +979,8 @@ target_include_directories (pbrt_lib PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR}
   ${GLFW_INCLUDE}
   ${GLAD_INCLUDE}
+  ${PBRT_OIIO_INC}
+  ${PBRT_OSL_INC}
 )
 
 if (PBRT_CUDA_ENABLED AND PBRT_OPTIX_PATH)
@@ -978,6 +998,14 @@ if (WIN32)
   set_target_properties (pbrt_lib PROPERTIES OUTPUT_NAME libpbrt)
 endif()
 
+if (PBRT_WITH_OSL)
+  find_library(OSL_EXEC_LIB oslexec HINTS ${PBRT_OSL_LIB})
+  find_library(OSL_COMP_LIB oslcomp HINTS ${PBRT_OSL_LIB})
+  find_library(OSL_QUERY_LIB oslquery HINTS ${PBRT_OSL_LIB})
+  find_library(OIIO_LIB OpenImageIO HINTS ${PBRT_OIIO_LIB})
+  find_library(OIIO_UTIL_LIB OpenImageIO_Util HINTS ${PBRT_OIIO_LIB})
+endif ()
+
 set (ALL_PBRT_LIBS
   pbrt_lib
   ${CMAKE_THREAD_LIBS_INIT}
@@ -992,6 +1020,16 @@ set (ALL_PBRT_LIBS
   glad
   OpenGL::GL
 )
+
+  if (PBRT_WITH_OSL)
+    list (APPEND ALL_PBRT_LIBS 
+      ${OSL_EXEC_LIB}
+      ${OSL_COMP_LIB}
+      ${OSL_QUERY_LIB}
+      ${OIIO_LIB}
+      ${OIIO_UTIL_LIB}
+    )
+  endif ()
 
 if (PBRT_CUDA_ENABLED)
   set_property (TARGET pbrt_lib PROPERTY CUDA_SEPARABLE_COMPILATION ON)
@@ -1209,16 +1247,25 @@ endif()
 # Installation
 if (BUILD_TOOLS)
   install (TARGETS
-    pbrt_exe
-    imgtool
-    pspec
-    plytool
-    cyhair2pbrt
-    DESTINATION
-    bin
+  pbrt_exe
+  imgtool
+  pspec
+  plytool
+  cyhair2pbrt
+  DESTINATION
+  bin
   )
 else()
   install (TARGETS pbrt_exe DESTINATION bin )
 endif()
 
 install (TARGETS pbrt_lib DESTINATION lib )
+
+# Use C++20 for OSL-related contents
+if (PBRT_WITH_OSL)
+  if (MSVC)
+    set_source_files_properties(src/pbrt/osl.cpp PROPERTIES LANGUAGE CXX COMPILE_FLAGS "/utf-8")
+  else()
+    set_source_files_properties(src/pbrt/osl.cpp PROPERTIES LANGUAGE CXX COMPILE_FLAGS "-std=c++20")
+  endif()
+endif()

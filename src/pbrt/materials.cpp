@@ -661,6 +661,10 @@ Material Material::Create(const std::string &name,
         material = MeasuredMaterial::Create(parameters, normalMap, loc, alloc);
     else if (name == "subsurface")
         material = SubsurfaceMaterial::Create(parameters, normalMap, loc, alloc);
+#if defined(PBRT_WITH_OSL)
+    else if (name == "osl")
+        material = OSLMaterial::Create(parameters, normalMap, loc, alloc);
+#endif
     else if (name == "mix") {
         std::vector<std::string> materialNames = parameters.GetStringArray("materials");
         if (materialNames.size() != 2)
