@@ -1,0 +1,21 @@
+shader image_reader(
+    string texname = "",
+    float scale = 1.0,
+    output color Cout = 0
+) {
+    if (texname != "") {
+        // The built-in texture() function will automatically talk to OpenImageIO and load the file
+        // Read the texture with 'periodic' wrapping so it repeats infinitely
+        color raw_color = texture(texname, u * scale, v * scale, "wrap", "periodic");
+        
+        // Convert from sRGB to Linear Space (Gamma Decoding)
+        Cout = color(
+            pow(raw_color[0], 2.2), 
+            pow(raw_color[1], 2.2), 
+            pow(raw_color[2], 2.2)
+        );
+    } else {
+        // Return bright magenta if no texture is provided
+        Cout = color(1, 0, 1); 
+    }
+}

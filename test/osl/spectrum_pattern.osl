@@ -1,0 +1,12 @@
+shader spectrum_pattern(
+    float scale = 10.0,
+    output color Cout = color(0)
+) {
+    // Generate a trippy colored grid
+    float r = sin(u * scale) * cos(v * scale);
+    float g = cos(u * scale * 1.5) * sin(v * scale);
+    float b = sin(u * scale * 0.5) * cos(v * scale * 2.0);
+    
+    // Remap from [-1, 1] to [0, 1]
+    Cout = color(r * 0.5 + 0.5, g * 0.5 + 0.5, b * 0.5 + 0.5);
+}

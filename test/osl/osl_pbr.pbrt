@@ -1,0 +1,26 @@
+LookAt 0 0 -3   # Camera position
+       0 0 0    # Looking at origin
+       0 1 0    # Up vector
+
+Camera "perspective" "float fov" [40]
+
+Sampler "halton" "integer pixelsamples" [64]
+Integrator "path"
+Film "rgb" "string filename" ["osl_pbr.png"] 
+    "integer xresolution" [800] "integer yresolution" [800]
+
+WorldBegin
+
+# A simple white light
+LightSource "distant" "point3 from" [0 5 -5] "point3 to" [0 0 0] 
+    "rgb L" [5 5 5]
+
+# Now Material controls everything
+Material "osl" 
+    "string filename" "pbr_test"
+    "vector3 base_color" [ 0.05 0.2 0.8 ]
+    "float roughness" [ 0.3 ]
+    "float metallic" [ 0.0 ]
+
+# Draw a sphere
+Shape "sphere" "float radius" [1]

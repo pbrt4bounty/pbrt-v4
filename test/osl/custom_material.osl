@@ -1,0 +1,12 @@
+surface custom_material(
+    color albedo = color(0.8, 0.1, 0.1),
+    float mix_weight = 0.5
+) {
+    // We can query OpenImageIO directly for the albedo color!
+    color raw_tex = texture("grid.jpg", u*5, v*5, "wrap", "periodic");
+    color linear_tex = transformc("sRGB", "linear", raw_tex);
+
+    // Ci is already available globally, just write to it
+    Ci = (linear_tex * mix_weight) * diffuse(N) + 
+         (color(1) * (1.0 - mix_weight)) * diffuse(N);
+}

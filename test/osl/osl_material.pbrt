@@ -1,0 +1,24 @@
+LookAt 0 0 -3   # Camera position
+       0 0 0    # Looking at origin
+       0 1 0    # Up vector
+
+Camera "perspective" "float fov" [40]
+
+Sampler "halton" "integer pixelsamples" [64]
+Integrator "path"
+Film "rgb" "string filename" ["osl_material.png"] 
+    "integer xresolution" [800] "integer yresolution" [800]
+
+WorldBegin
+
+# A simple white light
+LightSource "distant" "point3 from" [0 5 -5] "point3 to" [0 0 0] 
+    "rgb L" [5 5 5]
+
+# Now Material controls everything
+Material "osl" 
+    "string filename" "custom_material"
+    "float mix_weight" [ 1.0 ]
+
+# Draw a sphere
+Shape "sphere" "float radius" [1]

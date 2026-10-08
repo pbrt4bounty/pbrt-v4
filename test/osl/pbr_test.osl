@@ -1,0 +1,34 @@
+// Define the necessary closures
+closure color pbrt_diffuse(normal N) [[ int builtin = 1 ]];
+closure color pbrt_microfacet(normal N, vector U, float xalpha, float yalpha, float eta, int refract) [[ int builtin = 1 ]];
+
+surface pbr_test(
+    color base_color = color(0.8, 0.1, 0.1),
+    float roughness = 0.1,
+    float metallic = 0.0,
+    float ior = 1.5
+) {
+    // Calculate a tangent vector for the microfacet closure
+    vector U = length(dPdu) > 0.0001 ? normalize(dPdu) : vector(1, 0, 0);
+
+    // Calculate a realistic Fresnel curve based on viewing angle
+    float cosTheta = clamp(abs(dot(I, N)), 0.0, 1.0);
+    float f0 = pow((1.0 - ior) / (1.0 + ior), 2.0);
+    float Fr = f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
+
+    // Define physical closures
+    closure color diffuse_comp = base_color * pbrt_diffuse(N);
+    closure color metal_comp   = base_color * pbrt_microfacet(N, U, roughness, roughness, ior, 0);
+    
+    // A highly polished clearcoat layer (roughness = 0.02)
+    closure color coat_comp    = color(1) * pbrt_microfacet(N, U, 0.02, 0.02, ior, 0);
+
+    // Build the final Closure Tree
+    if (metallic > 0.5) {
+        // Pure metals only use microfacet reflection (no diffuse base)
+        Ci = metal_comp;
+    } else {
+        // Dielectrics (Plastic/Wood/Ceramic) mix a diffuse base with a shiny reflection coat
+        Ci = ((1.0 - Fr) * diffuse_comp) + (Fr * coat_comp);
+    }
+}

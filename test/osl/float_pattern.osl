@@ -1,0 +1,12 @@
+shader float_pattern(
+    float scale = 10.0,      // Parameter 1
+    int iterations = 1,      // Parameter 2
+    output float Cout = 0.0
+) {
+    // A simple sine wave pattern that reacts to 'scale'
+    Cout = sin(u * scale) * cos(v * scale);
+
+    if (iterations > 1) {
+        Cout *= 0.5; 
+    }
+}
