@@ -1224,7 +1224,6 @@ public:
     Component closures[MaxClosures];
     int numClosures = 0;
 
-    PBRT_CPU_GPU 
     OSLBxDF() = default;
 
     PBRT_CPU_GPU 

@@ -21,11 +21,23 @@ namespace pbrt {
 // 1. OSL Renderer Services Bridge
 // ---------------------------------------------------------
 class PbrtRendererServices : public OSL::RendererServices {
-public:
-    bool get_matrix(OSL::ShaderGlobals *sg, OSL::Matrix44 &result, OSL::TransformationPtr xform, float time) override { return false; }
-    bool get_inverse_matrix(OSL::ShaderGlobals *sg, OSL::Matrix44 &result, OSL::TransformationPtr xform, float time) override { return false; }
-    //bool get_matrix(OSL::ShaderGlobals *sg, OSL::Matrix44 &result, OSL::ustring from, float time) { return false; }
-    //bool get_inverse_matrix(OSL::ShaderGlobals *sg, OSL::Matrix44 &result, OSL::ustring to, float time) { return false; }
+  public:
+    bool get_matrix(OSL::ShaderGlobals* sg, OSL::Matrix44& result,
+                    OSL::TransformationPtr xform, float time) override {
+        return false;
+    }
+    bool get_inverse_matrix(OSL::ShaderGlobals* sg, OSL::Matrix44& result,
+                            OSL::TransformationPtr xform, float time) override {
+        return false;
+    }
+    bool get_matrix(OSL::ShaderGlobals* sg, OSL::Matrix44& result, OSL::ustring from,
+                    float time) {
+        return false;
+    }
+    bool get_inverse_matrix(OSL::ShaderGlobals* sg, OSL::Matrix44& result,
+                            OSL::ustring to, float time) {
+        return false;
+    }
 };
 
 // ---------------------------------------------------------
