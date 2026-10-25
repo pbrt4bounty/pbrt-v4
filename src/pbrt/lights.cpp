@@ -791,11 +791,23 @@ pstd::optional<LightBounds> DiffuseAreaLight::Bounds() const {
     if (image) {
         // Compute average _DiffuseAreaLight_ image channel value
         // Assume no distortion in the mapping, FWIW...
+#if defined(PBRT_WITH_PARALLEL)
+        ParallelFor(0, image->Resolution().y, [&](int64_t y0, int64_t y1) {
+            for (int y = y0; y < y1; ++y) {
+                for (int x = 0; x < image->Resolution().x; ++x) {
+                    for (int c = 0; c < 3; ++c)
+                        phi += image->GetChannel({x, y}, c);
+                }
+            }
+            phi /= 3 * image->Resolution().x * image->Resolution().y;
+        });
+#else
         for (int y = 0; y < image->Resolution().y; ++y)
             for (int x = 0; x < image->Resolution().x; ++x)
                 for (int c = 0; c < 3; ++c)
                     phi += image->GetChannel({x, y}, c);
         phi /= 3 * image->Resolution().x * image->Resolution().y;
+#endif
     } else
         phi = Lemit->MaxValue();
     phi *= scale * area * Pi;
