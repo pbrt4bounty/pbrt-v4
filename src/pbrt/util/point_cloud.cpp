@@ -109,7 +109,7 @@ PointCloud PointCloud::ReadPLY(const std::string &filename) {
         ErrorExit("Unable to read the header of PLY file \"%s\"", filename);
 
     p_ply_element element = nullptr;
-    size_t point_count;
+    size_t point_count{};
 
     while ((element = ply_get_next_element(ply, element)) != nullptr) {
         const char *name;
