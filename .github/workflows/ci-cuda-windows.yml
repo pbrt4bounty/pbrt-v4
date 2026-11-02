@@ -25,11 +25,11 @@ jobs:
         optix: [ optix-9.0.0 ] # optix-7.7.0, optix-8.1.0,
         cuda: [ '12.9.1' ] #, '13.0.1', '13.1.1', '13.2.0' ]
         os: [ windows-2022 ]
-        include:
-          - os: windows-2022
-            cuda: '13.2.0'
-            optix: optix-9.0.0
-            upload_binary: true
+        #include:
+        #  - os: windows-2022
+        #    cuda: '13.2.0'
+        #    optix: optix-9.0.0
+        #    upload_binary: true
 
     name: GPU Windows Build Only (${{ matrix.os }}, CUDA ${{ matrix.cuda }}, ${{ matrix.optix }})
 
