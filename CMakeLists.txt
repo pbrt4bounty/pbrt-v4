@@ -747,6 +747,15 @@ SET (PBRT_UTIL_SOURCE
   src/ext/imgui/imgui_widgets.cpp
   src/ext/imgui/imgui_tables.cpp
 )
+# A warning about a deprecated function in C++17 but the solution will only be
+# in C++26.
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set_source_files_properties(
+        src/pbrt/util/string.cpp
+        PROPERTIES
+        COMPILE_FLAGS "-Wno-deprecated-declarations"
+    )
+endif()
 
 if (PBRT_WITH_POINTCLOUD)
   set (PBRT_UTIL_SOURCE 
@@ -979,7 +988,7 @@ set (ALL_PBRT_LIBS
   pbrt_lib
   ${CMAKE_THREAD_LIBS_INIT}
   OpenEXR::OpenEXR
-  Ptex_static
+  ${Ptex_static}
   ${ZLIB_LIBRARY}
   ${LIBDEFLATE_LIBRARIES}
   double-conversion
