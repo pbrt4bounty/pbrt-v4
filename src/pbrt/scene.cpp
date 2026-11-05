@@ -1064,7 +1064,7 @@ void BasicScene::SetOptions(SceneEntity filter, SceneEntity film,
         Allocator alloc = threadAllocators.Get();
         Medium cameraMedium = GetMedium(camera.medium, &camera.loc);
         if (cameraMedium)
-            std::cout << "Set Camera Medium with: " << camera.medium << std::endl;
+            LOG_VERBOSE("Set Camera Medium with: %s", camera.medium);
         Camera c = Camera::Create(camera.name, camera.parameters, cameraMedium,
                                   camera.cameraTransform, this->film, &camera.loc, alloc);
         LOG_VERBOSE("Finished creating camera");
