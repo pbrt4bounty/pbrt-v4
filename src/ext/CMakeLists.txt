@@ -72,20 +72,28 @@ find_package(OpenEXR)
 
 ###########################################################################
 # ptex
+find_package(Ptex)
 
-set (PTEX_BUILD_SHARED_LIBS OFF CACHE BOOL " " FORCE)
+if (Ptex_FOUND)
+  set (PTEX_INCLUDE ${Ptex_INCLUDE_DIRS} PARENT_SCOPE)
+  set (Ptex_static ${Ptex_LIBRARY_DIRS}/Ptex.lib PARENT_SCOPE)
+
+else()
+  message(STATUS "Ptex not found; building it from scratch.")
+  set (PTEX_BUILD_SHARED_LIBS OFF CACHE BOOL " " FORCE)
+  set (PTEX_BUILD_DOCS OFF CACHE BOOL " " FORCE)
+
+  add_subdirectory (ptex)
+
+  set_property (TARGET Ptex_static ptxinfo halftest ftest rtest wtest PROPERTY FOLDER "ext/ptex")
+
+  set (PTEX_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/ptex/src/ptex PARENT_SCOPE)
+endif()
 
 set (CMAKE_MACOSX_RPATH 1)
 if (WIN32)
   add_definitions (/DPTEX_STATIC)
 endif ()
-
-add_subdirectory (ptex)
-
-set_property (TARGET Ptex_static ptxinfo halftest ftest rtest wtest PROPERTY FOLDER "ext/ptex")
-
-set (PTEX_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/ptex/src/ptex PARENT_SCOPE)
-
 ###########################################################################
 # double-conversion
 
@@ -93,7 +101,10 @@ add_subdirectory (double-conversion)
 
 set (DOUBLE_CONVERSION_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/double-conversion PARENT_SCOPE)
 
-set_property (TARGET double-conversion cctest PROPERTY FOLDER "ext")
+set_property (TARGET double-conversion PROPERTY FOLDER "ext")
+if (TARGET cctest)
+  set_property (TARGET cctest PROPERTY FOLDER "ext")
+endif()
 
 ###########################################################################
 # nanovdb

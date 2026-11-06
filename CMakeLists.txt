@@ -984,9 +984,10 @@ target_include_directories (pbrt_lib PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR}
   ${GLFW_INCLUDE}
   ${GLAD_INCLUDE}
-  ${PBRT_OIIO_INC}
-  ${PBRT_OSL_INC}
 )
+if (PBRT_WITH_OSL)
+  target_include_directories (pbrt_lib PUBLIC ${PBRT_OIIO_INC} ${PBRT_OSL_INC})
+endif()
 
 if (PBRT_CUDA_ENABLED AND PBRT_OPTIX_PATH)
     target_include_directories (pbrt_lib SYSTEM PUBLIC ${PBRT_OPTIX_PATH}/include)
@@ -1015,7 +1016,6 @@ set (ALL_PBRT_LIBS
   pbrt_lib
   ${CMAKE_THREAD_LIBS_INIT}
   OpenEXR::OpenEXR
-  Ptex_static
   ${ZLIB_LIBRARY}
   ${LIBDEFLATE_LIBRARIES}
   double-conversion
@@ -1025,16 +1025,21 @@ set (ALL_PBRT_LIBS
   glad
   OpenGL::GL
 )
+if (TARGET Ptex_static)
+  list (APPEND ALL_PBRT_LIBS Ptex_static)
+else()
+  list (APPEND ALL_PBRT_LIBS ${Ptex_static})
+endif ()
 
-  if (PBRT_WITH_OSL)
-    list (APPEND ALL_PBRT_LIBS 
-      ${OSL_EXEC_LIB}
-      ${OSL_COMP_LIB}
-      ${OSL_QUERY_LIB}
-      ${OIIO_LIB}
-      ${OIIO_UTIL_LIB}
-    )
-  endif ()
+if (PBRT_WITH_OSL)
+  list (APPEND ALL_PBRT_LIBS 
+    ${OSL_EXEC_LIB}
+    ${OSL_COMP_LIB}
+    ${OSL_QUERY_LIB}
+    ${OIIO_LIB}
+    ${OIIO_UTIL_LIB}
+  )
+endif ()
 
 if (PBRT_CUDA_ENABLED)
   set_property (TARGET pbrt_lib PROPERTY CUDA_SEPARABLE_COMPILATION ON)
