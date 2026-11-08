@@ -1,7 +1,7 @@
 shader image_reader(
-    string texname = "",
+    string texname = "" [[string widget="filename"]],
     float scale = 1.0,
-    output color Cout = 0
+    output color Cout = (0)
 ) {
     if (texname != "") {
         // The built-in texture() function will automatically talk to OpenImageIO and load the file
