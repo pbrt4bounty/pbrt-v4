@@ -1067,9 +1067,11 @@ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &l
                         SampledSpectrum sigma_n =
                             ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
                         Float pdf = T_maj[0] * sigma_n[0];
-                        beta *= T_maj * sigma_n / pdf;
-                        if (pdf == 0)
+                        if (pdf == 0) {
                             beta = SampledSpectrum(0.f);
+                            return false;
+                        }
+                        beta *= T_maj * sigma_n / pdf;
                         r_u *= T_maj * sigma_n / pdf;
                         r_l *= T_maj * sigma_maj / pdf;
                         return beta && r_u;
@@ -1357,6 +1359,10 @@ SampledSpectrum VolPathIntegrator::SampleLd(const Interaction &intr, const BSDF 
                                 SampledSpectrum sigma_n =
                                     ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
                                 Float pdf = T_maj[0] * sigma_maj[0];
+                                if (pdf == 0){
+                                    T_ray = SampledSpectrum(0.);
+                                    return false;
+                                }
                                 T_ray *= T_maj * sigma_n / pdf;
                                 r_l *= T_maj * sigma_maj / pdf;
                                 r_u *= T_maj * sigma_n / pdf;
@@ -2048,10 +2054,12 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
                         SampledSpectrum sigma_n =
                             ClampZero(sigma_maj - mp.sigma_a - mp.sigma_s);
                         Float pdf = T_maj[0] * sigma_n[0];
-                        if (pdf == 0)
+                        if (pdf == 0) {
                             beta = SampledSpectrum(0.f);
-                        else
-                            beta *= T_maj * sigma_n / pdf;
+                            return false;
+                        }
+                        //else
+                        beta *= T_maj * sigma_n / pdf;
                         return bool(beta);
                     }
                 });
