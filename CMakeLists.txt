@@ -988,7 +988,6 @@ set (ALL_PBRT_LIBS
   pbrt_lib
   ${CMAKE_THREAD_LIBS_INIT}
   OpenEXR::OpenEXR
-  ${Ptex_static}
   ${ZLIB_LIBRARY}
   ${LIBDEFLATE_LIBRARIES}
   double-conversion
@@ -998,6 +997,11 @@ set (ALL_PBRT_LIBS
   glad
   OpenGL::GL
 )
+if (TARGET Ptex_static)
+  list (APPEND ALL_PBRT_LIBS Ptex_static)
+else()
+  list (APPEND ALL_PBRT_LIBS ${Ptex_static})
+endif()
 
 if (PBRT_CUDA_ENABLED)
   set_property (TARGET pbrt_lib PROPERTY CUDA_SEPARABLE_COMPILATION ON)
